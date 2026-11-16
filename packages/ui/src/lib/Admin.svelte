@@ -2,7 +2,10 @@
 	// SPIKE (Phase 0): admin shell rendered by the generated route file. The internal router
 	// output comes from @kitcms/core/sveltekit/admin's `load`.
 	import { resolve } from '$app/paths';
+	import { enhance } from '$app/forms';
 	import EditForm from './EditForm.svelte';
+	import FirstUser from './FirstUser.svelte';
+	import Login from './Login.svelte';
 	import type {
 		AdminActionFailure,
 		AdminActionResult,
@@ -18,14 +21,24 @@
 </script>
 
 <div class="kitcms-admin">
-	<nav>
-		<a href={resolve(ADMIN, { path: '' })}>Dashboard</a>
-		{#each data.collections as c (c.slug)}
-			<a href={resolve(ADMIN, { path: `collections/${c.slug}` })}>{c.slug}</a>
-		{/each}
-	</nav>
+	{#if data.user}
+		<nav>
+			<a href={resolve(ADMIN, { path: '' })}>Dashboard</a>
+			{#each data.collections as c (c.slug)}
+				<a href={resolve(ADMIN, { path: `collections/${c.slug}` })}>{c.slug}</a>
+			{/each}
+			<form method="POST" action="?/logout" use:enhance>
+				<span data-testid="whoami">{data.user.email}</span>
+				<button>Log out</button>
+			</form>
+		</nav>
+	{/if}
 
-	{#if data.route.view === 'dashboard'}
+	{#if data.route.view === 'login'}
+		<Login message={form?.message} />
+	{:else if data.route.view === 'create-first-user'}
+		<FirstUser message={form?.message} />
+	{:else if data.route.view === 'dashboard'}
 		<h1>Dashboard</h1>
 		<p data-testid="marker">kitcms admin v0</p>
 	{:else if data.route.view === 'list' && data.meta}
@@ -56,6 +69,7 @@
 	}
 	nav {
 		display: flex;
+		align-items: center;
 		gap: 1rem;
 	}
 </style>
