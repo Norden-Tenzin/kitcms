@@ -1,0 +1,8 @@
+dist
+.svelte-kit
+.wrangler
+node_modules
+coverage
+pnpm-lock.yaml
+plans
+.changeset

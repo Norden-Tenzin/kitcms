@@ -1,0 +1,11 @@
+plans/
+node_modules/
+.svelte-kit/
+.wrangler/
+dist/
+.env
+.dev.vars
+.turbo/
+*.tsbuildinfo
+coverage/
+.DS_Store

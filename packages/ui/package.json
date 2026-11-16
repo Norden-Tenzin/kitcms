@@ -1,0 +1,28 @@
+{
+	"name": "@kitcms/ui",
+	"version": "0.0.0",
+	"license": "MIT",
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"svelte": "./src/lib/index.ts",
+			"types": "./src/lib/index.ts",
+			"default": "./src/lib/index.ts"
+		}
+	},
+	"files": [
+		"src"
+	],
+	"peerDependencies": {
+		"svelte": "^5",
+		"@sveltejs/kit": "^3"
+	},
+	"devDependencies": {
+		"svelte-check": "^4.7.8",
+		"@sveltejs/package": "^3.0.2"
+	},
+	"scripts": {
+		"typecheck": "svelte-check --tsconfig ./tsconfig.json"
+	}
+}

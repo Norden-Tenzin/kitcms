@@ -1,0 +1,10 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "kitcms-dev-consumer",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-01",
+	"services": [
+		{ "binding": "CMS", "service": "kitcms-dev", "entrypoint": "KitcmsRPC" },
+		{ "binding": "SITE", "service": "kitcms-dev" },
+	],
+}
