@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default ts.config(
 	{
-		ignores: ['**/dist/**', '**/.svelte-kit/**', '**/.wrangler/**', '**/node_modules/**', '.claude/worktrees/**'],
+		ignores: ['**/dist/**', '**/.svelte-kit/**', '**/.wrangler/**', '**/node_modules/**', '.claude/worktrees/**', 'packages/core/spike/types/stress/**'],
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,

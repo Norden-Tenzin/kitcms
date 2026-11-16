@@ -10,3 +10,5 @@ dist/
 coverage/
 .DS_Store
 .claude/worktrees/
+packages/core/spike/types/stress/
+scripts/bench/out/
