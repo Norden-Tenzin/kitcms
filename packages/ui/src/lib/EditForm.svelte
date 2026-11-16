@@ -13,7 +13,15 @@
 </script>
 
 <h1>Edit: {values[meta.useAsTitle] || doc.id}</h1>
-<form method="POST" action="?/save" use:enhance>
+<!-- reset: false. enhance() calls form.reset() after a successful save by default, and with bind:value
+     that resets every field to an empty default (the edit form must keep showing the saved values). -->
+<form
+	method="POST"
+	action="?/save"
+	use:enhance={() =>
+		({ update }) =>
+			update({ reset: false })}
+>
 	{#each meta.editable as field (field)}
 		<label>
 			{field}
