@@ -16,11 +16,15 @@
 	],
 	"peerDependencies": {
 		"svelte": "^5",
-		"@sveltejs/kit": "^3"
+		"@sveltejs/kit": "^3",
+		"@kitcms/core": "workspace:^"
 	},
 	"devDependencies": {
 		"svelte-check": "^4.7.8",
-		"@sveltejs/package": "^3.0.2"
+		"@sveltejs/package": "^3.0.2",
+		"@kitcms/core": "workspace:*",
+		"@sveltejs/kit": "^3.2.0",
+		"svelte": "^5.57.3"
 	},
 	"scripts": {
 		"typecheck": "svelte-check --tsconfig ./tsconfig.json"

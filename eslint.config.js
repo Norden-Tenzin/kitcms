@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default ts.config(
 	{
-		ignores: ['**/dist/**', '**/.svelte-kit/**', '**/.wrangler/**', '**/node_modules/**'],
+		ignores: ['**/dist/**', '**/.svelte-kit/**', '**/.wrangler/**', '**/node_modules/**', '.claude/worktrees/**'],
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,
@@ -16,6 +16,10 @@ export default ts.config(
 	{
 		languageOptions: {
 			globals: { ...globals.node, ...globals.browser },
+		},
+		rules: {
+			// `declare global { namespace App { ... } }` is how SvelteKit types are augmented.
+			'@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
 		},
 	},
 	{

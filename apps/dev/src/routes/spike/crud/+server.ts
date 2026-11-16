@@ -1,6 +1,5 @@
 // SPIKE (Phase 0, data layer): CRUD on D1 through runtime-built Drizzle tables.
 import { env } from 'cloudflare:workers';
-import { json } from '@sveltejs/kit';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
@@ -94,60 +93,52 @@ export const GET: RequestHandler = async () => {
 	};
 	await time('create', () =>
 		db.batch([
-			db
-				.insert(media)
-				.values({
-					id: mediaId,
-					createdAt: now,
-					updatedAt: now,
-					filename: 'a.jpg',
-					key: `media/${mediaId}.jpg`,
-					mimeType: 'image/jpeg',
-					alt: 'A',
-				}),
-			db
-				.insert(pages)
-				.values({
-					...pageDoc,
-					id: relatedId,
-					slug: `${slug}-rel`,
-					title: 'Related',
-					_order: 'a1',
-					sections: [],
-					cover: mediaId,
-				}),
+			db.insert(media).values({
+				id: mediaId,
+				createdAt: now,
+				updatedAt: now,
+				filename: 'a.jpg',
+				key: `media/${mediaId}.jpg`,
+				mimeType: 'image/jpeg',
+				alt: 'A',
+			}),
+			db.insert(pages).values({
+				...pageDoc,
+				id: relatedId,
+				slug: `${slug}-rel`,
+				title: 'Related',
+				_order: 'a1',
+				sections: [],
+				cover: mediaId,
+			}),
 			db.insert(pages).values(pageDoc),
-			db
-				.insert(rels)
-				.values({
-					id: ulid(),
-					parentId: pageId,
-					path: 'related',
-					position: 0,
-					toCollection: 'pages',
-					toId: relatedId,
-				}),
+			db.insert(rels).values({
+				id: ulid(),
+				parentId: pageId,
+				path: 'related',
+				position: 0,
+				toCollection: 'pages',
+				toId: relatedId,
+			}),
 			db
 				.insert(versions)
 				.values({ id: ulid(), parentId: pageId, snapshot: pageDoc, createdAt: now }),
-			db
-				.insert(refs)
-				.values([
-					{
-						fromCollection: 'pages',
-						fromId: pageId,
-						path: 'cover',
-						toCollection: 'media',
-						toId: mediaId,
-					},
-					...sections.map((s, i) => ({
-						fromCollection: 'pages',
-						fromId: pageId,
-						path: `sections.${i}.image`,
-						toCollection: 'media',
-						toId: s.image,
-					})),
-				]),
+			db.insert(refs).values([
+				{
+					fromCollection: 'pages',
+					fromId: pageId,
+					path: 'cover',
+					toCollection: 'media',
+					toId: mediaId,
+				},
+				...sections.map((s, i) => ({
+					fromCollection: 'pages',
+					fromId: pageId,
+					path: `sections.${i}.image`,
+					toCollection: 'media',
+					toId: s.image,
+				})),
+			]),
 		]),
 	);
 
@@ -186,17 +177,15 @@ export const GET: RequestHandler = async () => {
 				.set({ title: 'Spike page (edited)', sections: newSections, updatedAt: new Date() })
 				.where(eq(pages.id, pageId)),
 			db.delete(refs).where(and(eq(refs.fromCollection, 'pages'), eq(refs.fromId, pageId))),
-			db
-				.insert(refs)
-				.values(
-					newSections.map((s, i) => ({
-						fromCollection: 'pages',
-						fromId: pageId,
-						path: `sections.${i}.image`,
-						toCollection: 'media',
-						toId: s.image,
-					})),
-				),
+			db.insert(refs).values(
+				newSections.map((s, i) => ({
+					fromCollection: 'pages',
+					fromId: pageId,
+					path: `sections.${i}.image`,
+					toCollection: 'media',
+					toId: s.image,
+				})),
+			),
 		]),
 	);
 	report.refsAfterUpdate = (
@@ -263,5 +252,5 @@ export const GET: RequestHandler = async () => {
 	};
 	await db.delete(pages).where(eq(pages.id, relatedId));
 
-	return json(report);
+	return Response.json(report);
 };
