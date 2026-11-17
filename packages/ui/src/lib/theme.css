@@ -144,6 +144,24 @@
 	color: var(--kc-success);
 	background: color-mix(in srgb, var(--kc-success) 8%, transparent);
 }
+.kitcms-admin .kc-badge {
+	display: inline-block;
+	padding: 0.1rem 0.5rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	border: 1px solid var(--kc-border);
+	border-radius: 999px;
+	color: var(--kc-muted);
+	white-space: nowrap;
+}
+.kitcms-admin .kc-badge--published {
+	border-color: var(--kc-success);
+	color: var(--kc-success);
+}
+.kitcms-admin .kc-badge--changed {
+	border-color: var(--kc-accent);
+	color: var(--kc-text);
+}
 .kitcms-admin .kc-muted {
 	color: var(--kc-muted);
 }

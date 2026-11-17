@@ -2,11 +2,12 @@
 	// Shown once, while the auth collection is empty: creates the first admin user.
 	import { enhance } from '$app/forms';
 
-	let { title, message }: { title: string; message?: string } = $props();
+	let { title, logo, message }: { title: string; logo?: string; message?: string } = $props();
 </script>
 
 <main class="auth">
 	<form class="kc-card" method="POST" action="?/createFirstUser" use:enhance>
+		{#if logo}<img class="logo" src={logo} alt={title} />{/if}
 		<h1>{title}</h1>
 		<p class="kc-muted">Create the first admin user.</p>
 		{#if message}<p class="kc-alert" role="alert" data-testid="error">{message}</p>{/if}
@@ -53,5 +54,10 @@
 	}
 	p {
 		margin: 0;
+	}
+	.logo {
+		height: 2.5rem;
+		width: auto;
+		justify-self: start;
 	}
 </style>

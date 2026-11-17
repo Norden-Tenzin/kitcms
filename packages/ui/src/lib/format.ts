@@ -1,7 +1,25 @@
 // Cell formatting for the list view.
 import type { ClientCollection, ClientField } from '@kitcms/core/client';
 
-const SYSTEM_LABELS: Record<string, string> = { id: 'ID', createdAt: 'Created', updatedAt: 'Updated' };
+const SYSTEM_LABELS: Record<string, string> = {
+	id: 'ID',
+	createdAt: 'Created',
+	updatedAt: 'Updated',
+	_status: 'Status',
+};
+
+/** Collections/globals with drafts (§13.4). `versions` is absent on hand-built test fixtures. */
+export function hasDrafts(collection: ClientCollection): boolean {
+	const v = collection.versions as ClientCollection['versions'] | undefined;
+	return v !== undefined && v !== false && v.drafts !== false;
+}
+
+/** The autosave interval in ms, or 0 when autosave is off. */
+export function autosaveInterval(collection: ClientCollection): number {
+	const v = collection.versions as ClientCollection['versions'] | undefined;
+	if (!v || v.drafts === false || v.drafts.autosave === false) return 0;
+	return v.drafts.autosave.interval;
+}
 
 export function columnLabel(collection: ClientCollection, name: string): string {
 	const field = collection.fields.find((f) => f.name === name);
@@ -46,6 +64,7 @@ export function shortId(id: unknown): string {
 export function formatCell(collection: ClientCollection, name: string, value: unknown): string {
 	if (value === null || value === undefined || value === '') return '—';
 	if (name === 'id') return shortId(value);
+	if (name === '_status') return value === 'published' ? 'Published' : value === 'changed' ? 'Changed' : 'Draft';
 	if (name === 'createdAt' || name === 'updatedAt') return formatDate(value, true);
 	const field: ClientField | undefined = collection.fields.find((f) => f.name === name);
 	if (!field) return String(value);

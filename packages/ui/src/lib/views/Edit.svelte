@@ -3,7 +3,7 @@
 	// (so it also runs during SSR, unlike $effect). The parent re-creates this component per
 	// document with {#key}. Field components bind into `values`.
 	import { untrack } from 'svelte';
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import FileUpload from '../upload/FileUpload.svelte';
 	import {
@@ -15,23 +15,38 @@
 	} from '@kitcms/core/client';
 	import { setFormContext } from '../form/context';
 	import RenderFields from '../fields/RenderFields.svelte';
-	import { collectionHref, docHref } from '../links';
-	import { formatCell } from '../format';
+	import { adminHref, collectionHref, docHref, globalVersionsHref, refHref, versionsHref } from '../links';
+	import { autosaveInterval, formatCell, hasDrafts } from '../format';
+	import type { AdminClientConfig, DocPreviewProps, LazyComponent } from '../preview/types';
+	import { collectBlocks } from '../preview/blocks';
+	import PreviewPane from '../preview/PreviewPane.svelte';
+	import LazyPreview from '../preview/LazyPreview.svelte';
+	import BlocksPreview from '../preview/BlocksPreview.svelte';
 
 	let {
 		data,
 		form,
+		admin,
 	}: {
-		data: AdminDataOf<'create'> | AdminDataOf<'edit'>;
+		data: AdminDataOf<'create'> | AdminDataOf<'edit'> | AdminDataOf<'global'>;
 		form?: AdminActionData | null;
+		admin?: AdminClientConfig;
 	} = $props();
 
-	const mode = untrack(() => (data.route.view === 'edit' ? 'edit' : 'create'));
-	const collection = untrack(() => data.collection);
-	const doc = $derived(data.route.view === 'edit' ? data.doc : null);
-	const hidden = untrack(
-		() => new Set(data.route.view === 'edit' ? (data as AdminDataOf<'edit'>).hiddenFields : []),
+	// `global`: the single document of a global (§13.1), edited like a document but never created
+	// or deleted. Its `collection` is the global's client collection.
+	const mode = untrack(() =>
+		data.route.view === 'global' ? 'global' : data.route.view === 'edit' ? 'edit' : 'create',
 	);
+	const collection = untrack(() => data.collection);
+	const doc = $derived(data.route.view === 'create' ? null : data.doc);
+	const hidden = untrack(
+		() => new Set(data.route.view === 'create' ? [] : (data as AdminDataOf<'edit'>).hiddenFields),
+	);
+	// Reference labels: `_global_<slug>` refs show the global's label.
+	const globalLabels = untrack(() => new Map(data.globals.map((g) => [g.slug, g.label])));
+	const refLabel = (c: string) =>
+		c.startsWith('_global_') ? (globalLabels.get(c.slice('_global_'.length)) ?? c) : c;
 
 	let values = $state<Record<string, unknown>>(
 		structuredClone(untrack(() => (form?.values ? { ...data.doc, ...form.values } : data.doc))),
@@ -48,20 +63,37 @@
 		setErrors(form?.errors);
 	});
 
-	const readOnly = untrack(() => mode === 'edit' && !data.permissions.update);
+	const readOnly = untrack(() => mode !== 'create' && !data.permissions.update);
+
+	// ----- drafts (§13.4) -------------------------------------------------------------------------
+	const drafts = untrack(() => hasDrafts(collection));
+	const status = $derived(data.route.view === 'create' ? undefined : (data as AdminDataOf<'edit'>).status);
+	const versionCount = $derived(
+		data.route.view === 'create' ? undefined : (data as AdminDataOf<'edit'>).versionCount,
+	);
+	const statusLabel = $derived(
+		status === 'published' ? 'Published' : status === 'changed' ? 'Published, with draft changes' : 'Draft',
+	);
+	// Autosave: only on documents that exist (create has no id yet), never read-only.
+	const interval = untrack(() => autosaveInterval(collection));
+	const canAutosave = untrack(() => drafts && interval > 0 && mode !== 'create' && !readOnly);
+	let autosaveMsg = $state('');
 	setFormContext({ collection, mode, readOnly, errors, hidden });
 
 	const title = $derived.by(() => {
 		const t = values[collection.admin.useAsTitle];
 		if (typeof t === 'string' && t) return t;
+		if (mode === 'global') return collection.labels.singular;
 		return mode === 'edit' && doc ? doc.id : `New ${collection.labels.singular.toLowerCase()}`;
 	});
 
 	let formEl: HTMLFormElement | undefined = $state();
 	let submitting = $state(false);
 
-	function validate(): boolean {
+	function validate(draft = false): boolean {
 		const list = validateDocument(collection.fields, values, {
+			// A draft save doesn't enforce `required` / `minRows` (the server doesn't either).
+			draft,
 			// Hidden and read-only top-level fields aren't submitted, so they aren't validated.
 			skip: (path, field) =>
 				!path.includes('.') &&
@@ -84,6 +116,89 @@
 
 	let password = $state('');
 
+	// ----- autosave ---------------------------------------------------------------------------------
+	let lastSnap = untrack(() => JSON.stringify($state.snapshot(values)));
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let autosaving = false;
+
+	$effect(() => {
+		if (!canAutosave) return;
+		// Reads every value (deeply), so any edit re-runs this and restarts the debounce.
+		const snap = JSON.stringify($state.snapshot(values));
+		if (snap === lastSnap) return;
+		clearTimeout(timer);
+		timer = setTimeout(() => void autosave(), interval);
+	});
+	$effect(() => () => clearTimeout(timer));
+
+	async function autosave() {
+		if (!formEl) return;
+		// Never autosave over a manual submit; try again after the next interval.
+		if (submitting || autosaving) {
+			timer = setTimeout(() => void autosave(), interval);
+			return;
+		}
+		autosaving = true;
+		autosaveMsg = 'Saving…';
+		const snap = JSON.stringify($state.snapshot(values));
+		try {
+			const body = new FormData(formEl);
+			body.set(FORM.draft, '1');
+			body.set(FORM.autosave, '1');
+			const res = await fetch('?/save', { method: 'POST', body, headers: { 'x-sveltekit-action': 'true' } });
+			const result = deserialize(await res.text());
+			if (result.type === 'success') {
+				lastSnap = snap;
+				autosaveMsg = `Saved ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+			} else {
+				autosaveMsg = "Couldn't autosave";
+			}
+		} catch {
+			autosaveMsg = "Couldn't autosave";
+		} finally {
+			autosaving = false;
+		}
+	}
+
+	// ----- live preview (§13.5) ---------------------------------------------------------------------
+	// A collection/global preview wins; otherwise a default preview renders the blocks in order when
+	// at least one block in the current form state has a registered preview.
+	const docPreview = untrack(() =>
+		(mode === 'global' && collection.globalSlug
+			? (admin?.previews?.globals as Record<string, LazyComponent<DocPreviewProps> | undefined> | undefined)?.[
+					collection.globalSlug
+				]
+			: (admin?.previews?.collections as Record<string, LazyComponent<DocPreviewProps> | undefined> | undefined)?.[
+					collection.slug
+				]),
+	);
+	const blockLoaders = untrack(() => admin?.previews?.blocks);
+	const hasBlockLoaders = Boolean(blockLoaders && Object.keys(blockLoaders).length > 0);
+	const blockEntries = $derived(
+		!docPreview && hasBlockLoaders ? collectBlocks(collection.fields, values) : [],
+	);
+	const hasPreview = $derived(
+		Boolean(docPreview) || blockEntries.some((e) => blockLoaders?.[e.block.blockType]),
+	);
+	const hiddenKey = `kitcms:preview-hidden:${collection.slug}`;
+	let previewHidden = $state(false);
+	$effect(() => {
+		try {
+			previewHidden = localStorage.getItem(hiddenKey) === '1';
+		} catch {
+			// storage unavailable: keep the default
+		}
+	});
+	function togglePreview() {
+		previewHidden = !previewHidden;
+		try {
+			localStorage.setItem(hiddenKey, previewHidden ? '1' : '0');
+		} catch {
+			// not persisted
+		}
+	}
+	const showPreview = $derived(hasPreview && !previewHidden);
+
 	function confirmDelete(e: SubmitEvent) {
 		if (!confirm(`Delete this ${collection.labels.singular.toLowerCase()}? This can't be undone.`)) {
 			e.preventDefault();
@@ -95,14 +210,29 @@
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href comes from ../links, which calls resolve() -->
 
-<svelte:head><title>{title} · {collection.labels.plural}</title></svelte:head>
+<svelte:head><title>{mode === 'global' ? title : `${title} · ${collection.labels.plural}`}</title></svelte:head>
 
 <nav class="crumbs" aria-label="Breadcrumb">
-	<a href={collectionHref(collection.slug)}>{collection.labels.plural}</a>
+	{#if mode === 'global'}
+		<a href={adminHref('')}>Dashboard</a>
+	{:else}
+		<a href={collectionHref(collection.slug)}>{collection.labels.plural}</a>
+	{/if}
 	<span aria-hidden="true">/</span>
 	<span>{mode === 'create' ? 'New' : title}</span>
 </nav>
-<h1>{title}</h1>
+<div class="title-row">
+	<h1>{title}</h1>
+	{#if hasPreview}
+		<button
+			type="button"
+			class="kc-btn kc-btn--ghost"
+			aria-pressed={!previewHidden}
+			data-testid="preview-toggle"
+			onclick={togglePreview}>{previewHidden ? 'Show preview' : 'Hide preview'}</button
+		>
+	{/if}
+</div>
 
 <div class="messages" aria-live="polite">
 	{#if form?.message}<p class="kc-alert" role="alert" data-testid="error">{form.message}</p>{/if}
@@ -112,26 +242,30 @@
 			Still referenced by:
 			<ul>
 				{#each form.references as r (r.collection + r.id + r.path)}
-					<li><a href={docHref(r.collection, r.id)}>{r.collection}/{r.id}</a> <small>({r.path})</small></li>
+					<li><a href={refHref(r.collection, r.id)}>{r.collection.startsWith('_global_') ? refLabel(r.collection) : `${r.collection}/${r.id}`}</a> <small>({r.path})</small></li>
 				{/each}
 			</ul>
 		</div>
 	{/if}
 </div>
 
+<div class="edit" class:with-preview={showPreview}>
 <form
 	id="kc-save"
 	class="layout"
+	class:stacked={showPreview}
 	method="POST"
 	action="?/save"
 	novalidate
 	bind:this={formEl}
-	use:enhance={({ cancel }) => {
-		if (!validate()) {
+	use:enhance={({ cancel, submitter }) => {
+		const asDraft = drafts && submitter?.getAttribute('name') === FORM.draft;
+		if (!validate(asDraft)) {
 			cancel();
 			focusFirstError();
 			return;
 		}
+		clearTimeout(timer);
 		submitting = true;
 		// reset: false. The default form.reset() would wipe the bound fields after a save.
 		return async ({ update }) => {
@@ -184,6 +318,16 @@
 				bind:values
 				position="sidebar"
 			/>
+			{#if drafts && mode !== 'create' && status}
+				<p class="status">
+					<span
+						class="kc-badge"
+						class:kc-badge--published={status === 'published'}
+						class:kc-badge--changed={status === 'changed'}
+						data-testid="doc-status">{statusLabel}</span
+					>
+				</p>
+			{/if}
 			{#if doc}
 				<dl class="meta">
 					<dt>ID</dt>
@@ -193,11 +337,26 @@
 				</dl>
 			{/if}
 			{#if !readOnly}
+				<!-- Publish comes first: it is what Enter submits, and it works without JS. -->
 				<button class="kc-btn kc-btn--primary" disabled={submitting}>
-					{submitting ? 'Saving…' : mode === 'create' ? 'Create' : 'Save'}
+					{submitting ? 'Saving…' : drafts ? 'Publish' : mode === 'create' ? 'Create' : 'Save'}
 				</button>
+				{#if drafts}
+					<button class="kc-btn" name={FORM.draft} value="1" disabled={submitting}>Save draft</button>
+				{/if}
+				{#if canAutosave}
+					<p class="kc-muted autosave" role="status" aria-live="polite" data-testid="autosave">{autosaveMsg}</p>
+				{/if}
 			{:else}
-				<p class="kc-muted">You can view this document but not change it.</p>
+				<p class="kc-muted">You can view this {mode === 'global' ? 'global' : 'document'} but not change it.</p>
+			{/if}
+			{#if mode === 'edit' && drafts && data.permissions.update && (status === 'published' || status === 'changed')}
+				<button class="kc-btn" type="submit" form="kc-unpublish">Unpublish</button>
+			{/if}
+			{#if versionCount !== undefined && doc}
+				<a class="versions-link" href={mode === 'global' && collection.globalSlug ? globalVersionsHref(collection.globalSlug) : versionsHref(collection.slug, String(doc.id))}
+					>Versions ({versionCount})</a
+				>
 			{/if}
 			{#if mode === 'edit' && data.permissions.delete}
 				<button class="kc-btn kc-btn--danger" type="submit" form="kc-delete">Delete</button>
@@ -205,6 +364,22 @@
 		</div>
 	</aside>
 </form>
+{#if showPreview}
+	<div class="preview-col">
+		<PreviewPane>
+			{#if docPreview}
+				<LazyPreview loader={docPreview} props={{ doc: values }} label="preview" />
+			{:else if blockLoaders}
+				<BlocksPreview entries={blockEntries} loaders={blockLoaders} doc={values} />
+			{/if}
+		</PreviewPane>
+	</div>
+{/if}
+</div>
+
+{#if mode === 'edit' && drafts && data.permissions.update && (status === 'published' || status === 'changed')}
+	<form id="kc-unpublish" method="POST" action="?/unpublish" use:enhance></form>
+{/if}
 
 {#if mode === 'edit' && data.permissions.delete}
 	<form id="kc-delete" method="POST" action="?/delete" onsubmit={confirmDelete} use:enhance></form>
@@ -262,6 +437,29 @@
 		margin: 0.25rem 0 0;
 		padding-left: 1.2rem;
 	}
+	.title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+	.edit.with-preview {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+	}
+	.preview-col {
+		position: sticky;
+		top: 1rem;
+		margin-top: 1rem;
+	}
+	.layout.stacked {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.layout.stacked .side {
+		position: static;
+	}
 	.layout {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) 18rem;
@@ -280,6 +478,17 @@
 	.side {
 		position: sticky;
 		top: 1rem;
+	}
+	.status,
+	.autosave {
+		margin: 0;
+	}
+	.autosave {
+		font-size: 0.8125rem;
+		min-height: 1.2em;
+	}
+	.versions-link {
+		font-size: 0.875rem;
 	}
 	.meta {
 		display: grid;
@@ -319,6 +528,14 @@
 	}
 	.pw p {
 		margin: 0;
+	}
+	@media (max-width: 1100px) {
+		.edit.with-preview {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.preview-col {
+			position: static;
+		}
 	}
 	@media (max-width: 800px) {
 		.layout {

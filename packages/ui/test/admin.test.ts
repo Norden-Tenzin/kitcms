@@ -40,9 +40,22 @@ const posts = {
 
 const base = {
 	title: 'Test admin',
+	branding: { colors: {} },
 	user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'admin' },
 	nav: [{ slug: 'posts', label: 'Posts' }],
+	globals: [{ slug: 'site', label: 'Site settings' }],
 };
+
+const site = {
+	...posts,
+	kind: 'global',
+	slug: '_global_site',
+	globalSlug: 'site',
+	labels: { singular: 'Site settings', plural: 'Site settings' },
+	fields: [text('siteName', { required: true })],
+	layout: [{ kind: 'field', name: 'siteName' }],
+	admin: { useAsTitle: 'id', defaultColumns: [], listSearchableFields: [], hidden: false },
+} as unknown as ClientCollection;
 
 describe('admin views (SSR smoke)', () => {
 	it('renders the list view', () => {
@@ -98,6 +111,125 @@ describe('admin views (SSR smoke)', () => {
 		const { body } = render(Admin, { props: { data } });
 		expect(body).toContain('New post');
 		expect(body).not.toContain('action="?/delete"');
+	});
+});
+
+describe('globals (SSR smoke)', () => {
+	const globalData = (update = true): AdminData => ({
+		...base,
+		route: { view: 'global', global: 'site' },
+		collection: site,
+		permissions: { create: false, update, delete: false },
+		doc: { id: 'site', siteName: 'Hotel', updatedAt: '2026-01-02T03:04:05Z' },
+		hiddenFields: [],
+	});
+
+	it('renders the global edit view without delete, and the nav section', () => {
+		const { body } = render(Admin, { props: { data: globalData() } });
+		expect(body).toContain('value="Hotel"');
+		expect(body).toContain('action="?/save"');
+		expect(body).not.toContain('action="?/delete"');
+		expect(body).toContain('Globals');
+		expect(body).toContain('/admin/globals/site');
+		expect(body).toContain('aria-current="page"');
+		expect(body).not.toContain('New');
+	});
+
+	it('is read-only without update permission', () => {
+		const { body } = render(Admin, { props: { data: globalData(false) } });
+		expect(body).toContain('view this global but not change it');
+	});
+
+	it('lists globals on the dashboard', () => {
+		const data: AdminData = {
+			...base,
+			route: { view: 'dashboard' },
+			collections: [{ slug: 'posts', label: 'Posts', totalDocs: 2 }],
+			globals: [{ slug: 'site', label: 'Site settings', description: 'Global things' }],
+		};
+		const { body } = render(Admin, { props: { data } });
+		expect(body).toContain('data-testid="global-card"');
+		expect(body).toContain('Global things');
+	});
+
+	it('links references from a global to it, labelled', () => {
+		const { body } = render(Admin, {
+			props: {
+				data: globalData(),
+				form: { message: 'In use', references: [{ collection: '_global_site', id: 'site', path: 'logo' }] },
+			},
+		});
+		expect(body).toContain('data-testid="references"');
+		expect(body).toMatch(/<a href="[^"]*\/admin\/globals\/site">Site settings<\/a>/);
+	});
+});
+
+describe('admin branding (SSR smoke)', () => {
+	const listData = (branding: AdminData['branding']): AdminData => ({
+		...base,
+		branding,
+		route: { view: 'list', collection: 'posts' },
+		collection: posts,
+		permissions: { create: true, update: true, delete: true },
+		query: { page: 1, limit: 25, sort: 'title', q: '' },
+		docs: [],
+		totalDocs: 0,
+		totalPages: 1,
+	});
+	const rootStyle = (body: string) => body.match(/<div class="kitcms-admin"[^>]*>/)?.[0] ?? '';
+
+	it('sets accent CSS variables inline on the admin root', () => {
+		const { body } = render(Admin, {
+			props: { data: listData({ colors: { accent: '#ff0066', accentText: '#101010' } }) },
+		});
+		const root = rootStyle(body);
+		expect(root).toContain('--kc-accent: #ff0066');
+		expect(root).toContain('--kc-accent-text: #101010');
+	});
+
+	it('sets only the variables that are configured', () => {
+		const { body } = render(Admin, { props: { data: listData({ colors: { accent: '#ff0066' } }) } });
+		const root = rootStyle(body);
+		expect(root).toContain('--kc-accent: #ff0066');
+		expect(root).not.toContain('--kc-accent-text');
+	});
+
+	it('renders the logo in the header next to the title', () => {
+		const { body } = render(Admin, {
+			props: { data: listData({ logo: 'https://cdn.example.com/logo.svg', colors: {} }) },
+		});
+		// Svelte adds scoped class hashes and hydration comments, so match loosely.
+		expect(body).toMatch(
+			/<a class="brand[^"]*"[^>]*>(?:<!--[^>]*-->)*<img class="logo[^"]*" src="https:\/\/cdn\.example\.com\/logo\.svg" alt="Test admin"\/>(?:<!--[^>]*-->)*\s*Test admin<\/a>/,
+		);
+	});
+
+	it('renders no inline variables and no logo without branding', () => {
+		const { body } = render(Admin, { props: { data: listData({ colors: {} }) } });
+		expect(rootStyle(body)).not.toContain('--kc-');
+		expect(body).not.toContain('<img');
+		expect(body).toMatch(/<a class="brand[^"]*"/);
+	});
+
+	it('shows the logo on the login and first-user pages', () => {
+		const branding = { logo: 'https://cdn.example.com/logo.svg', colors: {} };
+		const logo = /<img class="logo[^"]*" src="https:\/\/cdn\.example\.com\/logo\.svg"/;
+		const login = render(Admin, {
+			props: { data: { title: 'Test admin', branding, route: { view: 'login' } } as AdminData },
+		});
+		expect(login.body).toMatch(logo);
+		const first = render(Admin, {
+			props: { data: { title: 'Test admin', branding, route: { view: 'create-first-user' } } as AdminData },
+		});
+		expect(first.body).toMatch(logo);
+	});
+
+	it('shows no logo on the login page without branding', () => {
+		const login = render(Admin, {
+			props: { data: { title: 'Test admin', branding: { colors: {} }, route: { view: 'login' } } as AdminData },
+		});
+		expect(login.body).not.toContain('<img');
+		expect(login.body).not.toContain('--kc-');
 	});
 });
 

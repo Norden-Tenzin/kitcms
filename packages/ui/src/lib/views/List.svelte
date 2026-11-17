@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { FORM, type AdminDataOf } from '@kitcms/core/client';
 	import { collectionHref, createHref, docHref } from '../links';
 	import { columnLabel, formatCell, isSortable } from '../format';
 	import FileUpload from '../upload/FileUpload.svelte';
+	import { RowDrag } from '../fields/rowDrag.svelte';
 	import { fileLabel, isImageMime, metaLine, thumbUrl } from '../media/util';
 
 	let { data }: { data: AdminDataOf<'list'> } = $props();
@@ -42,6 +43,71 @@
 	const ariaSort = (name: string) =>
 		sortField !== name ? undefined : sortDesc ? 'descending' : 'ascending';
 
+	// ----- reordering (orderable collections, §13.2) ---------------------------------------------
+	// Only while the list is in manual order: sorted by `_order` ascending, unfiltered, and the user
+	// may update documents. Rows reorder optimistically; a failed move reverts and shows a message.
+	const canReorder = $derived(
+		Boolean(collection.orderable) &&
+			sortField === '_order' &&
+			!sortDesc &&
+			!query.q &&
+			data.permissions.update &&
+			!grid,
+	);
+	let optimistic = $state<typeof data.docs | null>(null);
+	let moveError = $state('');
+	let moving = $state(false);
+	const rows = $derived(optimistic ?? data.docs);
+	// A fresh load (after a move, or navigation) replaces the optimistic order.
+	$effect.pre(() => {
+		void data.docs;
+		optimistic = null;
+	});
+
+	async function moveRow(from: number, to: number) {
+		if (moving || from === to || to < 0 || to >= rows.length) return;
+		const id = rows[from]!.id;
+		const targetId = rows[to]!.id;
+		const next = [...rows];
+		next.splice(to, 0, next.splice(from, 1)[0]!);
+		optimistic = next;
+		moveError = '';
+		moving = true;
+		const body = new FormData();
+		body.set('id', id);
+		body.set(to > from ? 'after' : 'before', targetId);
+		try {
+			const res = await fetch('?/move', {
+				method: 'POST',
+				body,
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' },
+			});
+			const result = deserialize(await res.text());
+			if (result.type === 'success') await invalidateAll();
+			else {
+				optimistic = null;
+				moveError =
+					(result.type === 'failure' && (result.data as { message?: string } | undefined)?.message) ||
+					'Could not move the document.';
+			}
+		} catch {
+			optimistic = null;
+			moveError = 'Could not move the document.';
+		} finally {
+			moving = false;
+		}
+	}
+
+	const drag = new RowDrag((from, to) => void moveRow(from, to));
+	// `page`/`limit` stay in the action URL so the no-JS fallback returns to the same page.
+	const moveAction = $derived(`?/move&page=${query.page}&limit=${query.limit}`);
+
+	function handleKey(e: KeyboardEvent, i: number) {
+		if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+		e.preventDefault();
+		void moveRow(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
+	}
+
 	function toggleAll() {
 		selected = allSelected ? [] : data.docs.map((d) => d.id);
 	}
@@ -50,7 +116,10 @@
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href comes from ../links, which calls resolve() -->
 
 <div class="head">
-	<h1>{collection.labels.plural}</h1>
+	<h1>
+		{collection.labels.plural}
+		{#if collection.admin.locked}<span class="badge" title="Documents can be edited but not created or deleted">Locked</span>{/if}
+	</h1>
 	{#if data.permissions.create}
 		<a class="kc-btn kc-btn--primary" href={createHref(collection.slug)}>
 			Create new {collection.labels.singular.toLowerCase()}
@@ -147,6 +216,7 @@
 		{/each}
 	</ul>
 {:else}
+{#if moveError}<p class="kc-alert" role="alert">{moveError}</p>{/if}
 <div class="kc-card table-wrap">
 	{#if data.docs.length === 0}
 		<p class="kc-muted empty">
@@ -156,6 +226,7 @@
 		<table>
 			<thead>
 				<tr>
+					{#if canReorder}<th class="handle-col"><span class="sr-only">Reorder</span></th>{/if}
 					{#if data.permissions.delete}
 						<th class="check">
 							<input
@@ -181,8 +252,38 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.docs as doc (doc.id)}
-					<tr>
+				{#each rows as doc, i (doc.id)}
+					<tr
+						data-row-id={doc.id}
+						class:dragging={drag.from === i}
+						class:drop-target={drag.over === i && drag.from !== i}
+						ondragover={canReorder ? (e) => drag.dragover(i, e) : undefined}
+						ondrop={canReorder ? (e) => drag.drop(i, e) : undefined}
+					>
+						{#if canReorder}
+							<td class="handle-col">
+								<button
+									type="button"
+									class="handle"
+									draggable="true"
+									aria-label="Reorder {String(doc[collection.admin.useAsTitle] ?? doc.id)}: use arrow up and down"
+									ondragstart={(e) => drag.start(i, e, e.currentTarget.closest('tr'))}
+									ondragend={drag.end}
+									onkeydown={(e) => handleKey(e, i)}>⠿</button
+								>
+								<noscript>
+									<form method="POST" action={moveAction} class="move-form">
+										<input type="hidden" name="id" value={doc.id} />
+										{#if i > 0}
+											<button class="kc-btn" name="before" value={rows[i - 1]!.id}>Move up</button>
+										{/if}
+										{#if i < rows.length - 1}
+											<button class="kc-btn" name="after" value={rows[i + 1]!.id}>Move down</button>
+										{/if}
+									</form>
+								</noscript>
+							</td>
+						{/if}
 						{#if data.permissions.delete}
 							<td class="check">
 								<input
@@ -204,6 +305,10 @@
 							<td>
 								{#if name === titleColumn}
 									<a href={docHref(collection.slug, doc.id)}>{formatCell(collection, name, doc[name])}</a>
+								{:else if name === '_status'}
+									<span class="kc-badge" class:kc-badge--published={doc._status === 'published'} data-testid="status"
+										>{formatCell(collection, name, doc[name])}</span
+									>
 								{:else}
 									{formatCell(collection, name, doc[name])}
 								{/if}
@@ -339,6 +444,51 @@
 	.tile__meta {
 		font-size: 0.75rem;
 		min-height: 1em;
+	}
+	.badge {
+		display: inline-block;
+		vertical-align: middle;
+		margin-left: 0.5rem;
+		padding: 0.1rem 0.5rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		border: 1px solid var(--kc-border);
+		border-radius: 999px;
+		color: var(--kc-muted);
+	}
+	.handle-col {
+		width: 2.5rem;
+	}
+	.handle {
+		cursor: grab;
+		border: 0;
+		background: none;
+		color: var(--kc-muted);
+		font-size: 1.1rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 4px;
+	}
+	.handle:hover,
+	.handle:focus-visible {
+		color: var(--kc-text);
+	}
+	.move-form {
+		display: flex;
+		gap: 0.25rem;
+	}
+	tr.dragging {
+		opacity: 0.5;
+	}
+	tr.drop-target td {
+		border-top: 2px solid var(--kc-accent);
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.table-wrap {
 		padding: 0;

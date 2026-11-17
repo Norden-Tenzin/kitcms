@@ -30,5 +30,11 @@
 	"scripts": {
 		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run"
+	},
+	"dependencies": {
+		"@tiptap/core": "^3.34.0",
+		"@tiptap/extension-link": "^3.34.0",
+		"@tiptap/pm": "^3.34.0",
+		"@tiptap/starter-kit": "^3.34.0"
 	}
 }

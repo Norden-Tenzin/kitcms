@@ -4,7 +4,7 @@ import type { ClientCollection } from '@kitcms/core/client';
 
 export interface FormContext {
 	collection: ClientCollection;
-	mode: 'create' | 'edit';
+	mode: 'create' | 'edit' | 'global';
 	/** The whole form is read-only (the user may not update this document). */
 	readOnly: boolean;
 	/** Error message per dot path (`sections.0.heading`). A `$state` object owned by the edit view. */

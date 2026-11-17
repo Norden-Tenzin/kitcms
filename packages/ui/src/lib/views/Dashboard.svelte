@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AdminDataOf } from '@kitcms/core/client';
-	import { collectionHref, createHref } from '../links';
+	import { collectionHref, createHref, globalHref } from '../links';
 
 	let { data }: { data: AdminDataOf<'dashboard'> } = $props();
 </script>
@@ -17,6 +17,14 @@
 				<p class="count">{c.totalDocs} {c.totalDocs === 1 ? 'document' : 'documents'}</p>
 			{/if}
 			<a class="kc-btn" href={createHref(c.slug)}>Create</a>
+		</section>
+	{/each}
+	{#each data.globals as g (g.slug)}
+		<section class="kc-card" data-testid="global-card">
+			<h2><a href={globalHref(g.slug)}>{g.label}</a></h2>
+			{#if g.description}<p class="kc-muted">{g.description}</p>{/if}
+			<p class="kc-muted">Global</p>
+			<a class="kc-btn" href={globalHref(g.slug)}>Edit</a>
 		</section>
 	{/each}
 </div>

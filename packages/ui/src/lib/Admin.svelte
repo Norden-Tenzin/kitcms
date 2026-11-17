@@ -3,14 +3,20 @@
 	import './theme.css';
 	import { enhance } from '$app/forms';
 	import type { AdminActionData, AdminData, AdminDataOf } from '@kitcms/core/client';
-	import { adminHref, collectionHref } from './links';
+	import { adminHref, collectionHref, globalHref } from './links';
 	import Login from './views/Login.svelte';
 	import FirstUser from './views/FirstUser.svelte';
 	import Dashboard from './views/Dashboard.svelte';
 	import List from './views/List.svelte';
+	import type { AdminClientConfig } from './preview/types';
 	import Edit from './views/Edit.svelte';
+	import Versions from './views/Versions.svelte';
 
-	let { data, form }: { data: AdminData; form?: AdminActionData | null } = $props();
+	let {
+		data,
+		form,
+		admin,
+	}: { data: AdminData; form?: AdminActionData | null; admin?: AdminClientConfig } = $props();
 
 	type Signed = Exclude<AdminData, { route: { view: 'login' | 'create-first-user' } }>;
 	// TypeScript doesn't narrow `data` from `data.route.view`, so views get a typed accessor.
@@ -18,7 +24,8 @@
 		data.route.view === v ? (data as AdminDataOf<V>) : null;
 	const dashboard = $derived(as('dashboard'));
 	const list = $derived(as('list'));
-	const editing = $derived(as('create') ?? as('edit'));
+	const editing = $derived(as('create') ?? as('edit') ?? as('global'));
+	const versions = $derived(as('versions'));
 	const signed = $derived(
 		data.route.view === 'login' || data.route.view === 'create-first-user'
 			? null
@@ -35,12 +42,16 @@
 		return Object.entries(by).sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
 	});
 	const activeSlug = $derived('collection' in data.route ? data.route.collection : undefined);
+	const activeGlobal = $derived('global' in data.route ? data.route.global : undefined);
 	// Edit views are also re-keyed on `updatedAt`, so the form re-seeds from the saved document
 	// (server-derived values such as generated slugs show up after a save).
 	const viewKey = $derived(
 		data.route.view +
 			('id' in data.route ? data.route.id : '') +
-			(data.route.view === 'edit' && 'doc' in data ? String(data.doc.updatedAt ?? '') : ''),
+			('global' in data.route ? data.route.global : '') +
+			((data.route.view === 'edit' || data.route.view === 'global') && 'doc' in data
+				? String(data.doc.updatedAt ?? '')
+				: ''),
 	);
 </script>
 
@@ -48,11 +59,15 @@
 
 <svelte:head><title>{data.title}</title></svelte:head>
 
-<div class="kitcms-admin">
+<div
+	class="kitcms-admin"
+	style:--kc-accent={data.branding.colors.accent}
+	style:--kc-accent-text={data.branding.colors.accentText}
+>
 	{#if data.route.view === 'login'}
-		<Login title={data.title} message={form?.message} />
+		<Login title={data.title} logo={data.branding.logo} message={form?.message} />
 	{:else if data.route.view === 'create-first-user'}
-		<FirstUser title={data.title} message={form?.message} />
+		<FirstUser title={data.title} logo={data.branding.logo} message={form?.message} />
 	{:else if signed}
 		<div class="shell">
 			<header class="top">
@@ -62,7 +77,10 @@
 					aria-controls="kc-nav"
 					onclick={() => (navOpen = !navOpen)}>Menu</button
 				>
-				<a class="brand" href={adminHref('')}>{data.title}</a>
+				<a class="brand" href={adminHref('')}>
+					{#if data.branding.logo}<img class="logo" src={data.branding.logo} alt={data.title} />{/if}
+					{data.title}
+				</a>
 				<span class="spacer"></span>
 				<span class="who" data-testid="whoami">{signed.user.email}</span>
 				<form method="POST" action="?/logout" use:enhance>
@@ -85,6 +103,16 @@
 						>
 					{/each}
 				{/each}
+				{#if signed.globals.length > 0}
+					<span class="group">Globals</span>
+					{#each signed.globals as item (item.slug)}
+						<a
+							href={globalHref(item.slug)}
+							aria-current={item.slug === activeGlobal ? 'page' : undefined}
+							onclick={() => (navOpen = false)}>{item.label}</a
+						>
+					{/each}
+				{/if}
 			</nav>
 			<main class="content">
 				{#if dashboard}
@@ -92,7 +120,9 @@
 				{:else if list}
 					{#key viewKey}<List data={list} />{/key}
 				{:else if editing}
-					{#key viewKey}<Edit data={editing} {form} />{/key}
+					{#key viewKey}<Edit data={editing} {form} {admin} />{/key}
+				{:else if versions}
+					<Versions data={versions} {form} />
 				{/if}
 			</main>
 		</div>
@@ -119,9 +149,16 @@
 		border-bottom: 1px solid var(--kc-border);
 	}
 	.brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
 		font-weight: 700;
 		color: var(--kc-text);
 		text-decoration: none;
+	}
+	.logo {
+		height: 24px;
+		width: auto;
 	}
 	.spacer {
 		flex: 1;

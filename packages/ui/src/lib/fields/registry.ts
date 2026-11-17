@@ -15,6 +15,7 @@ import ArrayField from './ArrayField.svelte';
 import BlocksField from './BlocksField.svelte';
 import RelationshipField from './RelationshipField.svelte';
 import UploadField from './UploadField.svelte';
+import RichTextField from './RichTextField.svelte';
 import type { FieldProps } from './types';
 
 // Components are typed per field type; the renderer only ever passes the matching field.
@@ -36,4 +37,5 @@ export const fieldComponents: Partial<Record<ClientField['type'], AnyFieldCompon
 	blocks: BlocksField,
 	relationship: RelationshipField,
 	upload: UploadField,
+	richText: RichTextField,
 };

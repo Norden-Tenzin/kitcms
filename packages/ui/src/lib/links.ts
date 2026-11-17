@@ -19,3 +19,11 @@ export const collectionHref = (slug: string, query?: Record<string, string | num
 	adminHref(`collections/${slug}`, query);
 export const docHref = (slug: string, id: string) => adminHref(`collections/${slug}/${id}`);
 export const createHref = (slug: string) => adminHref(`collections/${slug}/create`);
+export const globalHref = (slug: string) => adminHref(`globals/${slug}`);
+export const versionsHref = (slug: string, id: string) => adminHref(`collections/${slug}/${id}/versions`);
+export const globalVersionsHref = (slug: string) => adminHref(`globals/${slug}/versions`);
+
+const GLOBAL_PREFIX = '_global_';
+/** Where a document of `collection` is edited. `_global_<slug>` (refs from a global) links to the global. */
+export const refHref = (collection: string, id: string) =>
+	collection.startsWith(GLOBAL_PREFIX) ? globalHref(collection.slice(GLOBAL_PREFIX.length)) : docHref(collection, id);

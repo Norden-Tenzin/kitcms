@@ -76,8 +76,10 @@ const doc = {
 function renderEdit(docValue: Record<string, unknown>, opts: { update?: boolean } = {}): string {
 	const data: AdminData = {
 		title: 'Test admin',
+		branding: { colors: {} },
 		user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'admin' },
 		nav: [{ slug: 'pages', label: 'Pages' }],
+		globals: [],
 		route: { view: 'edit', collection: 'pages', id: 'p1' },
 		collection,
 		permissions: { create: true, update: opts.update ?? true, delete: true },
