@@ -53,7 +53,7 @@ export async function signIn(
 		}
 		throw err;
 	}
-	const allowed = await adminAccess(k.config, { user, context: {}, cms: k.cms, source: 'admin' });
+	const allowed = await adminAccess(k.config, { user, context: {}, cms: k.cms, source: 'admin', tenant: k.tenant });
 	if (!allowed) {
 		const ctx = await authContext(k);
 		for (const s of await ctx.internalAdapter.listSessions(user.id)) {

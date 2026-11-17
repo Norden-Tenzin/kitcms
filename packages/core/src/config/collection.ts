@@ -4,6 +4,7 @@
 import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { InferFields, InferInput, Simplify } from './infer';
+import type { TenancyOptions } from './tenancy';
 import type { Sort } from './where';
 
 // ---------------------------------------------------------------------------------------------
@@ -153,6 +154,14 @@ export interface CollectionInputDef<
 	upload?: U;
 	/** The users collection, backed by Better Auth (§4.7). At most one per config. */
 	auth?: A;
+	/** Extra (composite) indexes on top-level column fields (Decision 30). */
+	indexes?: CollectionIndex<DocFor<F, U, A, V, O>>[];
+}
+
+/** An index over top-level column fields (or `createdAt`/`updatedAt`/`_order`/`_status`). */
+export interface CollectionIndex<Doc = Record<string, unknown>> {
+	fields: (keyof Doc & string)[];
+	unique?: boolean;
 }
 
 /** A collection, made with `collection({ ... })`. `Doc` is the stored shape, `In` the create input. */
@@ -168,6 +177,7 @@ export interface CollectionDef<Slug extends string = string, Doc = GenericDoc, I
 	readonly auth?: boolean;
 	readonly orderable?: boolean;
 	readonly versions?: VersionsOption;
+	readonly indexes?: readonly CollectionIndex<never>[] | readonly { fields: readonly string[]; unique?: boolean }[];
 	/** Phantom: the stored document shape. */
 	readonly '~doc'?: Doc;
 	/** Phantom: the create input shape. */
@@ -292,6 +302,20 @@ export interface ConfigOptions {
 	 * (the Cache API is a no-op on `*.workers.dev`).
 	 */
 	cache?: false | { /** Seconds other regions may serve a stale read after a write. */ ttl: number };
+	/**
+	 * Plugins (Decision 28), applied in order when the config is sanitized. Each returns a new
+	 * config; the result is validated like any config.
+	 */
+	plugins?: readonly KitcmsPlugin[];
+	/** Multi-tenancy (§15.2). Set by `@kitcms/plugin-multi-tenant`. */
+	tenancy?: TenancyOptions;
+}
+
+/** A plugin: a named config transform (Decision 28). */
+export interface KitcmsPlugin {
+	/** Shown in config errors. */
+	name: string;
+	config: (config: Config) => Config;
 }
 
 /** White-label branding for the admin (§13.6). */

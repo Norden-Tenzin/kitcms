@@ -78,6 +78,8 @@ function internals(user: KitcmsUser | null): KitcmsInternals {
 		cms: cmsFor(user),
 		user,
 		cmsFor,
+		tenant: null,
+		hostTenant: null,
 	};
 }
 

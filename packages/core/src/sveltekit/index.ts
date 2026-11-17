@@ -27,6 +27,9 @@ import { readBookmarkCookie, serializeBookmarkCookie, sessionStartFor } from '..
 import { dbFor, storageFor } from '../runtime';
 import type { StorageAdapter } from '../storage/adapter';
 import { needsSession, stripBase } from './paths';
+import { requestTenant } from '../access/tenancy';
+import { withSystemAccess } from '../seed';
+import { readTenantCookie } from './tenant';
 
 export type { KitcmsUser } from '../config/hooks';
 
@@ -62,7 +65,7 @@ export interface KitcmsOptions {
 	auth?: KitcmsAuthOptions;
 }
 
-/** Per-request internals for package route modules. Never exposed to the browser. */
+/** @internal Per-request internals for package route modules. Not semver-covered (plan §16.2). */
 export interface KitcmsInternals {
 	config: SanitizedConfig;
 	options: KitcmsOptions;
@@ -75,11 +78,15 @@ export interface KitcmsInternals {
 	cmsFor(user: KitcmsUser | null, source?: 'local' | 'admin' | 'rest'): Cms;
 	/** R2 adapter; `undefined` when no collection has `upload`. */
 	storage?: StorageAdapter;
+	/** Multi-tenancy (§15.2): the request's tenant (`null` = none / all). Always `null` without tenancy. */
+	tenant: string | null;
+	/** Multi-tenancy: the tenant from the host (`resolveTenant`), before the admin selection. */
+	hostTenant: string | null;
 }
 
 const internals = new WeakMap<App.Locals, KitcmsInternals>();
 
-/** Package-internal: the kitcms handles for a request. Throws if `kitcms().handle` didn't run. */
+/** @internal The kitcms handles for a request (package route modules only, plan §16.2). Throws if `kitcms().handle` didn't run. */
 export function getKitcms(locals: App.Locals): KitcmsInternals {
 	const k = internals.get(locals);
 	if (!k) throw new Error('kitcms: `kitcms({ config }).handle` is not installed in hooks.server.ts.');
@@ -101,8 +108,20 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 			const pathname = stripBase(event.url.pathname, basePath(event.url));
 			const storage = storageFor(config, env, basePath);
 
+			// Multi-tenancy (§15.2): the host's tenant first; a signed-in user's selection below.
+			let hostTenant: string | null = null;
+			if (config.tenancy && config.tenancy.resolveTenant) {
+				const system = withSystemAccess(createLocalApi({ config, db, storage, user: null, source: 'local', event, waitUntil }));
+				const resolved: unknown = await config.tenancy.resolveTenant({ event, cms: system });
+				if (resolved !== null && (typeof resolved !== 'string' || resolved === '')) {
+					throw new Error('kitcms: tenancy.resolveTenant must return a tenant id (string) or null.');
+				}
+				hostTenant = resolved;
+			}
+			let tenant = hostTenant;
+
 			const cmsFor = (user: KitcmsUser | null, source: 'local' | 'admin' | 'rest' = 'local') =>
-				createLocalApi({ config, db, storage, user, source, event, waitUntil });
+				createLocalApi({ config, db, storage, user, source, event, waitUntil, tenant });
 
 			event.locals.user = null;
 			event.locals.session = null;
@@ -115,6 +134,8 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 				user: null,
 				cmsFor,
 				storage: storage as StorageAdapter | undefined,
+				tenant,
+				hostTenant,
 			};
 			internals.set(event.locals, k);
 			event.locals.cms = k.cms as unknown as LocalAPI;
@@ -133,7 +154,11 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 					cookieBookmark = readBookmarkCookie(event.request.headers.get('cookie'));
 					db = dbFor(config, env, sessionStartFor({ signedIn: true, bookmark: cookieBookmark }));
 					signedIn = true;
-					k = { ...k, db, user: resolved.user, cms: cmsFor(resolved.user) };
+					if (config.tenancy) {
+						const cookie = readTenantCookie(event.request.headers.get('cookie'));
+						tenant = requestTenant(config.tenancy, resolved.user, hostTenant, cookie);
+					}
+					k = { ...k, db, user: resolved.user, cms: cmsFor(resolved.user), tenant };
 					internals.set(event.locals, k);
 					event.locals.cms = k.cms as unknown as LocalAPI;
 				}

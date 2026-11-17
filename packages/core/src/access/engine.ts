@@ -11,6 +11,8 @@
 //   so nothing the caller passes can widen it.
 // - `overrideAccess` skips collection AND field rules. It is never derived from client input.
 // - `admin.locked` collections and globals deny create/delete to everyone but `overrideAccess`.
+// - Multi-tenancy (§15.2): the tenant scope (./tenancy.ts) is evaluated FIRST and ANDed into the
+//   decision, also for `overrideAccess` calls that carry a tenant.
 // - Upload built-in fields (filename, key, ...) are writable only through the upload endpoint,
 //   which marks its `req` with `markUploadWrite` (an unforgeable WeakSet entry, not a context key).
 
@@ -18,6 +20,7 @@ import type { KitcmsReq, KitcmsUser, Operation } from '../config/hooks';
 import type { SanitizedCollection, SanitizedConfig, SanitizedField } from '../config/sanitized';
 import type { WhereInput } from '../config/where';
 import { ForbiddenError } from '../errors';
+import { andDecisions, tenantScope, userTenantsOf } from './tenancy';
 
 /** `true` (allow all), `false` (deny), or a filter the documents must match. */
 export type AccessDecision = boolean | WhereInput;
@@ -78,7 +81,9 @@ export async function collectionAccess(
 	operation: Operation,
 	args: AccessArgsInput,
 ): Promise<AccessDecision> {
-	if (args.overrideAccess) return true;
+	const scope = tenantScope(collection, operation, args.req, args.overrideAccess);
+	if (scope === false) return false;
+	if (args.overrideAccess) return scope;
 	// Locked collections (§13.3) and globals: no create/delete, whatever the rules say. Checked
 	// before the rule, so a permissive `create`/`delete` rule can't re-open them.
 	if ((operation === 'create' || operation === 'delete') && (collection.admin.locked || collection.kind === 'global')) {
@@ -87,9 +92,11 @@ export async function collectionAccess(
 	const rule = collection.access[operation] as
 		| ((a: { req: KitcmsReq; id?: string; data?: Record<string, unknown> }) => unknown)
 		| undefined;
-	if (!rule) return defaultRule(collection, operation, args.req);
-	const result = await rule({ req: args.req, id: args.id, data: args.data });
-	return normalizeDecision(result, operation !== 'create');
+	const decision = rule
+		? normalizeDecision(await rule({ req: args.req, id: args.id, data: args.data }), operation !== 'create')
+		: defaultRule(collection, operation, args.req);
+	if (decision === false) return false;
+	return andDecisions(decision, scope);
 }
 
 /** ANDs an access `where` onto the caller's filter. `false` must be handled by the caller first. */
@@ -148,6 +155,12 @@ function builtInWriteRule(
 ): FieldRule | undefined {
 	if (collection.upload && (UPLOAD_FIELDS as readonly string[]).includes(field.name)) {
 		return ({ req }) => uploadWrites.has(req);
+	}
+	// Multi-tenancy: only 'all' users may change which tenants a user belongs to (else users could
+	// add themselves to any tenant). Always enforced, whatever the field's own access says.
+	const ct = collection.tenancy;
+	if (ct?.role === 'auth' && field.name === ct.config.userField) {
+		return ({ req }) => req.user !== null && userTenantsOf(ct.config, req.user) === 'all';
 	}
 	if (
 		collection.auth &&

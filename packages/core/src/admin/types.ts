@@ -59,8 +59,23 @@ interface Base {
 	branding: SanitizedBranding;
 }
 
+/** The admin's tenant switcher state (§15.3). `null` on `AdminData.tenancy` without multi-tenancy. */
+export interface AdminTenancy {
+	/** The tenant the admin acts on (`null` = all tenants). */
+	current: string | null;
+	/** Name of the tenant field on scoped collections. */
+	field: string;
+	/** Slugs of the tenant-scoped collections. */
+	scoped: string[];
+	/** The tenants the user may read. */
+	tenants: { id: string; title: string }[];
+	/** Whether the user may select "all tenants". */
+	canSelectAll: boolean;
+}
+
 interface SignedIn extends Base {
 	user: AdminUser;
+	tenancy: AdminTenancy | null;
 	nav: AdminNavItem[];
 	/** Visible globals (`/admin/globals/:slug`), in config order. */
 	globals: AdminNavItem[];

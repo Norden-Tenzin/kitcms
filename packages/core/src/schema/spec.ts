@@ -27,6 +27,7 @@
 //   `${slug}_${field}_unique` UNIQUE on (field)           — `unique: true`
 //   `${slug}_${field}_idx` on (field)                     — `index: true` (and not unique), and every single relationship/upload
 //
+//   `${slug}_by_${f1}_${f2}_unique|_idx` on (f1, f2, ...)   — `collection({ indexes })` (Decision 30)
 //   `${slug}__order_idx` on (_order), `${slug}__status_idx` on (_status) — when those columns exist
 //
 // Global tables (§13.1): every global is a collection table named `_global_<slug>` holding one row

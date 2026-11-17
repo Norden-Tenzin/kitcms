@@ -17,7 +17,7 @@ import type {
 	SanitizedConfig,
 	SanitizedField,
 } from './sanitized';
-import type { SanitizedBranding, SanitizedVersions } from './sanitized';
+import type { SanitizedBranding, SanitizedTenancy, SanitizedVersions } from './sanitized';
 import {
 	COLUMN_TYPES,
 	DEFAULT_AUTOSAVE_INTERVAL,
@@ -622,6 +622,35 @@ function sanitizeCollection(raw: Raw, ctx: Ctx, opts?: CollectionOpts): Sanitize
 	const rawHooks: Raw = isObject(raw.hooks) ? raw.hooks : {};
 	const hooks = Object.fromEntries(HOOK_KEYS.map((k) => [k, toArray(rawHooks[k])])) as unknown as NormalizedCollectionHooks;
 
+	// indexes (Decision 30): top-level column fields or system columns.
+	const indexes: SanitizedCollection['indexes'] = [];
+	if (raw.indexes !== undefined) {
+		if (!Array.isArray(raw.indexes)) throw new ConfigError(`${path}.indexes`, 'must be an array.');
+		const indexable = (n: string) => {
+			const f = top.get(n);
+			if (f) return COLUMN_SET.has(f.type) || ((f.type === 'relationship' || f.type === 'upload') && !f.hasMany);
+			return columnNames.has(n);
+		};
+		const seen = new Set<string>();
+		for (const [i, ix] of (raw.indexes as unknown[]).entries()) {
+			const ipath = `${path}.indexes.${i}`;
+			if (!isObject(ix) || !Array.isArray(ix.fields) || ix.fields.length === 0) {
+				throw new ConfigError(ipath, 'must be `{ fields: [...], unique? }` with at least one field.');
+			}
+			for (const n of ix.fields) {
+				if (typeof n !== 'string' || !indexable(n)) {
+					throw new ConfigError(`${ipath}.fields`, `"${String(n)}" must be a top-level column field or a system column.`);
+				}
+			}
+			if (new Set(ix.fields).size !== ix.fields.length) throw new ConfigError(`${ipath}.fields`, 'has duplicates.');
+			if (ix.unique !== undefined && typeof ix.unique !== 'boolean') throw new ConfigError(`${ipath}.unique`, 'must be a boolean.');
+			const key = (ix.fields as string[]).join(',');
+			if (seen.has(key)) throw new ConfigError(ipath, `duplicate index on (${key}).`);
+			seen.add(key);
+			indexes.push({ fields: [...(ix.fields as string[])], unique: ix.unique === true });
+		}
+	}
+
 	const out: SanitizedCollection = {
 		kind,
 		slug,
@@ -634,6 +663,7 @@ function sanitizeCollection(raw: Raw, ctx: Ctx, opts?: CollectionOpts): Sanitize
 		auth,
 		orderable,
 		versions,
+		indexes,
 		access: isObject(raw.access) ? raw.access : {},
 		hooks,
 	};
@@ -728,7 +758,26 @@ function lookup<T>(entries: [string, T][]): Record<string, T> {
 	return Object.assign(Object.create(null) as Record<string, T>, Object.fromEntries(entries));
 }
 
-export function sanitizeConfig(config: Config): SanitizedConfig {
+/** Runs `config.plugins` in order (Decision 28). The result has no `plugins`. */
+export function applyPlugins(config: Config): Config {
+	if (!isObject(config)) return config;
+	const plugins: unknown = config.plugins;
+	if (plugins === undefined) return config;
+	if (!Array.isArray(plugins)) throw new ConfigError('plugins', 'must be an array of plugins.');
+	let out: Config = { ...config, plugins: undefined };
+	for (const [i, p] of (plugins as unknown[]).entries()) {
+		if (!isObject(p) || typeof p.name !== 'string' || typeof p.config !== 'function') {
+			throw new ConfigError(`plugins.${i}`, 'is not a plugin (`{ name, config(config) => config }`).');
+		}
+		const next: unknown = p.config(out);
+		if (!isObject(next)) throw new ConfigError(`plugins.${p.name}`, 'must return a config.');
+		out = { ...(next as Config), plugins: undefined };
+	}
+	return out;
+}
+
+export function sanitizeConfig(input: Config): SanitizedConfig {
+	const config = applyPlugins(input);
 	if (!isObject(config) || !Array.isArray(config.collections)) {
 		throw new ConfigError('collections', 'must be an array. Use `defineConfig({ collections: [...] })`.');
 	}
@@ -809,9 +858,12 @@ export function sanitizeConfig(config: Config): SanitizedConfig {
 		media.publicUrl = publicUrl.replace(/\/+$/, '');
 	}
 
+	const collectionsBySlug = lookup(collections.map((c) => [c.slug, c]));
+	const tenancy = sanitizeTenancy(config.tenancy, collectionsBySlug, authCollection);
+
 	return {
 		collections,
-		collectionsBySlug: lookup(collections.map((c) => [c.slug, c])),
+		collectionsBySlug,
 		globals,
 		globalsBySlug: lookup(globals.map((g) => [g.globalSlug as string, g])),
 		rest: config.rest ?? true,
@@ -820,7 +872,70 @@ export function sanitizeConfig(config: Config): SanitizedConfig {
 		bindings: { db: config.bindings?.db ?? 'DB', bucket: config.bindings?.bucket ?? 'BUCKET' },
 		admin: { title: config.admin?.title ?? 'kitcms', branding: sanitizeBranding(config.admin?.branding) },
 		media,
+		tenancy,
 	};
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tenancy (§15.2): security-critical shape checks
+// ---------------------------------------------------------------------------------------------
+
+function sanitizeTenancy(
+	raw: unknown,
+	bySlug: Record<string, SanitizedCollection>,
+	authCollection: string,
+): false | SanitizedTenancy {
+	if (raw === undefined || raw === false) return false;
+	if (!isObject(raw)) throw new ConfigError('tenancy', 'must be an object (use `@kitcms/plugin-multi-tenant`).');
+	const t = raw as Raw;
+	for (const k of ['field', 'tenantsCollection', 'userField'] as const) {
+		if (typeof t[k] !== 'string' || t[k] === '') throw new ConfigError(`tenancy.${k}`, 'must be a non-empty string.');
+	}
+	if (typeof t.userTenants !== 'function') throw new ConfigError('tenancy.userTenants', 'must be a function.');
+	for (const k of ['resolveTenant', 'storagePrefix'] as const) {
+		if (t[k] !== undefined && typeof t[k] !== 'function') throw new ConfigError(`tenancy.${k}`, 'must be a function.');
+	}
+	const tenants = bySlug[t.tenantsCollection];
+	if (!tenants) throw new ConfigError('tenancy.tenantsCollection', `unknown collection "${t.tenantsCollection}".`);
+	if (tenants.auth) throw new ConfigError('tenancy.tenantsCollection', 'cannot be the auth collection.');
+
+	const isRelToTenants = (f: SanitizedField | undefined, hasMany: boolean) =>
+		f !== undefined && f.type === 'relationship' && f.relationTo === t.tenantsCollection && f.hasMany === hasMany;
+
+	const auth = bySlug[authCollection]!;
+	if (!isRelToTenants(auth.fields.find((f) => f.name === t.userField), true)) {
+		throw new ConfigError(`collections.${authCollection}.fields.${t.userField}`, `must be a hasMany relationship to "${t.tenantsCollection}".`);
+	}
+	if (!Array.isArray(t.collections) || t.collections.length === 0) {
+		throw new ConfigError('tenancy.collections', 'must list at least one collection.');
+	}
+	const scoped = new Set<string>();
+	for (const slug of t.collections as unknown[]) {
+		if (typeof slug !== 'string' || !bySlug[slug]) {
+			throw new ConfigError('tenancy.collections', `unknown collection "${String(slug)}" (globals can't be tenant-scoped).`);
+		}
+		if (slug === authCollection || slug === t.tenantsCollection) {
+			throw new ConfigError('tenancy.collections', `"${slug}" cannot be tenant-scoped.`);
+		}
+		const field = bySlug[slug].fields.find((f) => f.name === t.field);
+		if (!isRelToTenants(field, false) || !field!.required) {
+			throw new ConfigError(`collections.${slug}.fields.${t.field}`, `must be a required relationship to "${t.tenantsCollection}".`);
+		}
+		scoped.add(slug);
+	}
+	const out: SanitizedTenancy = {
+		collections: scoped,
+		field: t.field,
+		tenantsCollection: t.tenantsCollection,
+		userField: t.userField,
+		userTenants: t.userTenants,
+		...(t.resolveTenant ? { resolveTenant: t.resolveTenant } : {}),
+		...(t.storagePrefix ? { storagePrefix: t.storagePrefix } : {}),
+	};
+	for (const slug of scoped) bySlug[slug]!.tenancy = { role: 'scoped', config: out };
+	tenants.tenancy = { role: 'tenants', config: out };
+	auth.tenancy = { role: 'auth', config: out };
+	return out;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -861,6 +976,7 @@ function toClientCollection(c: SanitizedCollection): ClientCollection {
 		auth: c.auth,
 		orderable: c.orderable,
 		versions: c.versions,
+		indexes: c.indexes,
 		access: {},
 		hooks: {},
 	};

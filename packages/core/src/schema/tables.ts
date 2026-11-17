@@ -65,6 +65,10 @@ export function toTableSpecs(config: SanitizedConfig): TableSpec[] {
 			indexes.push(idx(`${slug}_${STATUS_FIELD}_idx`, [STATUS_FIELD]));
 		}
 		for (const field of collection.fields) columns.push(fieldColumn(slug, field, indexes));
+		// Extra indexes (Decision 30): `${slug}_by_${fields}_unique|_idx`.
+		for (const ix of collection.indexes ?? []) {
+			indexes.push(idx(`${slug}_by_${ix.fields.join('_')}_${ix.unique ? 'unique' : 'idx'}`, ix.fields, ix.unique));
+		}
 		tables.push({ name: slug, columns, indexes });
 
 		if (collection.versions !== false) {

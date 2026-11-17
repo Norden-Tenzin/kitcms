@@ -126,6 +126,8 @@ export interface DbAdapter {
 		targetId: string,
 		side: 'before' | 'after',
 		excludeId: string,
+		/** Extra condition on the TARGET row (access/tenant scope). */
+		where?: WhereInput,
 	): Stmt<{ key: string | null; neighbour: string | null } | null>;
 
 	/** Versions (§13.4). `collection` is the main table slug; its `_versions` table is used. */

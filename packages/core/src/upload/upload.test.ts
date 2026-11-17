@@ -52,7 +52,7 @@ function internals(user: KitcmsUser | null): KitcmsInternals {
 	const storage = createR2Adapter(bucket, { base: () => '' });
 	const cmsFor = (u: KitcmsUser | null, source: 'local' | 'admin' | 'rest' = 'local') =>
 		createLocalApi({ config, db, storage, user: u, source });
-	return { config, options: { config: {} as never }, db, env: {}, cms: cmsFor(user), user, cmsFor, storage };
+	return { config, options: { config: {} as never }, db, env: {}, cms: cmsFor(user), user, cmsFor, storage, tenant: null, hostTenant: null };
 }
 
 function png(w: number, h: number, pad = 0): Uint8Array<ArrayBuffer> {

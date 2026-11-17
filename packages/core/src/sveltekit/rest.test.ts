@@ -73,7 +73,7 @@ function internalsFor(cfg: typeof config, d1: D1Database, u: KitcmsUser | null, 
 			},
 		}) as never;
 	};
-	return { config: cfg, options: { config: {} as never }, db: adapter, env: {}, cms: cmsFor(u), user: u, cmsFor };
+	return { config: cfg, options: { config: {} as never }, db: adapter, env: {}, cms: cmsFor(u), user: u, cmsFor, tenant: null, hostTenant: null };
 }
 
 interface Opts {

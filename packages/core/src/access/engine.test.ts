@@ -19,7 +19,7 @@ const editor: KitcmsUser = { id: 'e1', email: 'e@x.io', name: 'E', role: 'editor
 const stranger: KitcmsUser = { id: 's1', email: 's@x.io', name: 'S', role: 'hacker', collection: 'users' };
 
 const req = (user: KitcmsUser | null): KitcmsReq =>
-	({ user, context: {}, cms: {} as never, source: 'local' }) as KitcmsReq;
+	({ user, context: {}, cms: {} as never, source: 'local', tenant: null }) as KitcmsReq;
 
 const config = sanitizeConfig(
 	defineConfig({

@@ -2,6 +2,7 @@
 // (sveltekit/api.ts); collection access, hooks and validation still run through the Local API.
 import type { RequestEvent } from '@sveltejs/kit';
 import { markUploadWrite, UPLOAD_FIELDS } from '../access/engine';
+import { storagePrefixFor } from '../access/tenancy';
 import { parseFormData } from '../admin/form';
 import type { KitcmsReq } from '../config/hooks';
 import { isKitcmsError, ValidationError, type FieldError } from '../errors';
@@ -72,7 +73,14 @@ export async function handleUpload(
 	const parsed = parseFormData(userFields, form);
 	if (parsed.errors.length) return fail(400, 'The document has invalid fields.', parsed.errors);
 
-	const key = makeKey(ulid(), file.name);
+	// Multi-tenancy (§15.2): keys of a scoped collection live under the tenant's prefix. With no
+	// request tenant (an 'all' user) the form's tenant is used; the pipeline validates it.
+	let keyTenant: string | null = null;
+	if (col.tenancy?.role === 'scoped') {
+		const fromForm = parsed.data[col.tenancy.config.field];
+		keyTenant = k.tenant ?? (typeof fromForm === 'string' && fromForm !== '' ? fromForm : null);
+	}
+	const key = storagePrefixFor(k.config.tenancy, keyTenant) + makeKey(ulid(), file.name);
 	const data: Record<string, unknown> = {
 		...parsed.data,
 		filename: file.name.split(/[\\/]/).pop()?.slice(0, 255) || 'file',
@@ -84,7 +92,7 @@ export async function handleUpload(
 	};
 
 	const cms = k.cmsFor(k.user, 'admin');
-	const req: KitcmsReq = { user: k.user, context: {}, cms, source: 'admin', event };
+	const req: KitcmsReq = { user: k.user, context: {}, cms, source: 'admin', event, tenant: k.tenant };
 	markUploadWrite(req);
 
 	const id = formValue(form, 'id');

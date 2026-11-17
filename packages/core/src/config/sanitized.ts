@@ -17,6 +17,7 @@ import type {
 	FieldHook,
 	FieldValidate,
 } from './hooks';
+import type { TenancyOptions } from './tenancy';
 
 /** `'server'`: the sanitized config. `'client'`: the serializable subset for the browser. */
 export type Mode = 'server' | 'client';
@@ -193,9 +194,21 @@ export interface AnyCollection<M extends Mode = 'server'> {
 	/** Has the `_order` system column (§13.2). Always `false` for globals. */
 	orderable: boolean;
 	versions: SanitizedVersions;
+	/** Extra indexes (Decision 30), validated: top-level column fields or system columns. */
+	indexes: { fields: string[]; unique: boolean }[];
 	/** Server only. As written in the config (defaults are applied by the access engine). */
 	access: M extends 'server' ? CollectionAccess : Record<string, never>;
 	hooks: M extends 'server' ? NormalizedCollectionHooks : Record<string, never>;
+	/**
+	 * Server only. Multi-tenancy (§15.2): set on scoped collections, the tenants collection and the
+	 * auth collection when `tenancy` is on. Read by the access engine, so it can't be forgotten.
+	 */
+	tenancy?: M extends 'server' ? CollectionTenancy : never;
+}
+/** How a collection takes part in multi-tenancy. */
+export interface CollectionTenancy {
+	role: 'scoped' | 'tenants' | 'auth';
+	config: SanitizedTenancy;
 }
 export type SanitizedCollection = AnyCollection<'server'>;
 export type ClientCollection = AnyCollection<'client'>;
@@ -218,6 +231,14 @@ export interface SanitizedConfig {
 	bindings: { db: string; bucket: string };
 	admin: { title: string; branding: SanitizedBranding };
 	media: { publicUrl?: string };
+	/** Multi-tenancy (§15.2), validated; `false` when off. */
+	tenancy: false | SanitizedTenancy;
+}
+
+/** Validated `tenancy` (§15.2). */
+export interface SanitizedTenancy extends Omit<TenancyOptions, 'collections'> {
+	/** Scoped collection slugs. */
+	collections: ReadonlySet<string>;
 }
 
 /** Validated branding (§13.6): every value is safe to put in a CSS variable / `src`. */

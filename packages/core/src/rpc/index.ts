@@ -23,7 +23,11 @@
 //   is never passed to the Local API.
 // - Errors cross the boundary as `Error` with the message `kitcms:<CODE>:<status>: <message>`
 //   (custom error properties don't survive RPC); `@kitcms/client` turns them back into typed errors.
-// - `{ tenant }` (multi-tenant plugin, Phase 3) is not accepted yet.
+// - `{ tenant }` (multi-tenant plugin, §15.2): every call may name the tenant it acts on. Reads and
+//   writes on tenant-scoped collections are then limited to that tenant, also for `as: 'system'`
+//   (the scope applies to trusted calls that carry a tenant). Anonymous calls on scoped collections
+//   WITHOUT a tenant are FORBIDDEN; system calls without one are unscoped. Rejected (QueryError)
+//   when the config has no tenancy.
 
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createLocalApi } from '../api/local';
@@ -45,14 +49,18 @@ export interface RpcFindOptions {
 	pagination?: boolean;
 	/** `'system'` = trusted caller: reads skip access rules. Default: anonymous. */
 	as?: 'system';
+	/** Multi-tenancy (§15.2): the tenant to act on. */
+	tenant?: string;
 }
 export interface RpcReadOptions {
 	depth?: number;
 	as?: 'system';
+	tenant?: string;
 }
 export interface RpcCountOptions {
 	where?: WhereInput;
 	as?: 'system';
+	tenant?: string;
 }
 /** Reads may ask for drafts only as `system`. */
 export interface RpcDraftReadOptions {
@@ -62,9 +70,15 @@ export interface RpcDraftReadOptions {
 /** Options of every write. `as: 'system'` is required. */
 export interface RpcWriteOptions {
 	as: 'system';
+	tenant?: string;
 	depth?: number;
 	/** Save as a draft (collections/globals with drafts). */
 	draft?: boolean;
+}
+/** Options of `delete`, `move`, `unpublish`. */
+export interface RpcSystemOptions {
+	as: 'system';
+	tenant?: string;
 }
 export type RpcMoveTarget = { before: string } | { after: string };
 
@@ -81,13 +95,14 @@ export interface KitcmsRPCMethods {
 	getMediaUrl(key: string): Promise<string | null>;
 	create(collection: string, data: Record<string, unknown>, options: RpcWriteOptions): Promise<unknown>;
 	update(collection: string, id: string, data: Record<string, unknown>, options: RpcWriteOptions): Promise<unknown>;
-	delete(collection: string, id: string, options: { as: 'system' }): Promise<unknown>;
-	move(collection: string, id: string, target: RpcMoveTarget, options: { as: 'system' }): Promise<unknown>;
-	unpublish(collection: string, id: string, options: { as: 'system' }): Promise<unknown>;
+	delete(collection: string, id: string, options: RpcSystemOptions): Promise<unknown>;
+	move(collection: string, id: string, target: RpcMoveTarget, options: RpcSystemOptions): Promise<unknown>;
+	unpublish(collection: string, id: string, options: RpcSystemOptions): Promise<unknown>;
 	updateGlobal(global: string, data: Record<string, unknown>, options: RpcWriteOptions): Promise<unknown>;
 }
 
-type OptionKey = 'where' | 'sort' | 'limit' | 'page' | 'depth' | 'pagination' | 'as' | 'draft';
+type OptionKey = 'where' | 'sort' | 'limit' | 'page' | 'depth' | 'pagination' | 'as' | 'draft' | 'tenant';
+const TENANT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -95,15 +110,16 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return proto === Object.prototype || proto === null;
 }
 
-/** Whitelists caller options. Unknown keys are rejected loudly (a typo shouldn't silently widen nothing). */
+/** @internal Whitelists caller options. Unknown keys are rejected loudly (a typo shouldn't silently widen nothing). */
 export function readRpcOptions(
 	raw: unknown,
 	allowed: readonly OptionKey[],
-): { system: boolean; args: Record<string, unknown> } {
-	if (raw === undefined || raw === null) return { system: false, args: {} };
+): { system: boolean; tenant: string | null; args: Record<string, unknown> } {
+	if (raw === undefined || raw === null) return { system: false, tenant: null, args: {} };
 	if (!isPlainObject(raw)) throw new QueryError('options must be an object.');
 	const args: Record<string, unknown> = {};
 	let system = false;
+	let tenant: string | null = null;
 	for (const [key, value] of Object.entries(raw)) {
 		if (value === undefined) continue;
 		if (!(allowed as readonly string[]).includes(key)) throw new QueryError(`Unknown option "${key}".`);
@@ -111,6 +127,10 @@ export function readRpcOptions(
 			case 'as':
 				if (value !== 'system') throw new QueryError('`as` must be "system".');
 				system = true;
+				break;
+			case 'tenant':
+				if (typeof value !== 'string' || !TENANT_ID.test(value)) throw new QueryError('`tenant` must be a tenant id.');
+				tenant = value;
 				break;
 			case 'where':
 				if (!isPlainObject(value)) throw new QueryError('`where` must be an object.');
@@ -132,17 +152,18 @@ export function readRpcOptions(
 	}
 	// Drafts are unpublished content: only trusted callers may read or write them.
 	if (args.draft === true && !system) throw new ForbiddenError('`draft` needs `{ as: "system" }`.');
-	return { system, args };
+	return { system, tenant, args };
 }
 
-/** Options of a write: `as: 'system'` is mandatory (checked first, before any other validation). */
+/** @internal Options of a write: `as: 'system'` is mandatory (checked first, before any other validation). */
 export function readRpcWriteOptions(
 	raw: unknown,
 	allowed: readonly OptionKey[],
-): Record<string, unknown> {
+): { tenant: string | null; args: Record<string, unknown> } {
 	const as = isPlainObject(raw) ? raw.as : undefined;
 	if (as !== 'system') throw new ForbiddenError('RPC writes need `{ as: "system" }`.');
-	return readRpcOptions(raw, allowed).args;
+	const { tenant, args } = readRpcOptions(raw, allowed);
+	return { tenant, args };
 }
 
 function readData(value: unknown): Record<string, unknown> {
@@ -176,8 +197,10 @@ function rpcCms(
 	config: SanitizedConfig,
 	env: Record<string, unknown>,
 	ctx: ExecutionContext,
-	system = false,
+	system: boolean,
+	tenant: string | null,
 ): Cms {
+	if (tenant !== null && !config.tenancy) throw new QueryError('`tenant` needs the multi-tenant plugin.');
 	return createLocalApi({
 		config,
 		// Trusted `system` calls read the primary (fresh after their own writes); anonymous reads any replica.
@@ -186,12 +209,13 @@ function rpcCms(
 		user: null,
 		source: 'rpc',
 		waitUntil: (p) => ctx.waitUntil(p),
+		tenant,
 	});
 }
 
-const FIND_KEYS = ['where', 'sort', 'limit', 'page', 'depth', 'pagination', 'as', 'draft'] as const;
-const WRITE_KEYS = ['as', 'depth', 'draft'] as const;
-const SYSTEM_KEYS = ['as'] as const;
+const FIND_KEYS = ['where', 'sort', 'limit', 'page', 'depth', 'pagination', 'as', 'draft', 'tenant'] as const;
+const WRITE_KEYS = ['as', 'depth', 'draft', 'tenant'] as const;
+const SYSTEM_KEYS = ['as', 'tenant'] as const;
 
 /** Builds the `KitcmsRPC` entrypoint class for a config. */
 export function createKitcmsRPC(config: Config) {
@@ -201,8 +225,8 @@ export function createKitcmsRPC(config: Config) {
 	return class KitcmsRPC extends WorkerEntrypoint<Record<string, unknown>> implements KitcmsRPCMethods {
 		async find(collection: string, options?: RpcFindOptions & RpcDraftReadOptions) {
 			try {
-				const { system, args } = readRpcOptions(options, FIND_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, system).find(requireString(collection, 'collection'), {
+				const { system, tenant, args } = readRpcOptions(options, FIND_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, system, tenant).find(requireString(collection, 'collection'), {
 					...args,
 					overrideAccess: system,
 				} as never);
@@ -213,8 +237,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async findOne(collection: string, options?: Omit<RpcFindOptions, 'limit' | 'page' | 'pagination'> & RpcDraftReadOptions) {
 			try {
-				const { system, args } = readRpcOptions(options, ['where', 'sort', 'depth', 'as', 'draft']);
-				return await rpcCms(getConfig(), this.env, this.ctx, system).findOne(requireString(collection, 'collection'), {
+				const { system, tenant, args } = readRpcOptions(options, ['where', 'sort', 'depth', 'as', 'draft', 'tenant']);
+				return await rpcCms(getConfig(), this.env, this.ctx, system, tenant).findOne(requireString(collection, 'collection'), {
 					...args,
 					overrideAccess: system,
 				} as never);
@@ -225,8 +249,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async findByID(collection: string, id: string, options?: RpcReadOptions & RpcDraftReadOptions) {
 			try {
-				const { system, args } = readRpcOptions(options, ['depth', 'as', 'draft']);
-				return await rpcCms(getConfig(), this.env, this.ctx, system).findByID(requireString(collection, 'collection'), requireString(id, 'id'), {
+				const { system, tenant, args } = readRpcOptions(options, ['depth', 'as', 'draft', 'tenant']);
+				return await rpcCms(getConfig(), this.env, this.ctx, system, tenant).findByID(requireString(collection, 'collection'), requireString(id, 'id'), {
 					...args,
 					overrideAccess: system,
 				} as never);
@@ -237,8 +261,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async count(collection: string, options?: RpcCountOptions) {
 			try {
-				const { system, args } = readRpcOptions(options, ['where', 'as']);
-				return await rpcCms(getConfig(), this.env, this.ctx, system).count(requireString(collection, 'collection'), {
+				const { system, tenant, args } = readRpcOptions(options, ['where', 'as', 'tenant']);
+				return await rpcCms(getConfig(), this.env, this.ctx, system, tenant).count(requireString(collection, 'collection'), {
 					...args,
 					overrideAccess: system,
 				} as never);
@@ -249,8 +273,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async findGlobal(global: string, options?: RpcReadOptions & RpcDraftReadOptions) {
 			try {
-				const { system, args } = readRpcOptions(options, ['depth', 'as', 'draft']);
-				return await rpcCms(getConfig(), this.env, this.ctx, system).findGlobal(requireString(global, 'global'), {
+				const { system, tenant, args } = readRpcOptions(options, ['depth', 'as', 'draft', 'tenant']);
+				return await rpcCms(getConfig(), this.env, this.ctx, system, tenant).findGlobal(requireString(global, 'global'), {
 					...args,
 					overrideAccess: system,
 				} as never);
@@ -263,8 +287,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async create(collection: string, data: Record<string, unknown>, options: RpcWriteOptions) {
 			try {
-				const args = readRpcWriteOptions(options, WRITE_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).create(
+				const { tenant, args } = readRpcWriteOptions(options, WRITE_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).create(
 					requireString(collection, 'collection'),
 					readData(data),
 					{ ...args, overrideAccess: true } as never,
@@ -276,8 +300,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async update(collection: string, id: string, data: Record<string, unknown>, options: RpcWriteOptions) {
 			try {
-				const args = readRpcWriteOptions(options, WRITE_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).update(
+				const { tenant, args } = readRpcWriteOptions(options, WRITE_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).update(
 					requireString(collection, 'collection'),
 					requireString(id, 'id'),
 					readData(data),
@@ -288,10 +312,10 @@ export function createKitcmsRPC(config: Config) {
 			}
 		}
 
-		async delete(collection: string, id: string, options: { as: 'system' }) {
+		async delete(collection: string, id: string, options: RpcSystemOptions) {
 			try {
-				readRpcWriteOptions(options, SYSTEM_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).delete(
+				const { tenant } = readRpcWriteOptions(options, SYSTEM_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).delete(
 					requireString(collection, 'collection'),
 					requireString(id, 'id'),
 					{ overrideAccess: true },
@@ -301,10 +325,10 @@ export function createKitcmsRPC(config: Config) {
 			}
 		}
 
-		async move(collection: string, id: string, target: RpcMoveTarget, options: { as: 'system' }) {
+		async move(collection: string, id: string, target: RpcMoveTarget, options: RpcSystemOptions) {
 			try {
-				readRpcWriteOptions(options, SYSTEM_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).move(
+				const { tenant } = readRpcWriteOptions(options, SYSTEM_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).move(
 					requireString(collection, 'collection'),
 					requireString(id, 'id'),
 					readMoveTarget(target),
@@ -315,10 +339,10 @@ export function createKitcmsRPC(config: Config) {
 			}
 		}
 
-		async unpublish(collection: string, id: string, options: { as: 'system' }) {
+		async unpublish(collection: string, id: string, options: RpcSystemOptions) {
 			try {
-				readRpcWriteOptions(options, SYSTEM_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).unpublish(
+				const { tenant } = readRpcWriteOptions(options, SYSTEM_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).unpublish(
 					requireString(collection, 'collection'),
 					requireString(id, 'id'),
 					{ overrideAccess: true },
@@ -330,8 +354,8 @@ export function createKitcmsRPC(config: Config) {
 
 		async updateGlobal(global: string, data: Record<string, unknown>, options: RpcWriteOptions) {
 			try {
-				const args = readRpcWriteOptions(options, WRITE_KEYS);
-				return await rpcCms(getConfig(), this.env, this.ctx, true).updateGlobal(
+				const { tenant, args } = readRpcWriteOptions(options, WRITE_KEYS);
+				return await rpcCms(getConfig(), this.env, this.ctx, true, tenant).updateGlobal(
 					requireString(global, 'global'),
 					readData(data),
 					{ ...args, overrideAccess: true } as never,

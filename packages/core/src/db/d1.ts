@@ -95,8 +95,10 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database | D1Data
 			const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
 			const m = /UNIQUE constraint failed: ([^:]+)/.exec(msg);
 			if (m) {
-				const first = m[1]!.split(',')[0]!.trim();
-				const column = first.slice(first.lastIndexOf('.') + 1);
+				// Composite unique indexes report every column; the error goes on the LAST one (the
+				// multi-tenant plugin's `(tenant, slug)` → `slug`).
+				const last = m[1]!.split(',').at(-1)!.trim();
+				const column = last.slice(last.lastIndexOf('.') + 1);
 				return new ValidationError([{ path: column, message: 'Must be unique' }]);
 			}
 			e = (e as { cause?: unknown }).cause;
@@ -235,6 +237,7 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database | D1Data
 		targetId: string,
 		side: 'before' | 'after',
 		excludeId: string,
+		where?: WhereInput,
 	): Stmt<{ key: string | null; neighbour: string | null } | null> {
 		const { table } = ctxOf(slug);
 		const order = orderCol(slug);
@@ -245,7 +248,11 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database | D1Data
 			side === 'after'
 				? sql<string | null>`(select min(o."_order") from ${name} as o where o."_order" > ${name}."_order" and o."id" <> ${excludeId})`
 				: sql<string | null>`(select max(o."_order") from ${name} as o where o."_order" < ${name}."_order" and o."id" <> ${excludeId})`;
-		const q = db.select({ key: order, neighbour }).from(table).where(eq(table.id as SQLiteColumn, targetId)).limit(1);
+		const q = db
+			.select({ key: order, neighbour })
+			.from(table)
+			.where(and(eq(table.id as SQLiteColumn, targetId), condition(slug, where)))
+			.limit(1);
 		return new DbStmt([q], (r) => {
 			const row = (r[0] as { key: string | null; neighbour: string | null }[])[0];
 			return row ? { key: row.key ?? null, neighbour: row.neighbour ?? null } : null;

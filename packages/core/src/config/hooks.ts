@@ -15,6 +15,8 @@ export interface KitcmsUser {
 	role: string;
 	/** The collection the user belongs to (the `auth: true` collection). */
 	collection: string;
+	/** Multi-tenancy only (§15.2): the ids in the auth collection's tenants field. */
+	tenants?: readonly string[];
 }
 
 export type Operation = 'create' | 'read' | 'update' | 'delete';
@@ -37,6 +39,12 @@ export interface KitcmsReq {
 	source: Source;
 	/** The SvelteKit request, when there is one (absent for RPC and plain Local API calls). */
 	event?: RequestEvent;
+	/**
+	 * Multi-tenancy (§15.2): the tenant this operation acts on, `null` = none (or every tenant, for
+	 * trusted code and `'all'` users). Set by the request (host, admin selection, RPC `{ tenant }`),
+	 * never by operation options. Read it; don't change it.
+	 */
+	readonly tenant: string | null;
 }
 
 type MaybePromise<T> = T | Promise<T>;
