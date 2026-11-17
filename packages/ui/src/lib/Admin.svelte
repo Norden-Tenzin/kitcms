@@ -1,75 +1,193 @@
 <script lang="ts">
-	// SPIKE (Phase 0): admin shell rendered by the generated route file. The internal router
-	// output comes from @kitcms/core/sveltekit/admin's `load`.
-	import { resolve } from '$app/paths';
+	// The admin root. Defines the theme scope (`.kitcms-admin`) and switches on the route view.
+	import './theme.css';
 	import { enhance } from '$app/forms';
-	import EditForm from './EditForm.svelte';
-	import FirstUser from './FirstUser.svelte';
-	import Login from './Login.svelte';
-	import type {
-		AdminActionFailure,
-		AdminActionResult,
-		AdminData,
-	} from '@kitcms/core/sveltekit/admin';
+	import type { AdminActionData, AdminData, AdminDataOf } from '@kitcms/core/client';
+	import { adminHref, collectionHref } from './links';
+	import Login from './views/Login.svelte';
+	import FirstUser from './views/FirstUser.svelte';
+	import Dashboard from './views/Dashboard.svelte';
+	import List from './views/List.svelte';
+	import Edit from './views/Edit.svelte';
 
-	type AdminForm = Partial<AdminActionResult & AdminActionFailure> | null | undefined;
+	let { data, form }: { data: AdminData; form?: AdminActionData | null } = $props();
 
-	let { data, form }: { data: AdminData; form?: AdminForm } = $props();
+	type Signed = Exclude<AdminData, { route: { view: 'login' | 'create-first-user' } }>;
+	// TypeScript doesn't narrow `data` from `data.route.view`, so views get a typed accessor.
+	const as = <V extends AdminData['route']['view']>(v: V) =>
+		data.route.view === v ? (data as AdminDataOf<V>) : null;
+	const dashboard = $derived(as('dashboard'));
+	const list = $derived(as('list'));
+	const editing = $derived(as('create') ?? as('edit'));
+	const signed = $derived(
+		data.route.view === 'login' || data.route.view === 'create-first-user'
+			? null
+			: (data as Signed),
+	);
 
-	// The generated route file always lives at this route id; resolve() applies `paths.base`.
-	const ADMIN = '/(kitcms)/admin/[...path]';
+	let navOpen = $state(false);
+
+	// Nav grouped by `group`; ungrouped collections first.
+	const groups = $derived.by(() => {
+		if (!signed) return [];
+		const by: Record<string, Signed['nav']> = {};
+		for (const item of signed.nav) (by[item.group ?? ''] ??= []).push(item);
+		return Object.entries(by).sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
+	});
+	const activeSlug = $derived('collection' in data.route ? data.route.collection : undefined);
+	// Edit views are also re-keyed on `updatedAt`, so the form re-seeds from the saved document
+	// (server-derived values such as generated slugs show up after a save).
+	const viewKey = $derived(
+		data.route.view +
+			('id' in data.route ? data.route.id : '') +
+			(data.route.view === 'edit' && 'doc' in data ? String(data.doc.updatedAt ?? '') : ''),
+	);
 </script>
 
-<div class="kitcms-admin">
-	{#if data.user}
-		<nav>
-			<a href={resolve(ADMIN, { path: '' })}>Dashboard</a>
-			{#each data.collections as c (c.slug)}
-				<a href={resolve(ADMIN, { path: `collections/${c.slug}` })}>{c.slug}</a>
-			{/each}
-			<form method="POST" action="?/logout" use:enhance>
-				<span data-testid="whoami">{data.user.email}</span>
-				<button>Log out</button>
-			</form>
-		</nav>
-	{/if}
+<!-- eslint-disable svelte/no-navigation-without-resolve -- every href comes from ../links, which calls resolve() -->
 
+<svelte:head><title>{data.title}</title></svelte:head>
+
+<div class="kitcms-admin">
 	{#if data.route.view === 'login'}
-		<Login message={form?.message} />
+		<Login title={data.title} message={form?.message} />
 	{:else if data.route.view === 'create-first-user'}
-		<FirstUser message={form?.message} />
-	{:else if data.route.view === 'dashboard'}
-		<h1>Dashboard</h1>
-		<p data-testid="marker">kitcms admin v0</p>
-	{:else if data.route.view === 'list' && data.meta}
-		<h1>{data.meta.slug}</h1>
-		<ul>
-			{#each data.docs ?? [] as doc (doc.id)}
-				<li>
-					<a href={resolve(ADMIN, { path: `collections/${data.meta.slug}/${doc.id}` })}
-						>{doc[data.meta.useAsTitle] ?? doc.id}</a
-					>
-				</li>
-			{/each}
-		</ul>
-	{:else if data.route.view === 'edit' && data.meta}
-		{#if data.doc}
-			{#key data.doc.id}
-				<EditForm meta={data.meta} doc={data.doc} />
-			{/key}
-		{/if}
-		{#if form?.saved}<p data-testid="saved">Saved</p>{/if}
-		{#if form?.message}<p data-testid="error">{form.message}</p>{/if}
+		<FirstUser title={data.title} message={form?.message} />
+	{:else if signed}
+		<div class="shell">
+			<header class="top">
+				<button
+					class="kc-btn kc-btn--ghost menu"
+					aria-expanded={navOpen}
+					aria-controls="kc-nav"
+					onclick={() => (navOpen = !navOpen)}>Menu</button
+				>
+				<a class="brand" href={adminHref('')}>{data.title}</a>
+				<span class="spacer"></span>
+				<span class="who" data-testid="whoami">{signed.user.email}</span>
+				<form method="POST" action="?/logout" use:enhance>
+					<button class="kc-btn kc-btn--ghost">Log out</button>
+				</form>
+			</header>
+			<nav id="kc-nav" class="nav" data-open={navOpen} aria-label="Main">
+				<a
+					href={adminHref('')}
+					aria-current={data.route.view === 'dashboard' ? 'page' : undefined}
+					onclick={() => (navOpen = false)}>Dashboard</a
+				>
+				{#each groups as [group, items] (group)}
+					{#if group}<span class="group">{group}</span>{/if}
+					{#each items as item (item.slug)}
+						<a
+							href={collectionHref(item.slug)}
+							aria-current={item.slug === activeSlug ? 'page' : undefined}
+							onclick={() => (navOpen = false)}>{item.label}</a
+						>
+					{/each}
+				{/each}
+			</nav>
+			<main class="content">
+				{#if dashboard}
+					<Dashboard data={dashboard} />
+				{:else if list}
+					{#key viewKey}<List data={list} />{/key}
+				{:else if editing}
+					{#key viewKey}<Edit data={editing} {form} />{/key}
+				{/if}
+			</main>
+		</div>
 	{/if}
 </div>
 
 <style>
-	.kitcms-admin {
-		font-family: system-ui, sans-serif;
+	.shell {
+		display: grid;
+		grid-template-columns: 14rem minmax(0, 1fr);
+		grid-template-rows: auto 1fr;
+		grid-template-areas:
+			'top top'
+			'nav content';
+		min-height: 100vh;
 	}
-	nav {
+	.top {
+		grid-area: top;
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.75rem;
+		padding: 0.5rem 1rem;
+		background: var(--kc-surface);
+		border-bottom: 1px solid var(--kc-border);
+	}
+	.brand {
+		font-weight: 700;
+		color: var(--kc-text);
+		text-decoration: none;
+	}
+	.spacer {
+		flex: 1;
+	}
+	.who {
+		color: var(--kc-muted);
+	}
+	.menu {
+		display: none;
+	}
+	.nav {
+		grid-area: nav;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 1rem 0.75rem;
+		background: var(--kc-surface);
+		border-right: 1px solid var(--kc-border);
+	}
+	.nav a {
+		padding: 0.4rem 0.6rem;
+		border-radius: var(--kc-radius);
+		color: var(--kc-text);
+		text-decoration: none;
+	}
+	.nav a:hover {
+		background: color-mix(in srgb, var(--kc-muted) 15%, transparent);
+	}
+	.nav a[aria-current='page'] {
+		background: var(--kc-accent);
+		color: var(--kc-accent-text);
+	}
+	.group {
+		margin-top: 0.75rem;
+		padding: 0 0.6rem;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--kc-muted);
+	}
+	.content {
+		grid-area: content;
+		padding: 1.25rem;
+		min-width: 0;
+	}
+	@media (max-width: 800px) {
+		.shell {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-areas:
+				'top'
+				'nav'
+				'content';
+			grid-template-rows: auto auto 1fr;
+		}
+		.menu {
+			display: inline-flex;
+		}
+		.who {
+			display: none;
+		}
+		.nav {
+			border-right: 0;
+			border-bottom: 1px solid var(--kc-border);
+		}
+		.nav[data-open='false'] {
+			display: none;
+		}
 	}
 </style>

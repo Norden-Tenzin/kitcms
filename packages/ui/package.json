@@ -15,18 +15,20 @@
 		"src"
 	],
 	"peerDependencies": {
-		"svelte": "^5",
+		"@kitcms/core": "workspace:^",
 		"@sveltejs/kit": "^3",
-		"@kitcms/core": "workspace:^"
+		"svelte": "^5"
 	},
 	"devDependencies": {
-		"svelte-check": "^4.7.8",
-		"@sveltejs/package": "^3.0.2",
 		"@kitcms/core": "workspace:*",
 		"@sveltejs/kit": "^3.2.0",
-		"svelte": "^5.57.3"
+		"@sveltejs/package": "^3.0.2",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"svelte": "^5.57.3",
+		"svelte-check": "^4.7.8"
 	},
 	"scripts": {
-		"typecheck": "svelte-check --tsconfig ./tsconfig.json"
+		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "vitest run"
 	}
 }

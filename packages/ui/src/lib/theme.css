@@ -1,0 +1,149 @@
+/* Admin theme. Everything is scoped under .kitcms-admin so it never leaks into the site. */
+.kitcms-admin {
+	--kc-bg: #f6f7f9;
+	--kc-surface: #ffffff;
+	--kc-text: #14171f;
+	--kc-muted: #667085;
+	--kc-border: #dfe3ea;
+	--kc-accent: #3b5bdb;
+	--kc-accent-text: #ffffff;
+	--kc-danger: #c92a2a;
+	--kc-success: #2b8a3e;
+	--kc-radius: 8px;
+	--kc-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+	font-family: var(--kc-font);
+	font-size: 14px;
+	line-height: 1.5;
+	color: var(--kc-text);
+	background: var(--kc-bg);
+	min-height: 100vh;
+	box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+	.kitcms-admin {
+		--kc-bg: #0f1115;
+		--kc-surface: #181b22;
+		--kc-text: #e8eaf0;
+		--kc-muted: #98a2b3;
+		--kc-border: #2b303b;
+		--kc-accent: #748ffc;
+		--kc-accent-text: #0f1115;
+		--kc-danger: #ff8787;
+		--kc-success: #69db7c;
+		color-scheme: dark;
+	}
+}
+.kitcms-admin *,
+.kitcms-admin *::before,
+.kitcms-admin *::after {
+	box-sizing: border-box;
+}
+.kitcms-admin a {
+	color: var(--kc-accent);
+}
+.kitcms-admin h1,
+.kitcms-admin h2,
+.kitcms-admin h3 {
+	margin: 0;
+	line-height: 1.25;
+}
+.kitcms-admin :focus-visible {
+	outline: 2px solid var(--kc-accent);
+	outline-offset: 2px;
+}
+
+.kitcms-admin .kc-input {
+	width: 100%;
+	font: inherit;
+	color: var(--kc-text);
+	background: var(--kc-surface);
+	border: 1px solid var(--kc-border);
+	border-radius: var(--kc-radius);
+	padding: 0.4rem 0.6rem;
+	min-height: 2.25rem;
+}
+.kitcms-admin textarea.kc-input {
+	min-height: 5rem;
+	resize: vertical;
+}
+.kitcms-admin .kc-input:disabled {
+	opacity: 0.7;
+	cursor: not-allowed;
+}
+.kitcms-admin .kc-input[aria-invalid='true'] {
+	border-color: var(--kc-danger);
+}
+
+.kitcms-admin .kc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	font: inherit;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+	color: var(--kc-text);
+	background: var(--kc-surface);
+	border: 1px solid var(--kc-border);
+	border-radius: var(--kc-radius);
+	padding: 0.4rem 0.9rem;
+	min-height: 2.25rem;
+}
+.kitcms-admin .kc-btn:hover {
+	border-color: var(--kc-muted);
+}
+.kitcms-admin .kc-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+.kitcms-admin .kc-btn--primary {
+	color: var(--kc-accent-text);
+	background: var(--kc-accent);
+	border-color: var(--kc-accent);
+}
+.kitcms-admin .kc-btn--primary:hover {
+	filter: brightness(1.08);
+	border-color: var(--kc-accent);
+}
+.kitcms-admin .kc-btn--danger {
+	color: var(--kc-danger);
+	border-color: var(--kc-danger);
+	background: transparent;
+}
+.kitcms-admin .kc-btn--danger:hover {
+	border-color: var(--kc-danger);
+	background: color-mix(in srgb, var(--kc-danger) 10%, transparent);
+}
+.kitcms-admin .kc-btn--ghost {
+	background: transparent;
+	border-color: transparent;
+}
+.kitcms-admin .kc-btn--ghost:hover {
+	background: color-mix(in srgb, var(--kc-muted) 15%, transparent);
+	border-color: transparent;
+}
+
+.kitcms-admin .kc-card {
+	background: var(--kc-surface);
+	border: 1px solid var(--kc-border);
+	border-radius: var(--kc-radius);
+	padding: 1rem;
+}
+.kitcms-admin .kc-alert {
+	margin: 0;
+	padding: 0.6rem 0.8rem;
+	border-radius: var(--kc-radius);
+	border: 1px solid var(--kc-danger);
+	color: var(--kc-danger);
+	background: color-mix(in srgb, var(--kc-danger) 8%, transparent);
+}
+.kitcms-admin .kc-alert--success {
+	border-color: var(--kc-success);
+	color: var(--kc-success);
+	background: color-mix(in srgb, var(--kc-success) 8%, transparent);
+}
+.kitcms-admin .kc-muted {
+	color: var(--kc-muted);
+}
