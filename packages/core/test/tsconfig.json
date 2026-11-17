@@ -1,0 +1,13 @@
+{
+	"extends": "../../../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true, "declaration": false
+	},
+	"include": [
+		"*.check.ts",
+		"../src/**/*.ts"
+	],
+	"exclude": [
+		"../src/cli"
+	]
+}

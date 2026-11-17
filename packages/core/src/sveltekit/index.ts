@@ -1,40 +1,31 @@
-// SPIKE (Phase 0): the shape of kitcms's SvelteKit integration.
-// `kitcms(...)` returns a `handle` that puts the Local API on `event.locals.cms`, serves Better Auth under
-// /api/auth/*, and resolves the session for /admin and /api only.
-// Package-provided route modules (admin, api) only ever talk to `locals.cms` and `locals.user`.
-import { building } from '$app/env';
-import type { RequestEvent } from '@sveltejs/kit';
+// kitcms's SvelteKit integration (plan §4.1, §4.7).
+//
+//   // src/hooks.server.ts
+//   import { kitcms } from '@kitcms/core/sveltekit';
+//   import config from './kitcms.config';
+//   export const handle = kitcms({ config }).handle;
+//
+// `handle` puts the Local API on `locals.cms` (acting as the request's user), serves Better Auth
+// under `<base>/api/auth/*`, and resolves the session for `<base>/admin*` and `<base>/api*` only:
+// public routes run no auth code and no auth SQL (auth is lazy-loaded, Decision 18).
+// Package route modules (admin, REST) get their untyped handles via `getKitcms(locals)`.
+
+import * as workers from 'cloudflare:workers';
+import { basePath } from './base';
 import type { Handle } from '@sveltejs/kit/hooks';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
-import { authConfigured, configureAuth, getAuth, isAuthPath, type KitcmsAuthOptions } from './auth';
-import { needsSession, type Role } from './auth-guard';
+import type { LocalAPI } from '../api/types';
+import { createLocalApi } from '../api/local';
+import type { Cms } from '../api/types';
+import type { Config } from '../config/collection';
+import type { KitcmsUser } from '../config/hooks';
+import type { SanitizedConfig } from '../config/sanitized';
+import { sanitizeConfig } from '../config/sanitize';
+import type { DbAdapter } from '../db/adapter';
+import { dbFor, storageFor } from '../runtime';
+import type { StorageAdapter } from '../storage/adapter';
+import { needsSession, stripBase } from './paths';
 
-export type Doc = Record<string, unknown> & { id: string };
-export type { KitcmsAuthOptions } from './auth';
-export type { Role } from './auth-guard';
-
-export interface KitcmsCollectionMeta {
-	slug: string;
-	/** Text fields the spike admin can edit. Phase 1 replaces this with the field component contract. */
-	editable: string[];
-	useAsTitle: string;
-}
-
-/** SPIKE contract for the Local API as seen by package code. Phase 1 replaces it with the real typed API. */
-export interface KitcmsLocal {
-	collections: KitcmsCollectionMeta[];
-	find(collection: string, opts?: { limit?: number }): Promise<{ docs: Doc[] }>;
-	findByID(collection: string, id: string): Promise<Doc | null>;
-	update(collection: string, id: string, data: Record<string, unknown>): Promise<Doc>;
-}
-
-/** The signed-in user. `role` is whatever is stored: guards must check it with `isRole`. Never carries credentials. */
-export interface KitcmsUser {
-	id: string;
-	email: string;
-	name: string;
-	role: Role | (string & {});
-}
+export type { KitcmsUser } from '../config/hooks';
 
 /** The current session. Deliberately has no token: the cookie is the only place it is visible. */
 export interface KitcmsSession {
@@ -45,7 +36,8 @@ export interface KitcmsSession {
 declare global {
 	namespace App {
 		interface Locals {
-			cms: KitcmsLocal;
+			/** The Local API, typed by the config registered in `app.d.ts` (see `Register`). */
+			cms: LocalAPI;
 			/** Only resolved for /admin and /api requests; `null` on public routes and when signed out. */
 			user: KitcmsUser | null;
 			session: KitcmsSession | null;
@@ -53,47 +45,87 @@ declare global {
 	}
 }
 
+export interface KitcmsAuthOptions {
+	/**
+	 * Better Auth's `session.cookieCache`: a signed cookie that lets the session resolve without a
+	 * D1 read for `maxAge` seconds. Off by default: a revoked session or changed role would stay
+	 * valid for up to `maxAge` seconds.
+	 */
+	cookieCache?: false | { maxAge: number };
+}
+
 export interface KitcmsOptions {
-	/** Builds the per-request Local API. In Phase 1 this is internal: built from the config + D1/R2 bindings. */
-	create: (event: RequestEvent) => KitcmsLocal;
-	/** Better Auth (email + password) on D1. */
-	auth: KitcmsAuthOptions;
+	config: Config;
+	auth?: KitcmsAuthOptions;
 }
 
-function pathOf(event: RequestEvent): string {
-	try {
-		return decodeURI(event.url.pathname);
-	} catch {
-		return event.url.pathname;
-	}
+/** Per-request internals for package route modules. Never exposed to the browser. */
+export interface KitcmsInternals {
+	config: SanitizedConfig;
+	options: KitcmsOptions;
+	db: DbAdapter;
+	env: Record<string, unknown>;
+	/** `locals.cms`, typed against the untyped config. */
+	cms: Cms;
+	user: KitcmsUser | null;
+	/** Builds a Local API acting as another user (e.g. right after sign-in). */
+	cmsFor(user: KitcmsUser | null, source?: 'local' | 'admin' | 'rest'): Cms;
+	/** R2 adapter; `undefined` when no collection has `upload`. */
+	storage?: StorageAdapter;
 }
 
-export function kitcms(options: KitcmsOptions): { handle: Handle } {
-	configureAuth(options.auth);
+const internals = new WeakMap<App.Locals, KitcmsInternals>();
+
+/** Package-internal: the kitcms handles for a request. Throws if `kitcms().handle` didn't run. */
+export function getKitcms(locals: App.Locals): KitcmsInternals {
+	const k = internals.get(locals);
+	if (!k) throw new Error('kitcms: `kitcms({ config }).handle` is not installed in hooks.server.ts.');
+	return k;
+}
+
+
+const waitUntil = (workers as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil;
+
+export function kitcms(options: KitcmsOptions): { handle: Handle; config: SanitizedConfig } {
+	const config = sanitizeConfig(options.config);
+
 	return {
+		config,
 		handle: async ({ event, resolve }) => {
-			event.locals.cms = options.create(event);
+			const env = workers.env as unknown as Record<string, unknown>;
+			const db = dbFor(config, env);
+			const pathname = stripBase(event.url.pathname, basePath(event.url));
+			const storage = storageFor(config, env, basePath);
+
+			const cmsFor = (user: KitcmsUser | null, source: 'local' | 'admin' | 'rest' = 'local') =>
+				createLocalApi({ config, db, storage, user, source, event, waitUntil });
+
 			event.locals.user = null;
 			event.locals.session = null;
+			let k: KitcmsInternals = {
+				config,
+				options,
+				db,
+				env,
+				cms: cmsFor(null),
+				user: null,
+				cmsFor,
+				storage: storage as StorageAdapter | undefined,
+			};
+			internals.set(event.locals, k);
+			event.locals.cms = k.cms as unknown as LocalAPI;
 
-			if (authConfigured()) {
-				const pathname = pathOf(event);
-				// Better Auth's own endpoints (sign-in, sign-out, session...). Sign-up is disabled in its config.
-				if (isAuthPath(pathname)) {
-					return svelteKitHandler({ auth: getAuth(), event, resolve, building });
-				}
-				if (needsSession(pathname)) {
-					const result = await getAuth().api.getSession({ headers: event.request.headers });
-					if (result) {
-						const { user, session } = result;
-						event.locals.user = {
-							id: user.id,
-							email: user.email,
-							name: user.name,
-							role: user.role,
-						};
-						event.locals.session = { id: session.id, expiresAt: session.expiresAt };
-					}
+			if (pathname !== null && needsSession(pathname)) {
+				// Lazy: public requests never evaluate Better Auth (Decision 18).
+				const auth = await import('../auth/module');
+				if (auth.isAuthPath(pathname)) return auth.handleAuthRoute(event, resolve, k);
+				const resolved = await auth.resolveSession(event, k);
+				if (resolved) {
+					event.locals.user = resolved.user;
+					event.locals.session = resolved.session;
+					k = { ...k, user: resolved.user, cms: cmsFor(resolved.user) };
+					internals.set(event.locals, k);
+					event.locals.cms = k.cms as unknown as LocalAPI;
 				}
 			}
 			return resolve(event);

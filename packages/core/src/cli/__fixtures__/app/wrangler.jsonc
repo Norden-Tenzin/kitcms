@@ -1,0 +1,5 @@
+{
+	// fixture
+	"name": "fixture",
+	"d1_databases": [{ "binding": "DB", "database_name": "fixture", "database_id": "x", "migrations_dir": "migrations", }],
+}

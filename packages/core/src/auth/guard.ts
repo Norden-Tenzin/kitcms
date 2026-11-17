@@ -1,12 +1,5 @@
-// Pure auth decisions (no Better Auth, no SvelteKit, no env), so they are unit-testable.
+// Pure admin-guard decisions (no Better Auth, no SvelteKit, no env), so they are unit-testable.
 // Security-critical: the admin guard and the CSRF origin check live here.
-
-export const ROLES = ['admin', 'editor'] as const;
-export type Role = (typeof ROLES)[number];
-
-export function isRole(value: unknown): value is Role {
-	return typeof value === 'string' && (ROLES as readonly string[]).includes(value);
-}
 
 /** The admin views the guard cares about (a subset of `AdminRoute['view']`). */
 export type GuardView = 'login' | 'create-first-user' | (string & {});
@@ -14,21 +7,24 @@ export type GuardView = 'login' | 'create-first-user' | (string & {});
 export type GuardDecision =
 	| { kind: 'allow' }
 	| { kind: 'redirect'; to: 'login' | 'create-first-user' | 'dashboard' }
-	/** Signed in, but with a role kitcms doesn't know: never let them into the admin. */
+	/** Signed in, but not allowed into the admin (`access.admin` / role): never let them in. */
 	| { kind: 'deny' };
 
 /**
  * Decides what to do with an admin request.
- * `user` is the resolved session user (null when signed out). `userCount` is the total number of users;
- * a signed-in user implies at least one, so callers may pass `1` without querying.
+ * `user` is the resolved session user (null when signed out). `canUseAdmin` is the auth collection's
+ * `adminAccess(config, req)` result for that user (false when signed out). `userCount` is the total
+ * number of users; a signed-in user implies at least one, so callers may pass `1` without querying.
  */
 export function decideAdminAccess(input: {
 	view: GuardView;
-	user: { role: unknown } | null;
+	user: object | null;
+	canUseAdmin: boolean;
 	userCount: number;
 }): GuardDecision {
 	const { view, user, userCount } = input;
-	const allowed = user !== null && isRole(user.role);
+	// Fail closed: a signed-out request can never be allowed, whatever the caller passed.
+	const allowed = user !== null && input.canUseAdmin === true;
 
 	if (view === 'login') {
 		if (allowed) return { kind: 'redirect', to: 'dashboard' };
@@ -52,14 +48,4 @@ export function isSameOrigin(request: Request, url: URL): boolean {
 	const origin = request.headers.get('origin');
 	if (!origin) return false;
 	return origin === url.origin;
-}
-
-/** Paths that need a resolved session: the admin and the API. Public pages must never hit the session table. */
-export function needsSession(pathname: string): boolean {
-	return (
-		pathname === '/admin' ||
-		pathname.startsWith('/admin/') ||
-		pathname === '/api' ||
-		pathname.startsWith('/api/')
-	);
 }
