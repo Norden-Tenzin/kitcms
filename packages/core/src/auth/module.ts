@@ -17,7 +17,7 @@ export { isAuthPath } from '../sveltekit/paths';
  * denylist), so endpoints added by future Better Auth versions stay closed. Everything that
  * writes user/account data (update-user, change-email, change-password, delete-user, reset flows,
  * social linking, ...) must go through the kitcms pipeline and admin actions instead (one
- * pipeline, CLAUDE.md hard rule). `sign-in/email` keeps Better Auth's D1 rate limit.
+ * pipeline, see CONTRIBUTING.md). `sign-in/email` keeps Better Auth's D1 rate limit.
  */
 export const PUBLIC_AUTH_PATHS: ReadonlySet<string> = new Set([
 	'/sign-in/email',
