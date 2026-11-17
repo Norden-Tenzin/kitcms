@@ -8,13 +8,26 @@
 		".": {
 			"types": "./src/index.ts",
 			"default": "./src/index.ts"
+		},
+		"./svelte": {
+			"svelte": "./src/svelte/index.ts",
+			"types": "./src/svelte/index.ts",
+			"default": "./src/svelte/index.ts"
 		}
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "vitest run"
 	},
 	"peerDependencies": {
-		"@kitcms/core": "workspace:^"
+		"@kitcms/core": "workspace:^",
+		"svelte": "^5"
+	},
+	"devDependencies": {
+		"@kitcms/core": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"svelte": "^5.57.3",
+		"svelte-check": "^4.7.8"
 	},
 	"files": [
 		"src"
