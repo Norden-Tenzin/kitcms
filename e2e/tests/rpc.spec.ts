@@ -3,7 +3,7 @@ import { KitcmsClientError, isKitcmsClientError, parseKitcmsError } from '@kitcm
 import { CONSUMER_URL } from '../constants';
 import { uid } from './helpers';
 
-// RPC contract tests. The headless consumer (apps/dev-consumer, `wrangler dev`, bound to the CMS
+// RPC contract tests. The headless consumer (apps/playground-consumer, `wrangler dev`, bound to the CMS
 // over Service Binding RPC) proxies `POST /e2e/call { method, args }` to the typed `@kitcms/client`
 // and returns the result or the parsed `KitcmsClientError`. Only enabled with the `E2E=1` var.
 test.describe.configure({ mode: 'serial' });

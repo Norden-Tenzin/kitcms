@@ -1,4 +1,4 @@
-// Node-only: build apps/dev, `wrangler deploy --dry-run --outdir <tmp> --metafile`, report Worker size.
+// Node-only: build apps/playground, `wrangler deploy --dry-run --outdir <tmp> --metafile`, report Worker size.
 // Run: node scripts/bench/bundle-size.ts [--skip-build]
 import { spawnSync } from 'node:child_process';
 import {
@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 const root = resolve(import.meta.dirname, '../..');
-const appDir = join(root, 'apps/dev');
+const appDir = join(root, 'apps/playground');
 const outDir = mkdtempSync(join(tmpdir(), 'kitcms-bundle-'));
 
 function run(cmd: string, args: string[]): string {

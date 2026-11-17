@@ -2,7 +2,6 @@
 import { block, collection, defineConfig, fields as f, global } from '@kitcms/core';
 import { multiTenant, tenantByHost } from '@kitcms/plugin-multi-tenant';
 import { seo } from '@kitcms/plugin-seo';
-import { benchBlocks } from '#lib/bench/blocks.ts';
 
 const Hero = block({
 	slug: 'hero',
@@ -131,13 +130,6 @@ export default defineConfig({
 				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
 				body: f.richText(),
 			},
-		}),
-		// Benchmarks only (scripts/bench, /spike/bench). Hidden from the admin.
-		collection({
-			slug: 'bench',
-			admin: { hidden: true, useAsTitle: 'slug' },
-			access: { read: () => true },
-			fields: { slug: f.text({ unique: true }), sections: f.blocks({ blocks: benchBlocks }) },
 		}),
 	],
 	globals: [

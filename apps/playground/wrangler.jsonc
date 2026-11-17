@@ -1,6 +1,9 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "kitcms-dev",
+	"name": "kitcms-playground",
+	// Local only: `pnpm dev` and `pnpm preview` use local D1/R2 under .wrangler/state. There is no
+	// database_id, so nothing here points at a Cloudflare account. To deploy the playground to your own
+	// account, see CONTRIBUTING.md.
 	"compatibility_date": "2026-11-01",
 	"compatibility_flags": ["nodejs_als"],
 	// Smart Placement runs the Worker near its D1 primary when that beats running near the visitor
@@ -14,15 +17,14 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "kitcms-dev",
-			"database_id": "64e7ad86-8d61-47e1-9c24-eae78559a387",
+			"database_name": "kitcms-playground",
 			"migrations_dir": "migrations",
 		},
 	],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "kitcms-dev",
+			"bucket_name": "kitcms-playground",
 		},
 	],
 }

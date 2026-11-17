@@ -8,7 +8,7 @@
 		"node": ">=22"
 	},
 	"scripts": {
-		"dev": "pnpm --filter dev dev",
+		"dev": "pnpm --filter playground dev",
 		"build": "pnpm -r build",
 		"typecheck": "pnpm -r typecheck",
 		"lint": "eslint .",
@@ -16,9 +16,7 @@
 		"test": "vitest run",
 		"test:e2e": "pnpm --filter e2e test",
 		"changeset": "changeset",
-		"bench:parse": "node scripts/bench/parse.ts",
-		"bench:bundle": "node scripts/bench/bundle-size.ts",
-		"bench:cold": "node scripts/bench/cold-start.ts"
+		"bench:bundle": "node scripts/bench/bundle-size.ts"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^3.0.3",

@@ -12,7 +12,7 @@ pnpm add @kitcms/client
 
    ```jsonc
    {
-   	"services": [{ "binding": "CMS", "service": "kitcms-dev", "entrypoint": "KitcmsRPC" }],
+   	"services": [{ "binding": "CMS", "service": "my-kitcms", "entrypoint": "KitcmsRPC" }],
    }
    ```
 
@@ -22,7 +22,7 @@ pnpm add @kitcms/client
    kitcms generate:types --out ../consumer/src/kitcms-types.d.ts
    ```
 
-3. Call the CMS from the consumer Worker (from `apps/dev-consumer/src/index.ts`):
+3. Call the CMS from the consumer Worker (as in `apps/playground-consumer/src/index.ts`):
 
    ```ts
    import { kitcms, isKitcmsClientError, type KitcmsBinding } from '@kitcms/client';

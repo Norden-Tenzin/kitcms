@@ -206,7 +206,7 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  apps/dev:
+  apps/playground:
     dependencies:
       '@kitcms/core':
         specifier: workspace:*
@@ -249,7 +249,7 @@ importers:
         specifier: ^4.162.0
         version: 4.162.0(@cloudflare/workers-types@5.20261116.1)(@types/node@26.6.6)
 
-  apps/dev-consumer:
+  apps/playground-consumer:
     dependencies:
       '@kitcms/client':
         specifier: workspace:*

@@ -98,17 +98,6 @@ export const t_legal = sqliteTable("legal", {
 	uniqueIndex("legal_slug_unique").on(t["slug"]),
 ]);
 
-export const t_bench = sqliteTable("bench", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	slug: text("slug"),
-	sections: text("sections", { mode: 'json' }),
-}, (t) => [
-	index("bench_createdAt_idx").on(t["createdAt"]),
-	uniqueIndex("bench_slug_unique").on(t["slug"]),
-]);
-
 export const t_users = sqliteTable("users", {
 	id: text("id").primaryKey().notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
