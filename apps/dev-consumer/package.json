@@ -4,6 +4,14 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"dev": "wrangler dev --port 8788",
+		"dev:rpc": "CLOUDFLARE_DEV_REGISTRY_PATH=../../.dev-registry WRANGLER_REGISTRY_PATH=../../.dev-registry wrangler dev --port 8788 --env devrpc"
+	},
+	"dependencies": {
+		"@kitcms/client": "workspace:*"
+	},
+	"devDependencies": {
+		"wrangler": "^4.162.0"
 	}
 }

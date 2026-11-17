@@ -1,15 +1,4 @@
 import { kitcms } from '@kitcms/core/sveltekit';
-import { sequence, type Handle } from '@sveltejs/kit/hooks';
-import * as authSchema from '../drizzle/auth-schema.ts';
-import { createSpikeCms } from '#lib/server/spike-cms.ts';
-import { sharedState } from '#lib/shared-state.ts';
+import config from './kitcms.config';
 
-const countRequests: Handle = ({ event, resolve }) => {
-	sharedState.requests++;
-	return resolve(event);
-};
-
-export const handle = sequence(
-	kitcms({ create: createSpikeCms, auth: { schema: authSchema } }).handle,
-	countRequests,
-);
+export const handle = kitcms({ config }).handle;

@@ -30,7 +30,7 @@ if (!args.includes('--no-deploy')) {
 		return text;
 	};
 	run('pnpm', ['build']);
-	const deployLog = run('npx', ['wrangler', 'deploy', '--name', name]);
+	const deployLog = run('npx', ['wrangler', 'deploy', '--name', name, '--var', 'KITCMS_BENCH:1']);
 	console.log(deployLog);
 	const m = /Worker Startup Time:\s*([\d.]+)\s*ms/i.exec(deployLog);
 	startupMs = m ? Number(m[1]) : null;

@@ -1,4 +1,4 @@
-# Phase 0 benchmarks
+# Benchmarks
 
 Outputs go to `scripts/bench/out/` (gitignored). All scripts are Node (>= 22, run with `node` directly).
 
@@ -11,11 +11,14 @@ Outputs go to `scripts/bench/out/` (gitignored). All scripts are Node (>= 22, ru
 
 ## The bench route
 
-`/spike/bench?blocks=10|20|15&iterations=20&mode=raw|drizzle&reseed=1`
+`/spike/bench?blocks=10|15|20&iterations=20&reseed=1` (apps/dev)
 
-- Seeds `bench-{blocks}` and its media idempotently (`reseed=1` deletes and recreates).
-- Returns min/median/p95 (ms) per measurement, `sectionsBytes`, and D1 `meta` (`duration`, `served_by_region`, `served_by_primary`; raw mode only).
-- The batch variant uses the known media IDs up front; a real populate step cannot know them before reading the page, so the batch is a lower bound for "page + populate" (a `json_each` subquery would be needed to do it truly in one trip).
+- Disabled (404) unless the Worker var `KITCMS_BENCH` is `"1"`, because it seeds data. `cold-start.ts` deploys with `--var KITCMS_BENCH:1`; locally put `KITCMS_BENCH=1` in `apps/dev/.dev.vars`.
+- Seeds `bench-{blocks}` in the hidden `bench` collection (blocks from `apps/dev/src/lib/bench/`) plus its media, idempotently (`reseed=1` recreates).
+- Measures through the REAL Local API (Phase 1 pipeline) against raw D1, as min/median/p95 ms:
+  - raw D1 row (`env.DB.prepare`, 1 round trip)
+  - `findByID` depth 0 (1 round trip) and depth 1 (2 round trips: row, then all relations in one batch)
+  - `find` with `limit: 10` (rows + count in one batch)
 - Local (`pnpm --filter dev dev`) numbers measure miniflare/SQLite (~4-5 ms per call). Deployed numbers measure real D1 round trips.
 
 ## Timer caveat (read this before quoting numbers)

@@ -1,46 +1,96 @@
-// SPIKE (Phase 0): stand-in for defineConfig. Imports a .svelte preview on purpose,
-// to prove the Node-side generator can load the config through Vite.
+// The playground config: exercises every v1 field type.
+import { block, collection, defineConfig, fields as f } from '@kitcms/core';
 import HeroPreview from '#lib/HeroPreview.svelte';
-import type { SpikeConfig } from '../kitcms-spike/schema-spec.ts';
+import { benchBlocks } from '#lib/bench/blocks.ts';
 
-const config: SpikeConfig = {
-	collections: [
-		{
-			slug: 'media',
-			upload: true,
-			fields: { alt: { type: 'text' } },
-		},
-		{
-			slug: 'pages',
-			orderable: true,
-			versions: { drafts: true },
+const Hero = block({
+	slug: 'hero',
+	fields: {
+		heading: f.text({ required: true }),
+		subheading: f.textarea(),
+		image: f.upload({ relationTo: 'media' }),
+	},
+	admin: { preview: HeroPreview },
+});
+
+const Features = block({
+	slug: 'features',
+	fields: {
+		title: f.text(),
+		items: f.array({
 			fields: {
-				title: { type: 'text', required: true },
-				slug: { type: 'slug', from: 'title', unique: true },
-				views: { type: 'number', index: true },
-				featured: { type: 'checkbox', defaultValue: false },
-				template: { type: 'select', options: ['resort', 'boutique', 'heritage'] },
-				publishedAt: { type: 'date' },
-				cover: { type: 'upload', relationTo: 'media' },
-				parent: { type: 'relationship', relationTo: 'pages' },
-				related: { type: 'relationship', relationTo: 'pages', hasMany: true },
-				seo: { type: 'group', fields: { metaTitle: { type: 'text' } } },
-				sections: {
-					type: 'blocks',
-					blocks: [
+				label: f.text({ required: true }),
+				icon: f.select({ options: ['wifi', 'pool', 'spa', 'parking'] }),
+			},
+			maxRows: 6,
+		}),
+	},
+});
+
+export default defineConfig({
+	admin: { title: 'kitcms dev' },
+	collections: [
+		collection({
+			slug: 'media',
+			upload: { mimeTypes: ['image/*', 'application/pdf'] },
+			access: { read: () => true },
+			fields: { alt: f.text() },
+		}),
+		collection({
+			slug: 'pages',
+			admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', 'status', 'updatedAt'] },
+			access: {
+				// Published pages are public; signed-in users see drafts too.
+				read: ({ req }) => (req.user ? true : { status: { equals: 'published' } }),
+			},
+			fields: {
+				title: f.text({ required: true }),
+				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
+				status: f.select({
+					options: ['draft', 'published'],
+					defaultValue: 'draft',
+					required: true,
+					admin: { position: 'sidebar' },
+				}),
+				publishedAt: f.date({ admin: { position: 'sidebar', condition: (d) => d.status === 'published' } }),
+				featured: f.checkbox({ admin: { position: 'sidebar' } }),
+				content: f.tabs({
+					tabs: [
 						{
-							slug: 'hero',
+							label: 'Content',
 							fields: {
-								heading: { type: 'text', required: true },
-								image: { type: 'upload', relationTo: 'media' },
+								cover: f.upload({ relationTo: 'media' }),
+								sections: f.blocks({ blocks: [Hero, Features] }),
 							},
-							admin: { preview: HeroPreview },
+						},
+						{
+							label: 'SEO',
+							fields: {
+								seo: f.group({
+									fields: {
+										metaTitle: f.text({ maxLength: 70 }),
+										metaDescription: f.textarea({ maxLength: 160 }),
+										noindex: f.checkbox(),
+									},
+								}),
+							},
 						},
 					],
-				},
+				}),
+				parent: f.relationship({ relationTo: 'pages' }),
+				related: f.relationship({ relationTo: 'pages', hasMany: true }),
+				gallery: f.upload({ relationTo: 'media', hasMany: true }),
+				views: f.number({ integer: true, min: 0 }),
+				contactEmail: f.email(),
+				extra: f.json<{ notes?: string }>(),
 			},
-		},
+		}),
+		// Benchmarks only (scripts/bench, /spike/bench). Hidden from the admin.
+		collection({
+			slug: 'bench',
+			admin: { hidden: true, useAsTitle: 'slug' },
+			access: { read: () => true },
+			fields: { slug: f.text({ unique: true }), sections: f.blocks({ blocks: benchBlocks }) },
+		}),
 	],
-};
-
-export default config;
+});

@@ -1,4 +1,4 @@
-// SPIKE (Phase 0, benchmarks): deterministic, realistic `sections` (blocks) payloads.
+// Benchmarks: deterministic, realistic `sections` (blocks) payloads.
 // Pure and runtime-agnostic: imported by the Worker bench route AND the Node parse script.
 
 const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

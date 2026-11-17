@@ -9,21 +9,22 @@
 		"preview": "pnpm build && wrangler dev",
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"deploy": "wrangler deploy",
-		"spike:schema": "node kitcms-spike/gen.ts && drizzle-kit generate",
-		"db:migrate": "wrangler d1 migrations apply DB --local",
-		"db:migrate:remote": "wrangler d1 migrations apply DB --remote"
+		"db:migrate": "kitcms migrate",
+		"db:migrate:remote": "kitcms migrate --remote",
+		"db:generate": "kitcms migrate:create",
+		"types": "kitcms generate:types",
+		"dev:rpc": "KITCMS_DEV_RPC=1 CLOUDFLARE_DEV_REGISTRY_PATH=../../.dev-registry WRANGLER_REGISTRY_PATH=../../.dev-registry vite dev"
 	},
 	"dependencies": {
 		"@kitcms/core": "workspace:*",
-		"@kitcms/ui": "workspace:*",
-		"drizzle-orm": "^0.45.4"
+		"@kitcms/ui": "workspace:*"
 	},
 	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.69.1",
 		"@sveltejs/adapter-cloudflare": "^8.0.2",
 		"@sveltejs/kit": "^3.2.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@types/node": "^26.6.6",
-		"drizzle-kit": "^0.31.11",
 		"svelte": "^5.57.3",
 		"svelte-check": "^4.7.8",
 		"vite": "^8.3.8",

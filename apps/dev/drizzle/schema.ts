@@ -5,14 +5,15 @@ export const t_media = sqliteTable("media", {
 	id: text("id").primaryKey().notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	filename: text("filename").notNull(),
+	filename: text("filename"),
 	mimeType: text("mimeType"),
-	filesize: integer("filesize"),
-	width: integer("width"),
-	height: integer("height"),
-	key: text("key").notNull(),
+	filesize: real("filesize"),
+	width: real("width"),
+	height: real("height"),
+	key: text("key"),
 	alt: text("alt"),
 }, (t) => [
+	index("media_createdAt_idx").on(t["createdAt"]),
 	uniqueIndex("media_key_unique").on(t["key"]),
 ]);
 
@@ -20,46 +21,50 @@ export const t_pages = sqliteTable("pages", {
 	id: text("id").primaryKey().notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_status: text("_status").notNull().default("draft"),
-	_order: text("_order"),
-	title: text("title").notNull(),
+	title: text("title"),
 	slug: text("slug"),
-	views: real("views"),
-	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
-	template: text("template"),
+	status: text("status"),
 	publishedAt: integer("publishedAt", { mode: 'timestamp_ms' }),
+	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
 	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
-	parent: text("parent").references((): AnySQLiteColumn => t_pages.id, { onDelete: "set null" }),
-	seo: text("seo", { mode: 'json' }),
 	sections: text("sections", { mode: 'json' }),
+	seo: text("seo", { mode: 'json' }),
+	parent: text("parent").references((): AnySQLiteColumn => t_pages.id, { onDelete: "set null" }),
+	related: text("related", { mode: 'json' }),
+	gallery: text("gallery", { mode: 'json' }),
+	views: real("views"),
+	contactEmail: text("contactEmail"),
+	extra: text("extra", { mode: 'json' }),
 }, (t) => [
-	index("pages__status_idx").on(t["_status"]),
-	index("pages__order_idx").on(t["_order"]),
+	index("pages_createdAt_idx").on(t["createdAt"]),
 	uniqueIndex("pages_slug_unique").on(t["slug"]),
-	index("pages_views_idx").on(t["views"]),
 	index("pages_cover_idx").on(t["cover"]),
 	index("pages_parent_idx").on(t["parent"]),
 ]);
 
-export const t_pages_rels = sqliteTable("pages_rels", {
+export const t_bench = sqliteTable("bench", {
 	id: text("id").primaryKey().notNull(),
-	parentId: text("parentId").notNull().references((): AnySQLiteColumn => t_pages.id, { onDelete: "cascade" }),
-	path: text("path").notNull(),
-	position: integer("position").notNull(),
-	toCollection: text("toCollection").notNull(),
-	toId: text("toId").notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	slug: text("slug"),
+	sections: text("sections", { mode: 'json' }),
 }, (t) => [
-	index("pages_rels_parent_idx").on(t["parentId"], t["path"]),
-	index("pages_rels_to_idx").on(t["toCollection"], t["toId"]),
+	index("bench_createdAt_idx").on(t["createdAt"]),
+	uniqueIndex("bench_slug_unique").on(t["slug"]),
 ]);
 
-export const t_pages_versions = sqliteTable("pages_versions", {
+export const t_users = sqliteTable("users", {
 	id: text("id").primaryKey().notNull(),
-	parentId: text("parentId").notNull().references((): AnySQLiteColumn => t_pages.id, { onDelete: "cascade" }),
-	snapshot: text("snapshot", { mode: 'json' }).notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	email: text("email"),
+	name: text("name"),
+	role: text("role"),
+	emailVerified: integer("emailVerified", { mode: 'boolean' }).notNull().default(false),
+	image: text("image"),
 }, (t) => [
-	index("pages_versions_parent_idx").on(t["parentId"], t["createdAt"]),
+	index("users_createdAt_idx").on(t["createdAt"]),
+	uniqueIndex("users_email_unique").on(t["email"]),
 ]);
 
 export const t__refs = sqliteTable("_refs", {
@@ -71,4 +76,57 @@ export const t__refs = sqliteTable("_refs", {
 }, (t) => [
 	index("_refs_from_idx").on(t["fromCollection"], t["fromId"]),
 	index("_refs_to_idx").on(t["toCollection"], t["toId"]),
+	index("_refs_path_idx").on(t["fromCollection"], t["path"], t["toId"]),
+]);
+
+export const t_auth_sessions = sqliteTable("auth_sessions", {
+	id: text("id").primaryKey().notNull(),
+	expiresAt: integer("expiresAt", { mode: 'timestamp_ms' }).notNull(),
+	token: text("token").notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	ipAddress: text("ipAddress"),
+	userAgent: text("userAgent"),
+	userId: text("userId").notNull().references((): AnySQLiteColumn => t_users.id, { onDelete: "cascade" }),
+}, (t) => [
+	uniqueIndex("auth_sessions_token_unique").on(t["token"]),
+	index("auth_sessions_userId_idx").on(t["userId"]),
+]);
+
+export const t_auth_accounts = sqliteTable("auth_accounts", {
+	id: text("id").primaryKey().notNull(),
+	accountId: text("accountId").notNull(),
+	providerId: text("providerId").notNull(),
+	userId: text("userId").notNull().references((): AnySQLiteColumn => t_users.id, { onDelete: "cascade" }),
+	accessToken: text("accessToken"),
+	refreshToken: text("refreshToken"),
+	idToken: text("idToken"),
+	accessTokenExpiresAt: integer("accessTokenExpiresAt", { mode: 'timestamp_ms' }),
+	refreshTokenExpiresAt: integer("refreshTokenExpiresAt", { mode: 'timestamp_ms' }),
+	scope: text("scope"),
+	password: text("password"),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+	index("auth_accounts_userId_idx").on(t["userId"]),
+]);
+
+export const t_auth_verifications = sqliteTable("auth_verifications", {
+	id: text("id").primaryKey().notNull(),
+	identifier: text("identifier").notNull(),
+	value: text("value").notNull(),
+	expiresAt: integer("expiresAt", { mode: 'timestamp_ms' }).notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+	index("auth_verifications_identifier_idx").on(t["identifier"]),
+]);
+
+export const t_auth_rate_limits = sqliteTable("auth_rate_limits", {
+	id: text("id").primaryKey().notNull(),
+	key: text("key").notNull(),
+	count: integer("count").notNull(),
+	lastRequest: integer("lastRequest").notNull(),
+}, (t) => [
+	uniqueIndex("auth_rate_limits_key_unique").on(t["key"]),
 ]);

@@ -3,8 +3,19 @@
 	"name": "kitcms-dev-consumer",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-11-01",
+	// Default: the CMS Worker itself (deployed, or `pnpm --filter dev preview` = wrangler dev).
 	"services": [
 		{ "binding": "CMS", "service": "kitcms-dev", "entrypoint": "KitcmsRPC" },
 		{ "binding": "SITE", "service": "kitcms-dev" },
 	],
+	"env": {
+		// `pnpm dev:rpc` here + `pnpm --filter dev dev:rpc`: the CMS in `vite dev` with the opt-in dev
+		// RPC worker, registered as `<name>-rpc` (Decision 16, packages/core/src/vite/index.ts).
+		"devrpc": {
+			"services": [
+				{ "binding": "CMS", "service": "kitcms-dev-rpc", "entrypoint": "KitcmsRPC" },
+				{ "binding": "SITE", "service": "kitcms-dev" },
+			],
+		},
+	},
 }
