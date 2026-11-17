@@ -3,6 +3,19 @@
 
 import type { Rel } from '@kitcms/client';
 
+export interface RichTextDoc {
+	type: 'doc';
+	content?: RichTextNode[];
+}
+
+export interface RichTextNode {
+	type: string;
+	attrs?: Record<string, unknown>;
+	content?: RichTextNode[];
+	text?: string;
+	marks?: { type: string; attrs?: Record<string, unknown> }[];
+}
+
 export interface Media {
 	id: string;
 	createdAt: string;
@@ -23,7 +36,6 @@ export interface Page {
 	updatedAt: string;
 	title: string;
 	slug: string;
-	status: 'draft' | 'published';
 	publishedAt?: string | null;
 	featured: boolean;
 	cover?: Rel<'media'> | null;
@@ -35,6 +47,34 @@ export interface Page {
 	views?: number | null;
 	contactEmail?: string | null;
 	extra?: unknown | null;
+	_status: 'draft' | 'published';
+}
+
+export interface Team {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	name: string;
+	role?: string | null;
+	photo?: Rel<'media'> | null;
+	_order?: string | null;
+}
+
+export interface Legal {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	slug: string;
+	body?: RichTextDoc | null;
+}
+
+export interface Bench {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	slug?: string | null;
+	sections: (HeroBlock2 | RichTextBlock | AmenitiesBlock | GalleryBlock | SplitBlock)[];
 }
 
 export interface User {
@@ -46,6 +86,17 @@ export interface User {
 	role: 'admin' | 'editor';
 	emailVerified: boolean;
 	image?: string | null;
+}
+
+export interface SiteSettings {
+	id: string;
+	createdAt?: string;
+	updatedAt?: string;
+	siteName: string;
+	tagline?: string | null;
+	logo?: Rel<'media'> | null;
+	nav: SiteSettingsNav[];
+	_status: 'draft' | 'published';
 }
 
 export interface HeroBlock {
@@ -75,10 +126,86 @@ export interface PageSeo {
 	noindex: boolean;
 }
 
+export interface HeroBlockCta {
+	label?: string | null;
+	href?: string | null;
+	variant?: string | null;
+}
+
+export interface HeroBlock2 {
+	id: string;
+	blockType: 'hero';
+	heading?: string | null;
+	subheading?: string | null;
+	image?: Rel<'media'> | null;
+	cta: HeroBlockCta;
+}
+
+export interface RichTextBlock {
+	id: string;
+	blockType: 'richText';
+	heading?: string | null;
+	body?: unknown | null;
+}
+
+export interface AmenitiesBlockItems {
+	id: string;
+	label?: string | null;
+	icon?: string | null;
+}
+
+export interface AmenitiesBlock {
+	id: string;
+	blockType: 'amenities';
+	heading?: string | null;
+	items: AmenitiesBlockItems[];
+}
+
+export interface GalleryBlockImages {
+	id: string;
+	image?: Rel<'media'> | null;
+	caption?: string | null;
+}
+
+export interface GalleryBlock {
+	id: string;
+	blockType: 'gallery';
+	heading?: string | null;
+	images: GalleryBlockImages[];
+}
+
+export interface SplitBlockLinks {
+	id: string;
+	label?: string | null;
+	href?: string | null;
+}
+
+export interface SplitBlock {
+	id: string;
+	blockType: 'split';
+	heading?: string | null;
+	text?: string | null;
+	image?: Rel<'media'> | null;
+	reverse: boolean;
+	links: SplitBlockLinks[];
+}
+
+export interface SiteSettingsNav {
+	id: string;
+	label: string;
+	page?: Rel<'pages'> | null;
+}
+
 export interface KitcmsTypes {
 	collections: {
 		'media': Media;
 		'pages': Page;
+		'team': Team;
+		'legal': Legal;
+		'bench': Bench;
 		'users': User;
+	};
+	globals: {
+		'site': SiteSettings;
 	};
 }

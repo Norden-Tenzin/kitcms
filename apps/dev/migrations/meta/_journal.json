@@ -15,6 +15,27 @@
       "when": 1794855791913,
       "tag": "0001_bench",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794897731109,
+      "tag": "0002_phase2_globals",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794898342961,
+      "tag": "0003_phase2_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794899318561,
+      "tag": "0004_phase2_drafts",
+      "breakpoints": true
     }
   ]
 }

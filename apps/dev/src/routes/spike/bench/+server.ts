@@ -1,5 +1,8 @@
 // Benchmarks (plan §4.10, §11): page-read timings through the REAL Local API vs raw D1.
 //   /spike/bench?blocks=10|15|20&iterations=20&reseed=1
+//   add &session=1 to also time page reads through D1 sessions (read replication, §13.10):
+//   a fresh withSession('first-unconstrained') vs withSession('first-primary') per read, and one
+//   session reused for 3 reads (the first read picks the replica, the rest follow the bookmark).
 // Disabled unless the Worker var KITCMS_BENCH is "1" (it seeds data). scripts/bench/cold-start.ts
 // deploys with it set. NOTE: in a deployed Worker, performance.now() only advances on I/O, so these
 // numbers are round-trip times; CPU-only cost comes from `pnpm bench:parse` and `wrangler tail`.
@@ -58,6 +61,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const id = page.id;
 
 	const series: Series = {};
+	const withSessions = url.searchParams.get('session') === '1' && typeof env.DB.withSession === 'function';
 	for (let i = 0; i < iterations; i++) {
 		await time(series, 'raw D1 row', () => env.DB.prepare('select * from bench where id = ?').bind(id).first());
 		await time(series, 'Local API findByID depth 0 (1 round trip)', () => cms.findByID('bench', id));
@@ -65,6 +69,20 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			cms.findByID('bench', id, { depth: 1 }),
 		);
 		await time(series, 'Local API find + count (1 round trip)', () => cms.find('bench', { limit: 10 }));
+		if (withSessions) {
+			const q = (d: { prepare: (sql: string) => D1PreparedStatement }) =>
+				d.prepare('select * from bench where id = ?').bind(id).first();
+			await time(series, 'session first-unconstrained, 1 read', () => q(env.DB.withSession('first-unconstrained')));
+			await time(series, 'session first-primary, 1 read', () => q(env.DB.withSession('first-primary')));
+			await time(series, 'session first-unconstrained, 3 reads', async () => {
+				const sess = env.DB.withSession('first-unconstrained');
+				for (let n = 0; n < 3; n++) await q(sess);
+			});
+			await time(series, 'session first-primary, 3 reads', async () => {
+				const sess = env.DB.withSession('first-primary');
+				for (let n = 0; n < 3; n++) await q(sess);
+			});
+		}
 	}
 
 	const sectionsBytes = JSON.stringify(page.sections).length;

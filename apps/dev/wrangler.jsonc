@@ -3,6 +3,9 @@
 	"name": "kitcms-dev",
 	"compatibility_date": "2026-11-01",
 	"compatibility_flags": ["nodejs_als"],
+	// Smart Placement runs the Worker near its D1 primary when that beats running near the visitor
+	// (kitcms makes several D1 round trips per request). Combine with D1 read replication.
+	"placement": { "mode": "smart" },
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
 		"binding": "ASSETS",

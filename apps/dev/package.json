@@ -12,6 +12,8 @@
 		"db:migrate": "kitcms migrate",
 		"db:migrate:remote": "kitcms migrate --remote",
 		"db:generate": "kitcms migrate:create",
+		"db:seed": "kitcms seed",
+		"db:seed:remote": "kitcms seed --remote",
 		"types": "kitcms generate:types",
 		"dev:rpc": "KITCMS_DEV_RPC=1 CLOUDFLARE_DEV_REGISTRY_PATH=../../.dev-registry WRANGLER_REGISTRY_PATH=../../.dev-registry vite dev"
 	},

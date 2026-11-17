@@ -1,6 +1,5 @@
 // The playground config: exercises every v1 field type.
-import { block, collection, defineConfig, fields as f } from '@kitcms/core';
-import HeroPreview from '#lib/HeroPreview.svelte';
+import { block, collection, defineConfig, fields as f, global } from '@kitcms/core';
 import { benchBlocks } from '#lib/bench/blocks.ts';
 
 const Hero = block({
@@ -10,7 +9,6 @@ const Hero = block({
 		subheading: f.textarea(),
 		image: f.upload({ relationTo: 'media' }),
 	},
-	admin: { preview: HeroPreview },
 });
 
 const Features = block({
@@ -38,21 +36,14 @@ export default defineConfig({
 		}),
 		collection({
 			slug: 'pages',
-			admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', 'status', 'updatedAt'] },
-			access: {
-				// Published pages are public; signed-in users see drafts too.
-				read: ({ req }) => (req.user ? true : { status: { equals: 'published' } }),
-			},
+			// Drafts + autosave (§13.4): public reads only ever see published pages.
+			versions: { drafts: { autosave: true }, max: 20 },
+			admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', '_status', 'updatedAt'] },
+			access: { read: () => true },
 			fields: {
 				title: f.text({ required: true }),
 				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
-				status: f.select({
-					options: ['draft', 'published'],
-					defaultValue: 'draft',
-					required: true,
-					admin: { position: 'sidebar' },
-				}),
-				publishedAt: f.date({ admin: { position: 'sidebar', condition: (d) => d.status === 'published' } }),
+				publishedAt: f.date({ admin: { position: 'sidebar' } }),
 				featured: f.checkbox({ admin: { position: 'sidebar' } }),
 				content: f.tabs({
 					tabs: [
@@ -85,12 +76,51 @@ export default defineConfig({
 				extra: f.json<{ notes?: string }>(),
 			},
 		}),
+		// Orderable (§13.2): drag to reorder in the admin list; `find` returns them in that order.
+		collection({
+			slug: 'team',
+			orderable: true,
+			admin: { useAsTitle: 'name', defaultColumns: ['name', 'role'] },
+			access: { read: () => true },
+			fields: {
+				name: f.text({ required: true }),
+				role: f.text(),
+				photo: f.upload({ relationTo: 'media' }),
+			},
+		}),
+		// Locked (§13.3): created by `pnpm db:seed`; editors can edit but not create or delete.
+		collection({
+			slug: 'legal',
+			admin: { locked: true, useAsTitle: 'title', defaultColumns: ['title', 'slug', 'updatedAt'] },
+			access: { read: () => true },
+			fields: {
+				title: f.text({ required: true }),
+				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
+				body: f.richText(),
+			},
+		}),
 		// Benchmarks only (scripts/bench, /spike/bench). Hidden from the admin.
 		collection({
 			slug: 'bench',
 			admin: { hidden: true, useAsTitle: 'slug' },
 			access: { read: () => true },
 			fields: { slug: f.text({ unique: true }), sections: f.blocks({ blocks: benchBlocks }) },
+		}),
+	],
+	globals: [
+		global({
+			slug: 'site',
+			label: 'Site settings',
+			versions: { drafts: true },
+			access: { read: () => true },
+			fields: {
+				siteName: f.text({ required: true }),
+				tagline: f.textarea(),
+				logo: f.upload({ relationTo: 'media' }),
+				nav: f.array({
+					fields: { label: f.text({ required: true }), page: f.relationship({ relationTo: 'pages' }) },
+				}),
+			},
 		}),
 	],
 });

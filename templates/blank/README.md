@@ -19,6 +19,9 @@ Open <http://localhost:5173/admin>. The first visit asks you to create the first
 ## Schema and migrations
 
 The schema is code: edit `src/kitcms.config.ts`, then `pnpm db:generate <name>` and `pnpm db:migrate`.
+
+`src/kitcms.admin.ts` registers admin live previews (client-side, lazy). See `@kitcms/ui` "Live preview".
+
 `pnpm types` regenerates the typed config declarations.
 
 ## Deploy
