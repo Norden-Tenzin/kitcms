@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { block, collection, defineConfig, type CollectionDef } from './collection';
+import { block, collection, defineConfig, global, type CollectionDef } from './collection';
 import { fields as f } from './fields';
 import { sanitizeConfig, toClientConfig, toLabel } from './sanitize';
 import { ConfigError } from '../errors';
@@ -433,5 +433,174 @@ describe('toClientConfig', () => {
 		if (g.type !== 'group') throw new Error('type');
 		expect('validate' in g.fields[0]!).toBe(false);
 		expect(client.authCollection).toBe('users');
+	});
+});
+
+// ---- Phase 2 -----------------------------------------------------------------------------------
+
+const text = () => ({ title: f.text() });
+const cfgWith = (extra: Record<string, unknown>, ...collections: CollectionDef[]) =>
+	sanitizeConfig({ collections, ...extra } as never);
+const withGlobals = (...globals: unknown[]) => () => cfgWith({ globals }, page(text()));
+
+describe('globals', () => {
+	it('sanitizes into a kind: global collection outside collectionsBySlug', () => {
+		const c = cfgWith({ globals: [global({ slug: 'site-settings', fields: { name: f.text() } })] }, page(text()));
+		expect(c.globals).toHaveLength(1);
+		const g = c.globalsBySlug['site-settings']!;
+		expect(g).toBe(c.globals[0]);
+		expect(g).toMatchObject({
+			kind: 'global',
+			slug: '_global_site-settings',
+			globalSlug: 'site-settings',
+			orderable: false,
+			versions: false,
+			defaultSort: 'id',
+		});
+		expect(g.admin.locked).toBe(false);
+		expect(g.labels).toEqual({ singular: 'Site settings', plural: 'Site settings' });
+		expect(c.collectionsBySlug['_global_site-settings']).toBeUndefined();
+		expect(c.collections.some((x) => x.slug.startsWith('_global_'))).toBe(false);
+	});
+	it('uses an explicit label', () => {
+		const c = cfgWith({ globals: [global({ slug: 'site', label: 'Settings', fields: {} })] }, page(text()));
+		expect(c.globalsBySlug.site!.labels.singular).toBe('Settings');
+	});
+	it('exposes globals to the client config', () => {
+		const c = cfgWith({ globals: [global({ slug: 'site', fields: { name: f.text() } })] }, page(text()));
+		const client = toClientConfig(c);
+		expect(client.globals).toHaveLength(1);
+		expect(client.globals[0]).toMatchObject({ kind: 'global', globalSlug: 'site' });
+		expect(client.collections.some((x) => x.kind === 'global')).toBe(false);
+	});
+	it('rejects bad slugs, duplicates, unknown options', () => {
+		fails(withGlobals({ slug: 'Site', fields: {} }), 'globals.Site');
+		fails(withGlobals({ slug: 'site_versions', fields: {} }), 'globals.site_versions');
+		fails(withGlobals({ slug: 'a', fields: {} }, { slug: 'a', fields: {} }), 'globals.a', /duplicate/);
+		fails(withGlobals({ slug: 'a', fields: {}, bogus: 1 }), 'globals.a.bogus', /not a global option/);
+		fails(withGlobals({ slug: 'a', fields: {}, labels: {} }), 'globals.a.labels');
+		fails(withGlobals({ nope: 1 }), 'globals.0');
+	});
+	it('allows only read/update access and no delete hooks', () => {
+		fails(withGlobals({ slug: 'a', fields: {}, access: { create: () => true } }), 'globals.a.access.create');
+		fails(withGlobals({ slug: 'a', fields: {}, access: { delete: () => true } }), 'globals.a.access.delete');
+		fails(withGlobals({ slug: 'a', fields: {}, hooks: { beforeDelete: () => {} } }), 'globals.a.hooks.beforeDelete');
+		fails(withGlobals({ slug: 'a', fields: {}, hooks: { afterDelete: () => {} } }), 'globals.a.hooks.afterDelete');
+		expect(withGlobals({ slug: 'a', fields: {}, access: { read: () => true, update: () => true } })).not.toThrow();
+	});
+	it('validates fields like a collection', () => {
+		fails(withGlobals({ slug: 'a', fields: { id: f.text() } }), /globals\.a/);
+	});
+	it('rejects a global label that is empty', () => {
+		fails(withGlobals({ slug: 'a', label: '', fields: {} }), 'globals.a.label');
+	});
+});
+
+describe('orderable', () => {
+	it('defaults the sort to _order and keeps -createdAt otherwise', () => {
+		expect(sanitize(page(text(), { orderable: true })).collectionsBySlug.pages!).toMatchObject({
+			orderable: true,
+			defaultSort: '_order',
+		});
+		expect(sanitize(page(text())).collectionsBySlug.pages!).toMatchObject({ orderable: false, defaultSort: '-createdAt' });
+	});
+	it('accepts _order as defaultSort, rejects it when not orderable', () => {
+		expect(sanitize(page(text(), { orderable: true, defaultSort: '-_order' })).collectionsBySlug.pages!.defaultSort).toBe('-_order');
+		fails(() => sanitize(page(text(), { defaultSort: '_order' })), /defaultSort/);
+	});
+	it('must be a boolean', () => {
+		fails(() => sanitize(page(text(), { orderable: 'yes' })), 'collections.pages.orderable');
+	});
+});
+
+describe('versions', () => {
+	const v = (versions: unknown) => sanitize(page(text(), { versions })).collectionsBySlug.pages!.versions;
+	it('normalizes true / drafts / autosave / max', () => {
+		expect(v(undefined)).toBe(false);
+		expect(v(true)).toEqual({ drafts: false, max: 50 });
+		expect(v({ drafts: true })).toEqual({ drafts: { autosave: false }, max: 50 });
+		expect(v({ drafts: { autosave: true }, max: 5 })).toEqual({ drafts: { autosave: { interval: 2000 } }, max: 5 });
+		expect(v({ drafts: { autosave: { interval: 500 } } })).toEqual({ drafts: { autosave: { interval: 500 } }, max: 50 });
+	});
+	it('drafts add `_status` to the default list columns (unless configured)', () => {
+		const cols = (versions: unknown, admin?: unknown) =>
+			sanitize(page(text(), { versions, admin })).collectionsBySlug.pages!.admin.defaultColumns;
+		expect(cols({ drafts: true })).toEqual(['title', '_status', 'updatedAt']);
+		expect(cols(true)).toEqual(['title', 'updatedAt']);
+		expect(cols({ drafts: true }, { defaultColumns: ['title'] })).toEqual(['title']);
+	});
+	it('rejects bad autosave interval and max', () => {
+		fails(() => v({ drafts: { autosave: { interval: 499 } } }), 'collections.pages.versions.drafts.autosave.interval');
+		fails(() => v({ max: 0 }), 'collections.pages.versions.max');
+		fails(() => v({ max: 1.5 }), 'collections.pages.versions.max');
+		fails(() => v('yes'), 'collections.pages.versions');
+	});
+	it('the auth collection cannot have versions; uploads cannot have drafts', () => {
+		fails(() => sanitize(collection({ slug: 'users', auth: true, fields: {}, versions: true } as never)), 'collections.users.versions');
+		fails(() => sanitize(collection({ slug: 'media', upload: true, fields: {}, versions: { drafts: true } } as never)), 'collections.media.versions.drafts');
+		expect(sanitize(collection({ slug: 'media', upload: true, fields: {}, versions: true } as never)).collectionsBySlug.media!.versions).toEqual({ drafts: false, max: 50 });
+	});
+	it('applies to globals', () => {
+		const c = cfgWith({ globals: [global({ slug: 'site', fields: {}, versions: { drafts: true } })] }, page(text()));
+		expect(c.globalsBySlug.site!.versions).toEqual({ drafts: { autosave: false }, max: 50 });
+	});
+	it('collection slugs ending in _versions are reserved', () => {
+		fails(() => sanitize(collection({ slug: 'posts_versions', fields: {} } as never)), 'collections.posts_versions', /reserved/);
+	});
+});
+
+describe('admin.locked', () => {
+	it('is stored and defaults to false', () => {
+		expect(sanitize(page(text(), { admin: { locked: true } })).collectionsBySlug.pages!.admin.locked).toBe(true);
+		expect(sanitize(page(text())).collectionsBySlug.pages!.admin.locked).toBe(false);
+	});
+	it('the auth collection cannot be locked', () => {
+		fails(() => sanitize(collection({ slug: 'users', auth: true, fields: {}, admin: { locked: true } } as never)), 'collections.users.admin.locked');
+	});
+});
+
+describe('rest and cache', () => {
+	it('rest defaults to true', () => {
+		expect(cfgWith({}, page(text())).rest).toBe(true);
+		expect(cfgWith({ rest: false }, page(text())).rest).toBe(false);
+		fails(() => cfgWith({ rest: 'no' }, page(text())), 'rest');
+	});
+	it('cache.ttl is bounded', () => {
+		expect(cfgWith({}, page(text())).cache).toBe(false);
+		expect(cfgWith({ cache: { ttl: 60 } }, page(text())).cache).toEqual({ ttl: 60 });
+		expect(cfgWith({ cache: { ttl: 86400 } }, page(text())).cache).toEqual({ ttl: 86400 });
+		for (const ttl of [0, -1, 86401, 1.5, '60', undefined]) {
+			fails(() => cfgWith({ cache: { ttl } }, page(text())), 'cache.ttl');
+		}
+	});
+});
+
+describe('admin.branding', () => {
+	const brand = (branding: unknown) =>
+		cfgWith({ admin: { title: 'x', branding } }, page(text())).admin.branding;
+	it('accepts safe colors and logos', () => {
+		expect(brand({ colors: { accent: '#fff', accentText: 'oklch(0.6 0.2 250)' } }).colors).toEqual({
+			accent: '#fff',
+			accentText: 'oklch(0.6 0.2 250)',
+		});
+		expect(brand({ colors: { accent: 'rebeccapurple', accentText: 'white' } }).colors.accent).toBe('rebeccapurple');
+		fails(() => brand({ colors: { accent: 'rebeccapurple' } }), 'admin.branding.colors');
+		fails(() => brand({ colors: { accentText: 'white' } }), 'admin.branding.colors');
+		expect(brand({ logo: 'https://example.com/logo.svg' }).logo).toBe('https://example.com/logo.svg');
+		expect(brand({ logo: '/logo.svg' }).logo).toBe('/logo.svg');
+		const data = 'data:image/png;base64,iVBORw0KGgo=';
+		expect(brand({ logo: data }).logo).toBe(data);
+		expect(brand(undefined)).toEqual({ colors: {} });
+	});
+	it('rejects CSS injection in colors', () => {
+		for (const bad of ['red;}body{x:y', 'url(javascript:x)', 'expression(alert(1))', 'red; background: url(x)', '#ggg', '']) {
+			fails(() => brand({ colors: { accent: bad } }), 'admin.branding.colors.accent');
+		}
+		fails(() => brand({ colors: { other: '#fff' } }), 'admin.branding.colors.other');
+	});
+	it('rejects unsafe logos', () => {
+		for (const bad of ['javascript:alert(1)', 'http://example.com/a.png', '//evil.com/x.png', 'data:text/html;base64,AAAA', 'https://a.com/x"onerror="y']) {
+			fails(() => brand({ logo: bad }), 'admin.branding.logo');
+		}
 	});
 });

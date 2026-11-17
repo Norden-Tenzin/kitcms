@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { findD1Binding, isNoSchemaChanges, normalizeDir, parseArgs, stripJsonc } from './args';
 import { CliError, resolveConfigPath } from './load-config';
+import { assertRemoteBinding, formatStats, resolveSeedPath } from './seed';
 import { generateSchema, migrateCreate } from './commands';
 
 const fixtures = path.join(import.meta.dirname, '__fixtures__');
@@ -75,4 +76,24 @@ describe('generate:schema / migrate:create', () => {
 		await migrateCreate(ctx, 'again');
 		expect(logs.join('\n')).toMatch(/No schema changes/);
 	}, 60_000);
+});
+
+describe('seed command', () => {
+	it('parses the command and --seed', () => {
+		expect(parseArgs(['seed', '--remote', '--seed', 'x/seed.ts'])).toMatchObject({ command: 'seed', remote: true, seed: 'x/seed.ts' });
+		expect(parseArgs(['seed', '--seed=y.ts'])).toMatchObject({ command: 'seed', remote: false, seed: 'y.ts' });
+		expect(parseArgs(['seed']).seed).toBeUndefined();
+	});
+	it('requires "remote": true on the D1 binding for --remote', () => {
+		const ok = '{ "d1_databases": [{ "binding": "DB", "remote": true }] }';
+		const bad = '{ "d1_databases": [{ "binding": "DB", "database_name": "n" }] }';
+		expect(() => assertRemoteBinding('wrangler.jsonc', ok, 'DB')).not.toThrow();
+		expect(() => assertRemoteBinding('wrangler.jsonc', bad, 'DB')).toThrow(/"remote": true/);
+		expect(() => assertRemoteBinding('wrangler.jsonc', '{}', 'DB')).toThrow(/no d1_databases entry/);
+		expect(() => assertRemoteBinding('wrangler.toml', '', 'DB')).not.toThrow();
+	});
+	it('errors on a missing seed file and formats stats', () => {
+		expect(() => resolveSeedPath(path.join(fixtures, 'nope'))).toThrow(CliError);
+		expect(formatStats({ legal: { created: 2, present: 1 } })).toEqual(['legal: 2 created, 1 already present']);
+	});
 });

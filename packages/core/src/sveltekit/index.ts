@@ -21,6 +21,9 @@ import type { KitcmsUser } from '../config/hooks';
 import type { SanitizedConfig } from '../config/sanitized';
 import { sanitizeConfig } from '../config/sanitize';
 import type { DbAdapter } from '../db/adapter';
+import { dev } from '$app/env';
+import { parseBaseOrigin, useSecureCookies } from '../auth/cookies';
+import { readBookmarkCookie, serializeBookmarkCookie, sessionStartFor } from '../db/session';
 import { dbFor, storageFor } from '../runtime';
 import type { StorageAdapter } from '../storage/adapter';
 import { needsSession, stripBase } from './paths';
@@ -93,7 +96,8 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 		config,
 		handle: async ({ event, resolve }) => {
 			const env = workers.env as unknown as Record<string, unknown>;
-			const db = dbFor(config, env);
+			// Anonymous until a user resolves: nearest replica (§13.10). Signed-in requests re-open below.
+			let db = dbFor(config, env, 'first-unconstrained');
 			const pathname = stripBase(event.url.pathname, basePath(event.url));
 			const storage = storageFor(config, env, basePath);
 
@@ -115,6 +119,8 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 			internals.set(event.locals, k);
 			event.locals.cms = k.cms as unknown as LocalAPI;
 
+			let signedIn = false;
+			let cookieBookmark: string | null = null;
 			if (pathname !== null && needsSession(pathname)) {
 				// Lazy: public requests never evaluate Better Auth (Decision 18).
 				const auth = await import('../auth/module');
@@ -123,12 +129,33 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 				if (resolved) {
 					event.locals.user = resolved.user;
 					event.locals.session = resolved.session;
-					k = { ...k, user: resolved.user, cms: cmsFor(resolved.user) };
+					// Signed in: sequential consistency via the bookmark cookie, else the primary.
+					cookieBookmark = readBookmarkCookie(event.request.headers.get('cookie'));
+					db = dbFor(config, env, sessionStartFor({ signedIn: true, bookmark: cookieBookmark }));
+					signedIn = true;
+					k = { ...k, db, user: resolved.user, cms: cmsFor(resolved.user) };
 					internals.set(event.locals, k);
 					event.locals.cms = k.cms as unknown as LocalAPI;
 				}
 			}
-			return resolve(event);
+			const response = await resolve(event);
+			// Only signed-in /admin and /api requests ever set the cookie; public pages never do.
+			const bookmark = signedIn ? (db.bookmark?.() ?? null) : null;
+			if (!bookmark || bookmark === cookieBookmark) return response;
+			const origin = parseBaseOrigin(env.BETTER_AUTH_URL) ?? event.url;
+			const cookie = serializeBookmarkCookie(bookmark, {
+				base: basePath(event.url),
+				secure: useSecureCookies({ dev, origin }),
+			});
+			try {
+				response.headers.append('set-cookie', cookie);
+				return response;
+			} catch {
+				// Immutable headers (e.g. a proxied response): copy.
+				const headers = new Headers(response.headers);
+				headers.append('set-cookie', cookie);
+				return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+			}
 		},
 	};
 }

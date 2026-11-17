@@ -1,6 +1,8 @@
 // @kitcms/core: config, fields, types and the Local API.
 export { fields } from './config/fields';
-export { block, collection, defineConfig } from './config/collection';
+export { block, collection, defineConfig, global } from './config/collection';
+export { defineSeed } from './seed';
+export type { SeedContext, SeedFn } from './seed';
 
 export type * from './config/fields';
 export type * from './config/collection';
@@ -10,6 +12,14 @@ export type { Where, WhereOps, WhereInput, Sort } from './config/where';
 export type {
 	Cms,
 	Depth,
+	DraftReadOption,
+	DraftWriteOption,
+	FindVersionsArgs,
+	GlobalDocOf,
+	GlobalInputOf,
+	MoveTarget,
+	VersionDoc,
+	WriteOptions,
 	FindArgs,
 	LocalAPI,
 	OperationOptions,

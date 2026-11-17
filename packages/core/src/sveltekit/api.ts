@@ -1,6 +1,6 @@
 // The package-provided API route, re-exported by the generated route file
 // `src/routes/(kitcms)/api/[...path]/+server.ts`:
-//   export { GET, POST } from '@kitcms/core/sveltekit/api';
+//   export { GET, POST, PATCH, DELETE } from '@kitcms/core/sveltekit/api';
 // (Better Auth's `/api/auth/*` is served earlier, by the handle.)
 //
 // Admin JSON endpoints (session + admin access required; Local API as the user, so collection and
@@ -10,7 +10,7 @@
 // Uploads and files (R2, §4.8; implemented by the upload task in ../upload):
 //   POST /api/upload/:collection                  (multipart: file + other fields)
 //   GET  /api/media/<key>                         (when `media.publicUrl` is unset)
-// The REST fallback API (/api/:collection, Phase 2) will live here too.
+// The REST fallback API (/api/collections/*, /api/globals/*; plan §13.7) lives in ./rest.
 
 import type { RequestEvent } from '@sveltejs/kit';
 import { adminAccess } from '../access/engine';
@@ -132,23 +132,35 @@ async function handle(event: RequestEvent, fn: () => Promise<Response>): Promise
 	}
 }
 
+/** `/api/collections/*` and `/api/globals/*`: dispatched to the lazily imported REST module. */
+async function rest(event: RequestEvent, method: 'GET' | 'POST' | 'PATCH' | 'DELETE'): Promise<Response | null> {
+	const segs = segments(event);
+	if (segs[0] !== 'collections' && segs[0] !== 'globals') return null;
+	const { handleRest } = await import('./rest');
+	return handleRest(event, getKitcms(event.locals), method, segs);
+}
+
 export async function GET(event: RequestEvent): Promise<Response> {
-	const [a, b, c, ...rest] = segments(event);
+	const [a, b, c, ...rest_] = segments(event);
 	return handle(event, async () => {
-		if (a === 'admin' && b === 'search' && c && rest.length === 0) return adminSearch(event, c);
-		if (a === 'admin' && b === 'lookup' && c && rest.length === 0) return adminLookup(event, c);
+		const r = await rest(event, 'GET');
+		if (r) return r;
+		if (a === 'admin' && b === 'search' && c && rest_.length === 0) return adminSearch(event, c);
+		if (a === 'admin' && b === 'lookup' && c && rest_.length === 0) return adminLookup(event, c);
 		if (a === 'media' && b) {
 			const { serveMedia } = await import('../upload/serve');
-			return serveMedia(event, [b, c, ...rest].filter((s): s is string => Boolean(s)).join('/'));
+			return serveMedia(event, [b, c, ...rest_].filter((s): s is string => Boolean(s)).join('/'));
 		}
 		return errorResponse(404, 'Not found.');
 	});
 }
 
 export async function POST(event: RequestEvent): Promise<Response> {
-	const [a, b, ...rest] = segments(event);
+	const [a, b, ...rest_] = segments(event);
 	return handle(event, async () => {
-		if (a === 'upload' && b && rest.length === 0) {
+		const r = await rest(event, 'POST');
+		if (r) return r;
+		if (a === 'upload' && b && rest_.length === 0) {
 			const origin = event.request.headers.get('origin');
 			if (!origin || origin !== event.url.origin) return errorResponse(403, 'Cross-origin request blocked.');
 			const k = await requireAdminApi(event);
@@ -158,4 +170,12 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		}
 		return errorResponse(404, 'Not found.');
 	});
+}
+
+export async function PATCH(event: RequestEvent): Promise<Response> {
+	return handle(event, async () => (await rest(event, 'PATCH')) ?? errorResponse(404, 'Not found.'));
+}
+
+export async function DELETE(event: RequestEvent): Promise<Response> {
+	return handle(event, async () => (await rest(event, 'DELETE')) ?? errorResponse(404, 'Not found.'));
 }

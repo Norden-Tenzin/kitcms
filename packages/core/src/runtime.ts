@@ -4,23 +4,28 @@ import type { PipelineStorage } from './api/local';
 import type { SanitizedConfig } from './config/sanitized';
 import type { DbAdapter } from './db/adapter';
 import { createD1Adapter } from './db/d1';
+import type { SessionStart } from './db/session';
 import type { StorageAdapter } from './storage/adapter';
 import { createR2Adapter } from './storage/r2';
 
-const adapters = new WeakMap<object, DbAdapter>();
-
-export function dbFor(config: SanitizedConfig, env: Record<string, unknown>): DbAdapter {
+/**
+ * A D1 adapter for ONE request (§13.10): a fresh `withSession(start)` wrapped around the binding,
+ * so reads may hit a replica and writes are sequentially consistent. Expensive parts (Drizzle
+ * tables) are cached per config in `getTables`; this only wraps. Without `withSession` (older
+ * runtimes) it falls back to the raw binding. Better Auth keeps the raw binding (primary).
+ */
+export function dbFor(
+	config: SanitizedConfig,
+	env: Record<string, unknown>,
+	start: SessionStart = 'first-unconstrained',
+): DbAdapter {
 	const binding = env[config.bindings.db] as D1Database | undefined;
 	if (!binding) {
 		throw new Error(
 			`kitcms: the D1 binding "${config.bindings.db}" is missing. Add it to wrangler.jsonc (d1_databases).`,
 		);
 	}
-	const cached = adapters.get(binding);
-	if (cached) return cached;
-	const db = createD1Adapter(config, binding);
-	adapters.set(binding, db);
-	return db;
+	return createD1Adapter(config, typeof binding.withSession === 'function' ? binding.withSession(start) : binding);
 }
 
 const storages = new WeakMap<object, StorageAdapter>();

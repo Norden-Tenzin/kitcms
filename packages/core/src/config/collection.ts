@@ -2,7 +2,7 @@
 // Each builder returns its input unchanged at runtime and computes the document types once.
 
 import type { BlockAdmin, BlockDef, Fields } from './fields';
-import type { CollectionAccess, CollectionHooks } from './hooks';
+import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { InferFields, InferInput, Simplify } from './infer';
 import type { Sort } from './where';
 
@@ -86,10 +86,36 @@ export interface CollectionAdmin<Doc> {
 	group?: string;
 	/** Hide from the admin navigation (the collection is still reachable by URL and API). */
 	hidden?: boolean;
+	/**
+	 * A fixed set of documents (§5, §13.3): nobody can create or delete documents, except trusted
+	 * code with `overrideAccess` (`kitcms seed`, RPC `as: 'system'`). Updates follow `access.update`.
+	 */
+	locked?: boolean;
 }
 
-type DocFor<F extends Fields, U, A> = Simplify<
+/**
+ * Version history and drafts (§13.4).
+ * - `true`: every save also stores a version snapshot (history + restore). No drafts.
+ * - `{ drafts: true }`: documents can be saved as drafts; public reads only see published docs.
+ * - `{ drafts: { autosave: true } }`: the admin saves drafts automatically (default every 2000 ms).
+ */
+export type VersionsOption =
+	| boolean
+	| {
+			drafts?: boolean | { autosave?: boolean | { interval?: number } };
+			/** Versions kept per document; older ones are pruned. Default 50. */
+			max?: number;
+	  };
+
+/** `_status` is on documents of collections/globals with drafts. */
+type StatusFor<V> = V extends { drafts: true | object } ? { _status: 'draft' | 'published' } : unknown;
+/** `_order` is on documents of orderable collections (a fractional-index key). */
+type OrderFor<O> = O extends true ? { _order: string | null } : unknown;
+
+type DocFor<F extends Fields, U, A, V = false, O = false> = Simplify<
 	SystemFields &
+		StatusFor<V> &
+		OrderFor<O> &
 		(U extends false | undefined ? unknown : UploadFields) &
 		(A extends true ? AuthFields : unknown) &
 		InferFields<F>
@@ -104,16 +130,25 @@ export interface CollectionInputDef<
 	F extends Fields,
 	U extends boolean | UploadOptions,
 	A extends boolean,
+	V extends VersionsOption = false,
+	O extends boolean = false,
 > {
 	/** Table name and URL segment: lowercase letters, digits, `-` and `_`. */
 	slug: Slug;
 	fields: F;
 	labels?: { singular?: string; plural?: string };
-	admin?: CollectionAdmin<DocFor<F, U, A>>;
-	access?: CollectionAccess<DocFor<F, U, A>>;
-	hooks?: CollectionHooks<DocFor<F, U, A>>;
-	/** Default sort for `find` and the list view. Default: `'-createdAt'`. */
-	defaultSort?: Sort<DocFor<F, U, A>>;
+	admin?: CollectionAdmin<DocFor<F, U, A, V, O>>;
+	access?: CollectionAccess<DocFor<F, U, A, V, O>>;
+	hooks?: CollectionHooks<DocFor<F, U, A, V, O>>;
+	/** Default sort for `find` and the list view. Default: `'_order'` when orderable, else `'-createdAt'`. */
+	defaultSort?: Sort<DocFor<F, U, A, V, O>>;
+	/**
+	 * Editors sort documents by drag and drop in the list view (§13.2). Adds the `_order` system
+	 * field. Reorder in code with `cms.move(collection, id, { before | after })`.
+	 */
+	orderable?: O;
+	/** Version history and drafts (§13.4). */
+	versions?: V;
 	/** Files in R2 (§4.8). Adds the upload fields. */
 	upload?: U;
 	/** The users collection, backed by Better Auth (§4.7). At most one per config. */
@@ -131,6 +166,8 @@ export interface CollectionDef<Slug extends string = string, Doc = GenericDoc, I
 	readonly defaultSort?: string;
 	readonly upload?: boolean | UploadOptions;
 	readonly auth?: boolean;
+	readonly orderable?: boolean;
+	readonly versions?: VersionsOption;
 	/** Phantom: the stored document shape. */
 	readonly '~doc'?: Doc;
 	/** Phantom: the create input shape. */
@@ -146,7 +183,81 @@ export function collection<
 	F extends Fields,
 	const U extends boolean | UploadOptions = false,
 	const A extends boolean = false,
->(def: CollectionInputDef<Slug, F, U, A>): CollectionDef<Slug, DocFor<F, U, A>, InputFor<F, A>> {
+	const V extends VersionsOption = false,
+	const O extends boolean = false,
+>(
+	def: CollectionInputDef<Slug, F, U, A, V, O>,
+): CollectionDef<Slug, DocFor<F, U, A, V, O>, InputFor<F, A>> {
+	return def as never;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Globals (§13.1)
+// ---------------------------------------------------------------------------------------------
+
+/** Access rules of a global. Booleans only. Defaults: signed-in users only (Decision 22). */
+export interface GlobalAccess<Doc = Record<string, unknown>> {
+	read?: (args: { req: KitcmsReq }) => boolean | Promise<boolean>;
+	update?: (args: { req: KitcmsReq; data?: Partial<Doc> }) => boolean | Promise<boolean>;
+}
+
+/** The hooks of a global: the collection hooks without the delete hooks. */
+export type GlobalHooks<Doc = Record<string, unknown>> = Omit<
+	CollectionHooks<Doc>,
+	'beforeDelete' | 'afterDelete'
+>;
+
+export interface GlobalAdmin {
+	description?: string;
+	/** Navigation group label. */
+	group?: string;
+	hidden?: boolean;
+}
+
+/** Set on every global document. `createdAt`/`updatedAt` are absent until the first save. */
+export interface GlobalSystemFields {
+	/** The global's slug. */
+	id: string;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+type GlobalDocFor<F extends Fields, V> = Simplify<GlobalSystemFields & StatusFor<V> & InferFields<F>>;
+
+export interface GlobalInputDef<Slug extends string, F extends Fields, V extends VersionsOption> {
+	/** Lowercase letters, digits, `-` and `_`. Unique among globals. */
+	slug: Slug;
+	fields: F;
+	/** Default: from the slug (`site-settings` → `Site settings`). */
+	label?: string;
+	admin?: GlobalAdmin;
+	access?: GlobalAccess<GlobalDocFor<F, V>>;
+	hooks?: GlobalHooks<GlobalDocFor<F, V>>;
+	versions?: V;
+}
+
+/** A global (a single document such as site settings), made with `global({ ... })`. */
+export interface GlobalDef<Slug extends string = string, Doc = GenericGlobalDoc, In = GenericInput> {
+	readonly slug: Slug;
+	readonly fields: Fields;
+	readonly label?: string;
+	readonly admin?: GlobalAdmin;
+	readonly access?: GlobalAccess<never>;
+	readonly hooks?: GlobalHooks<never>;
+	readonly versions?: VersionsOption;
+	/** Phantom: the stored document shape. */
+	readonly '~doc'?: Doc;
+	/** Phantom: the update input shape. */
+	readonly '~in'?: In;
+}
+
+export type GenericGlobalDoc = GlobalSystemFields & Record<string, unknown>;
+
+export function global<
+	const Slug extends string,
+	F extends Fields,
+	const V extends VersionsOption = false,
+>(def: GlobalInputDef<Slug, F, V>): GlobalDef<Slug, GlobalDocFor<F, V>, InferInput<F>> {
 	return def as never;
 }
 
@@ -162,6 +273,7 @@ export interface ConfigOptions {
 		user?: string;
 		/** Shown in the admin header and the browser title. Default: `'kitcms'`. */
 		title?: string;
+		branding?: Branding;
 	};
 	media?: {
 		/**
@@ -170,17 +282,44 @@ export interface ConfigOptions {
 		 */
 		publicUrl?: string;
 	};
+	/**
+	 * The REST fallback API under `/api/collections` and `/api/globals` (§13.7). Default `true`.
+	 * Turn it off when every consumer uses the Local API or Service Binding RPC.
+	 */
+	rest?: boolean;
+	/**
+	 * Edge cache for anonymous published reads (§13.9). Off by default. Needs a custom domain
+	 * (the Cache API is a no-op on `*.workers.dev`).
+	 */
+	cache?: false | { /** Seconds other regions may serve a stale read after a write. */ ttl: number };
 }
 
-export interface Config<C extends readonly CollectionDef[] = readonly CollectionDef[]>
-	extends ConfigOptions {
+/** White-label branding for the admin (§13.6). */
+export interface Branding {
+	/** Logo shown in the admin header and login screen: an `https:` URL, a `/`-relative path or a `data:image/` URL. */
+	logo?: string;
+	/** CSS colors (hex, `rgb()`, `hsl()`, `oklch()` or a named color). */
+	colors?: {
+		/** Buttons, links, focus rings. */
+		accent?: string;
+		/** Text on `accent` backgrounds. */
+		accentText?: string;
+	};
+}
+
+export interface Config<
+	C extends readonly CollectionDef[] = readonly CollectionDef[],
+	G extends readonly GlobalDef[] = readonly GlobalDef[],
+> extends ConfigOptions {
 	readonly collections: C;
+	readonly globals?: G;
 }
 
-/** The kitcms config. The only place collections, fields and blocks are defined. */
-export function defineConfig<const C extends readonly CollectionDef[]>(
-	config: ConfigOptions & { collections: C },
-): Config<C> {
+/** The kitcms config. The only place collections, globals, fields and blocks are defined. */
+export function defineConfig<
+	const C extends readonly CollectionDef[],
+	const G extends readonly GlobalDef[] = [],
+>(config: ConfigOptions & { collections: C; globals?: G }): Config<C, G> {
 	return config;
 }
 
@@ -214,4 +353,13 @@ export type DocOf<C extends Config, S extends string> = NonNullable<
 >;
 export type InputOf<C extends Config, S extends string> = NonNullable<
 	Extract<Collections<C>, { readonly slug: S }>['~in']
+>;
+
+type Globals<C extends Config> = NonNullable<C['globals']>[number];
+export type GlobalSlug<C extends Config = RegisteredConfig> = Globals<C>['slug'];
+export type GlobalDocOf<C extends Config, S extends string> = NonNullable<
+	Extract<Globals<C>, { readonly slug: S }>['~doc']
+>;
+export type GlobalInputOf<C extends Config, S extends string> = NonNullable<
+	Extract<Globals<C>, { readonly slug: S }>['~in']
 >;

@@ -6,11 +6,12 @@ export interface ParsedArgs {
 	positionals: string[];
 	config: string | undefined;
 	remote: boolean;
+	seed: string | undefined;
 	help: boolean;
 	unknown: string[];
 }
 
-export const COMMANDS = ['generate:schema', 'generate:types', 'migrate:create', 'migrate', 'migrate:status', 'info'] as const;
+export const COMMANDS = ['generate:schema', 'generate:types', 'migrate:create', 'migrate', 'migrate:status', 'seed', 'info'] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export function isCommand(value: string | undefined): value is Command {
@@ -25,22 +26,26 @@ Commands:
   migrate:create <name>    Generate schema, then create a SQL migration in ./migrations
   migrate [--remote]       Apply migrations with wrangler (local D1 by default)
   migrate:status [--remote]  List migrations with wrangler
+  seed [--remote] [--seed <path>]  Run src/kitcms.seed.ts (idempotent) against local or remote D1/R2
   info                     Show config, collections, bindings and migrations_dir check
 
 Options:
   --config <path>          Path to the kitcms config (default: src/kitcms.config.ts or kitcms.config.ts)
   --out <path>             Output file for generate:types (default: kitcms-types.d.ts)
-  --remote                 Target the remote D1 database (migrate, migrate:status)
+  --seed <path>            Seed file for the seed command (default: src/kitcms.seed.ts)
+  --remote                 Target the remote D1 database (migrate, migrate:status, seed)
   --help, -h               Show this help
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
-	const out: ParsedArgs = { out: undefined, command: undefined, positionals: [], config: undefined, remote: false, help: false, unknown: [] };
+	const out: ParsedArgs = { out: undefined, command: undefined, positionals: [], config: undefined, remote: false, seed: undefined, help: false, unknown: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i]!;
 		if (a === '--help' || a === '-h') out.help = true;
 		else if (a === '--remote') out.remote = true;
 		else if (a === '--config') out.config = argv[++i];
+		else if (a === '--seed') out.seed = argv[++i];
+		else if (a.startsWith('--seed=')) out.seed = a.slice('--seed='.length);
 		else if (a === '--out') out.out = argv[++i];
 		else if (a.startsWith('--out=')) out.out = a.slice('--out='.length);
 		else if (a.startsWith('--config=')) out.config = a.slice('--config='.length);
@@ -79,7 +84,7 @@ export function stripJsonc(src: string): string {
 }
 
 export type D1Lookup =
-	| { status: 'found'; databaseName: string | undefined; migrationsDir: string }
+	| { status: 'found'; databaseName: string | undefined; migrationsDir: string; remote?: boolean }
 	| { status: 'no-binding' }
 	| { status: 'skipped'; reason: string };
 
@@ -100,6 +105,7 @@ export function findD1Binding(fileName: string, text: string, binding: string): 
 					status: 'found',
 					databaseName: typeof d.database_name === 'string' ? d.database_name : undefined,
 					migrationsDir: typeof d.migrations_dir === 'string' ? d.migrations_dir : 'migrations',
+					...(d.remote === true ? { remote: true } : {}),
 				};
 			}
 		}

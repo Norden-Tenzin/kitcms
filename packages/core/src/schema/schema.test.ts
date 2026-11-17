@@ -1,6 +1,6 @@
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { block, collection, defineConfig, type CollectionDef } from '../config/collection';
+import { block, collection, defineConfig, global, type CollectionDef } from '../config/collection';
 import { fields as f } from '../config/fields';
 import { sanitizeConfig } from '../config/sanitize';
 import { generateDrizzleSchema } from './codegen';
@@ -280,5 +280,110 @@ describe('equivalence: runtime tables vs generated source', () => {
 		expect(sql).toContain('CREATE UNIQUE INDEX `pages_slug_unique`');
 		expect(sql).toContain('CREATE INDEX `_refs_path_idx` ON `_refs` (`fromCollection`,`path`,`toId`)');
 		expect(sql).toContain('`featured` integer DEFAULT true NOT NULL');
+	});
+});
+
+describe('Phase 2: globals, orderable, versions', () => {
+	const config = sanitizeConfig(
+		defineConfig({
+			collections: [
+				media,
+				collection({ slug: 'faq', orderable: true, fields: { q: f.text() } } as never),
+				collection({ slug: 'posts', versions: { drafts: true }, fields: { title: f.text() } } as never),
+				collection({ slug: 'notes', versions: true, fields: { body: f.textarea() } } as never),
+			],
+			globals: [
+				global({
+					slug: 'site',
+					versions: { drafts: true },
+					fields: { siteName: f.text({ required: true }), logo: f.upload({ relationTo: 'media' }) },
+				} as never),
+				global({ slug: 'footer', fields: { note: f.text() } } as never),
+			],
+		}),
+	);
+	const specs = toTableSpecs(config);
+	const t = byName(specs);
+
+	it('emits global tables after collections and version tables after those', () => {
+		const names = specs.map((s) => s.name);
+		expect(names.slice(0, 5)).toEqual(['media', 'faq', 'posts', 'notes', 'users']);
+		expect(names.indexOf('_global_site')).toBeGreaterThan(names.indexOf('users'));
+		expect(names).toEqual(
+			expect.arrayContaining([
+				'_global_site',
+				'_global_footer',
+				'posts_versions',
+				'notes_versions',
+				'_global_site_versions',
+			]),
+		);
+		expect(names).not.toContain('_global_footer_versions');
+		expect(names).not.toContain('faq_versions');
+		expect(names.indexOf('_global_site_versions')).toBeGreaterThan(names.indexOf('_global_footer'));
+	});
+
+	it('maps a global like a collection (id, timestamps, fields, FKs)', () => {
+		const g = t._global_site!;
+		expect(cols(g)).toEqual(['id', 'createdAt', 'updatedAt', '_status', 'siteName', 'logo']);
+		expect(col(g, 'id')).toMatchObject({ primaryKey: true, notNull: true });
+		expect(col(g, 'logo').references).toMatchObject({ table: 'media', onDelete: 'set null' });
+		expect(cols(t._global_footer!)).toEqual(['id', 'createdAt', 'updatedAt', 'note']);
+	});
+
+	it('adds _order and its index to orderable collections', () => {
+		expect(cols(t.faq!)).toEqual(['id', 'createdAt', 'updatedAt', '_order', 'q']);
+		expect(t.faq!.indexes.map((i) => i.name)).toContain('faq__order_idx');
+		expect(cols(t.notes!)).not.toContain('_order');
+	});
+
+	it('adds _status (default published) and its index with drafts only', () => {
+		expect(col(t.posts!, '_status')).toMatchObject({ kind: 'text', notNull: true, default: 'published' });
+		expect(t.posts!.indexes.map((i) => i.name)).toContain('posts__status_idx');
+		expect(cols(t.notes!)).not.toContain('_status');
+	});
+
+	it('maps version tables', () => {
+		const v = t.posts_versions!;
+		expect(cols(v)).toEqual(['id', 'parent', 'version', '_status', 'autosave', 'latest', 'createdAt', 'updatedAt']);
+		expect(col(v, 'parent').references).toMatchObject({ table: 'posts', column: 'id', onDelete: 'cascade' });
+		expect(v.indexes.map((i) => i.name)).toEqual(['posts_versions_parent_idx', 'posts_versions_latest_idx']);
+		expect(cols(t.notes_versions!)).not.toContain('_status');
+		expect(col(t._global_site_versions!, 'parent').references).toMatchObject({ table: '_global_site' });
+	});
+
+	it('runtime tables and generated source agree, and drizzle-kit creates valid SQL', async () => {
+		const nodeFs = 'node:fs/promises';
+		const nodeUrl = 'node:url';
+		const fs = await import(/* @vite-ignore */ nodeFs);
+		const { fileURLToPath } = await import(/* @vite-ignore */ nodeUrl);
+		const dir = new URL('../../.tmp-schema-test-p2/', import.meta.url);
+		try {
+			await fs.mkdir(fileURLToPath(dir), { recursive: true });
+			const file = new URL('schema.ts', dir);
+			await fs.writeFile(fileURLToPath(file), generateDrizzleSchema(specs));
+			const mod = (await import(/* @vite-ignore */ file.href)) as Record<string, unknown>;
+			const names = (list: unknown[]) =>
+				list.map((x) => {
+					const c = getTableConfig(x as never);
+					return {
+						name: c.name,
+						columns: c.columns.map((k) => [k.name, k.columnType, k.notNull, k.default]),
+						indexes: c.indexes.map((i) => i.config.name),
+					};
+				});
+			expect(names(Object.values(mod))).toEqual(names(Object.values(buildTables(specs))));
+			const kit = await import('drizzle-kit/api');
+			const empty = await kit.generateSQLiteDrizzleJson({});
+			const next = await kit.generateSQLiteDrizzleJson(mod);
+			const sql = (await kit.generateSQLiteMigration(empty, next)).join('\n');
+			expect(sql).toContain('CREATE TABLE `_global_site`');
+			expect(sql).toContain('CREATE TABLE `_global_site_versions`');
+			expect(sql).toContain('CREATE INDEX `faq__order_idx` ON `faq` (`_order`)');
+			expect(sql).toContain('`_status` text DEFAULT \'published\' NOT NULL');
+			expect(sql).toContain('CREATE INDEX `posts_versions_parent_idx` ON `posts_versions` (`parent`,`createdAt`)');
+		} finally {
+			await fs.rm(fileURLToPath(dir), { recursive: true, force: true });
+		}
 	});
 });

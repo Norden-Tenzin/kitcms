@@ -210,13 +210,12 @@ export interface LayoutFieldDef<
 // Blocks
 // ---------------------------------------------------------------------------------------------
 
-export interface BlockAdmin {
-	/**
-	 * Svelte component rendered by the inline live preview (Phase 2). It receives the block's
-	 * current form values as props.
-	 */
-	preview?: unknown;
-}
+/**
+ * Admin options of a block. Live-preview components are registered in `src/kitcms.admin.ts`
+ * (`defineAdmin({ previews })`), not here: the config is server code (Decision 23).
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface BlockAdmin {}
 
 /** A block type, made with `block({ ... })`. `Doc` is the stored block shape. */
 export interface BlockDef<Slug extends string = string, Doc = unknown> {

@@ -17,6 +17,7 @@ import type {
 	AdminActionData,
 	AdminData,
 	AdminDoc,
+	AdminDocStatus,
 	AdminPermissions,
 	AdminRoute,
 	ListQuery,
@@ -36,10 +37,17 @@ export function matchAdminRoute(path: string): AdminRoute | null {
 	if (parts.length === 0) return { view: 'dashboard' };
 	if (parts.length === 1 && parts[0] === 'login') return { view: 'login' };
 	if (parts.length === 1 && parts[0] === 'create-first-user') return { view: 'create-first-user' };
+	if (parts[0] === 'globals' && parts.length === 2 && parts[1]) return { view: 'global', global: parts[1] };
+	if (parts[0] === 'globals' && parts.length === 3 && parts[1] && parts[2] === 'versions') {
+		return { view: 'versions', global: parts[1] };
+	}
 	if (parts[0] !== 'collections' || !parts[1]) return null;
 	if (parts.length === 2) return { view: 'list', collection: parts[1] };
 	if (parts.length === 3 && parts[2] === 'create') return { view: 'create', collection: parts[1] };
 	if (parts.length === 3 && parts[2]) return { view: 'edit', collection: parts[1], id: parts[2] };
+	if (parts.length === 4 && parts[2] && parts[3] === 'versions') {
+		return { view: 'versions', collection: parts[1], id: parts[2] };
+	}
 	return null;
 }
 
@@ -93,6 +101,13 @@ function collectionFor(k: KitcmsInternals, slug: string): { col: SanitizedCollec
 	return { col, client };
 }
 
+function globalFor(k: KitcmsInternals, slug: string): { col: SanitizedCollection; client: ClientCollection } {
+	const col = Object.hasOwn(k.config.globalsBySlug, slug) ? k.config.globalsBySlug[slug] : undefined;
+	const client = clientConfig(k.config).globals.find((c) => c.globalSlug === slug);
+	if (!col || !client) error(404, `Unknown global "${slug}"`);
+	return { col, client };
+}
+
 async function permissions(col: SanitizedCollection, req: KitcmsReq, id?: string): Promise<AdminPermissions> {
 	const [create, update, del] = await Promise.all([
 		collectionAccess(col, 'create', { req }),
@@ -100,6 +115,12 @@ async function permissions(col: SanitizedCollection, req: KitcmsReq, id?: string
 		collectionAccess(col, 'delete', { req, id }),
 	]);
 	return { create: create !== false, update: update !== false, delete: del !== false };
+}
+
+function globalsNav(k: KitcmsInternals) {
+	return k.config.globals
+		.filter((g) => !g.admin.hidden)
+		.map((g) => ({ slug: g.globalSlug as string, label: g.labels.singular, group: g.admin.group }));
 }
 
 function nav(k: KitcmsInternals) {
@@ -127,6 +148,44 @@ function listQuery(url: URL, col: SanitizedCollection): ListQuery {
 	};
 }
 
+const hasDrafts = (col: SanitizedCollection) => col.versions !== false && col.versions.drafts !== false;
+
+/**
+ * Draft / published / changed. The document was read with `draft: true`, so its `_status` is
+ * `'draft'` for both a never-published document and a published one with a newer draft: the
+ * published read tells them apart (a published global reads as `_status: 'published'`).
+ */
+async function docStatus(
+	col: SanitizedCollection,
+	cms: Cms,
+	doc: Record<string, unknown>,
+	route: { collection: string; id: string } | { global: string },
+): Promise<AdminDocStatus | undefined> {
+	if (!hasDrafts(col)) return undefined;
+	if (doc._status === 'published') return 'published';
+	const published = 'global' in route ? await cms.findGlobal(route.global as never) : await cms.findByID(route.collection, route.id);
+	return published && (published as Record<string, unknown>)._status === 'published' ? 'changed' : 'draft';
+}
+
+/** Number of versions the user may see, or `undefined` (none, or no access). */
+async function versionCount(
+	col: SanitizedCollection,
+	cms: Cms,
+	route: { collection: string; id: string } | { global: string },
+): Promise<number | undefined> {
+	if (col.versions === false) return undefined;
+	try {
+		const page =
+			'global' in route
+				? await cms.findGlobalVersions(route.global as never, { limit: 1 })
+				: await cms.findVersions(route.collection, route.id, { limit: 1 });
+		return page.totalDocs;
+	} catch (err) {
+		if (isKitcmsError(err)) return undefined;
+		throw err;
+	}
+}
+
 /** Top-level fields hidden by `admin.condition` for this document. */
 function hiddenFields(col: SanitizedCollection, doc: Record<string, unknown>): string[] {
 	return col.fields.filter((f) => f.admin.condition && !f.admin.condition(doc, doc)).map((f) => f.name);
@@ -139,16 +198,17 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 	if (!route) error(404, 'Not found');
 	const { k, user, cms } = await requireAdmin(event, route.view);
 	const title = k.config.admin.title;
-	if (route.view === 'login') return { route, title };
-	if (route.view === 'create-first-user') return { route, title };
+	const branding = k.config.admin.branding;
+	if (route.view === 'login') return { route, title, branding };
+	if (route.view === 'create-first-user') return { route, title, branding };
 	if (!user) error(401, 'Unauthorized'); // unreachable: requireAdmin redirects
-	const base = { title, user: me(user), nav: nav(k) };
+	const base = { title, branding, user: me(user), nav: nav(k), globals: globalsNav(k) };
 	const req = sysReq(k, user);
 
 	if (route.view === 'dashboard') {
 		const visible = k.config.collections.filter((c) => !c.admin.hidden);
 		const counts = await Promise.all(
-			visible.map((c) => cms.count(c.slug).catch(() => -1)), // -1: not readable
+			visible.map((c) => cms.count(c.slug, { draft: true }).catch(() => -1)), // -1: not readable
 		);
 		return {
 			...base,
@@ -160,10 +220,82 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 				description: c.admin.description,
 				totalDocs: counts[i] ?? -1,
 			})),
+			globals: k.config.globals
+				.filter((g) => !g.admin.hidden)
+				.map((g) => ({
+					slug: g.globalSlug as string,
+					label: g.labels.singular,
+					group: g.admin.group,
+					description: g.admin.description,
+				})),
 		};
 	}
 
+	if (route.view === 'global') {
+		const { col, client } = globalFor(k, route.global);
+		const doc = await cms.findGlobal(route.global as never, { draft: true }).catch((err: unknown) => {
+			throw toHttpError(err);
+		});
+		const update = (await collectionAccess(col, 'update', { req, id: route.global })) === true;
+		const [status, count] = await Promise.all([
+			docStatus(col, cms, doc as Record<string, unknown>, route),
+			versionCount(col, cms, route),
+		]);
+		return {
+			...base,
+			route,
+			collection: client,
+			permissions: { create: false, update, delete: false },
+			doc: doc as AdminDoc,
+			hiddenFields: hiddenFields(col, doc as Record<string, unknown>),
+			...(status ? { status } : {}),
+			...(count !== undefined ? { versionCount: count } : {}),
+		};
+	}
+
+	if (route.view === 'versions' && route.global !== undefined) {
+		const { col, client } = globalFor(k, route.global);
+		if (col.versions === false) error(404, 'This global has no versions.');
+		const query = listQuery(event.url, col);
+		try {
+			const res = await cms.findGlobalVersions(route.global as never, { page: query.page, limit: 25 });
+			return {
+				...base,
+				route,
+				collection: client,
+				permissions: { create: false, update: (await collectionAccess(col, 'update', { req, id: route.global })) === true, delete: false },
+				docTitle: col.labels.singular,
+				...versionsPage(col, res),
+			};
+		} catch (err) {
+			throw toHttpError(err);
+		}
+	}
+
 	const { col, client } = collectionFor(k, route.collection);
+
+	if (route.view === 'versions') {
+		if (col.versions === false) error(404, 'This collection has no versions.');
+		const query = listQuery(event.url, col);
+		try {
+			const [res, current] = await Promise.all([
+				cms.findVersions(col.slug, route.id!, { page: query.page, limit: 25 }),
+				cms.findByID(col.slug, route.id!, { draft: true }),
+			]);
+			if (!current) error(404, 'Document not found');
+			const title = (current as Record<string, unknown>)[col.admin.useAsTitle];
+			return {
+				...base,
+				route,
+				collection: client,
+				permissions: await permissions(col, req, route.id),
+				docTitle: typeof title === 'string' && title ? title : route.id!,
+				...versionsPage(col, res),
+			};
+		} catch (err) {
+			throw toHttpError(err);
+		}
+	}
 
 	if (route.view === 'list') {
 		const query = listQuery(event.url, col);
@@ -172,14 +304,33 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 			where = { or: col.admin.listSearchableFields.map((f) => ({ [f]: { like: query.q } })) };
 		}
 		try {
-			const res = await cms.find(col.slug, { where, sort: query.sort as never, limit: query.limit, page: query.page });
+			const res = await cms.find(col.slug, {
+				where,
+				sort: query.sort as never,
+				limit: query.limit,
+				page: query.page,
+				draft: true,
+			});
+			const docs = res.docs as AdminDoc[];
+			// A draft overlay reads `_status: 'draft'` even when a published version exists. One more
+			// (admin-only) read tells "draft" from "published with newer draft changes".
+			const overlaid = docs.filter((d) => d._status === 'draft').map((d) => d.id);
+			if (col.versions && col.versions.drafts && overlaid.length > 0) {
+				const published = await cms.find(col.slug, {
+					where: { id: { in: overlaid } },
+					limit: overlaid.length,
+					pagination: false,
+				});
+				const live = new Set(published.docs.map((d) => d.id));
+				for (const d of docs) if (d._status === 'draft' && live.has(d.id)) d._status = 'changed';
+			}
 			return {
 				...base,
 				route,
 				collection: client,
 				permissions: await permissions(col, req),
 				query,
-				docs: res.docs as AdminDoc[],
+				docs,
 				totalDocs: res.totalDocs,
 				totalPages: res.totalPages,
 			};
@@ -198,10 +349,14 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		return { ...base, route, collection: client, permissions: perms, doc };
 	}
 
-	const doc = await cms.findByID(col.slug, route.id).catch((err: unknown) => {
+	const doc = await cms.findByID(col.slug, route.id, { draft: true }).catch((err: unknown) => {
 		throw toHttpError(err);
 	});
 	if (!doc) error(404, 'Document not found');
+	const [status, count] = await Promise.all([
+		docStatus(col, cms, doc, route),
+		versionCount(col, cms, route),
+	]);
 	return {
 		...base,
 		route,
@@ -210,8 +365,33 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		doc: doc as AdminDoc,
 		hiddenFields: hiddenFields(col, doc),
 		isSelf: col.auth && doc.id === user.id,
+		...(status ? { status } : {}),
+		...(count !== undefined ? { versionCount: count } : {}),
 	};
 };
+
+/** The paged versions list shaped for the versions view. */
+function versionsPage(
+	col: SanitizedCollection,
+	res: { docs: { id: string; version: unknown; _status?: 'draft' | 'published'; autosave: boolean; latest: boolean; createdAt: string }[]; totalDocs: number; page: number; totalPages: number },
+) {
+	return {
+		versions: res.docs.map((v) => {
+			const label = (v.version as Record<string, unknown>)[col.admin.useAsTitle];
+			return {
+				id: v.id,
+				...(v._status ? { status: v._status } : {}),
+				autosave: v.autosave,
+				latest: v.latest,
+				createdAt: v.createdAt,
+				...(typeof label === 'string' && label ? { label } : {}),
+			};
+		}),
+		totalDocs: res.totalDocs,
+		page: res.page,
+		totalPages: res.totalPages,
+	};
+}
 
 function toHttpError(err: unknown): never {
 	if (isKitcmsError(err)) error(err.status, err.message);
@@ -228,6 +408,12 @@ function failWith(err: unknown, values?: Record<string, unknown>) {
 	}
 	if (isKitcmsError(err)) return fail(err.status, { message: err.message, values } satisfies AdminActionData);
 	throw err;
+}
+
+/** `{ draft, autosave }` from the form's submit-button flags (§13.4). Empty without drafts. */
+function draftOptions(col: SanitizedCollection, form: FormData): { draft?: true; autosave?: true } {
+	if (!hasDrafts(col) || !form.has(FORM.draft)) return {};
+	return form.has(FORM.autosave) ? { draft: true, autosave: true } : { draft: true };
 }
 
 function checkOrigin(event: RequestEvent): void {
@@ -280,6 +466,19 @@ export const actions: Actions = {
 	save: async (event) => {
 		checkOrigin(event);
 		const route = routeOf(event);
+		if (route.view === 'global') {
+			const { k, cms } = await requireAdmin(event, route.view);
+			const { col } = globalFor(k, route.global);
+			const form = await event.request.formData();
+			const { data, errors } = parseFormData(col.fields, form);
+			if (errors.length > 0) return fail(400, { message: 'Invalid input', errors, values: data } satisfies AdminActionData);
+			try {
+				await cms.updateGlobal(route.global as never, data as never, draftOptions(col, form));
+			} catch (err) {
+				return failWith(err, data);
+			}
+			return { saved: true } satisfies AdminActionData;
+		}
 		if (route.view !== 'edit' && route.view !== 'create') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
 		const { col } = collectionFor(k, route.collection);
@@ -298,7 +497,8 @@ export const actions: Actions = {
 					});
 					id = doc.id;
 				} else {
-					id = ((await cms.create(col.slug, data)) as { id: string }).id;
+					// No autosave on create: the document has no id yet (the form only offers "Save draft").
+					id = ((await cms.create(col.slug, data, { ...draftOptions(col, form), autosave: undefined })) as { id: string }).id;
 				}
 			} catch (err) {
 				return failWith(err, data);
@@ -307,11 +507,52 @@ export const actions: Actions = {
 		}
 
 		try {
-			await cms.update(col.slug, route.id, data);
+			await cms.update(col.slug, route.id, data, draftOptions(col, form));
 		} catch (err) {
 			return failWith(err, data);
 		}
 		return { saved: true } satisfies AdminActionData;
+	},
+
+	unpublish: async (event) => {
+		checkOrigin(event);
+		const route = routeOf(event);
+		if (route.view !== 'edit') error(404, 'Not found');
+		const { k, cms } = await requireAdmin(event, route.view);
+		const { col } = collectionFor(k, route.collection);
+		if (!hasDrafts(col)) error(404, 'Not found');
+		try {
+			await cms.unpublish(col.slug, route.id);
+		} catch (err) {
+			return failWith(err);
+		}
+		return { saved: true } satisfies AdminActionData;
+	},
+
+	restoreVersion: async (event) => {
+		checkOrigin(event);
+		const route = routeOf(event);
+		if (route.view !== 'versions') error(404, 'Not found');
+		const { k, cms } = await requireAdmin(event, route.view);
+		const form = await event.request.formData();
+		const versionId = formString(form, FORM.versionId);
+		if (!versionId) return fail(400, { message: 'Invalid version' } satisfies AdminActionData);
+		if (route.global !== undefined) {
+			const { col } = globalFor(k, route.global);
+			try {
+				await cms.restoreGlobalVersion(route.global as never, versionId, draftOptions(col, form));
+			} catch (err) {
+				return failWith(err);
+			}
+			redirect(303, adminUrl(`globals/${route.global}`));
+		}
+		const { col } = collectionFor(k, route.collection);
+		try {
+			await cms.restoreVersion(col.slug, versionId, draftOptions(col, form));
+		} catch (err) {
+			return failWith(err);
+		}
+		redirect(303, adminUrl(`collections/${col.slug}/${route.id}`));
 	},
 
 	delete: async (event) => {
@@ -349,6 +590,28 @@ export const actions: Actions = {
 			return fail(409, {
 				message: `${failed.length} of ${ids.length} could not be deleted (in use or not allowed).`,
 			} satisfies AdminActionData);
+		}
+		return { saved: true } satisfies AdminActionData;
+	},
+
+	move: async (event) => {
+		checkOrigin(event);
+		const route = routeOf(event);
+		if (route.view !== 'list') error(404, 'Not found');
+		const { k, cms } = await requireAdmin(event, route.view);
+		const { col } = collectionFor(k, route.collection);
+		if (!col.orderable) error(404, 'Not found');
+		const form = await event.request.formData();
+		const id = formString(form, 'id');
+		const before = formString(form, 'before');
+		const after = formString(form, 'after');
+		if (!id || Boolean(before) === Boolean(after)) {
+			return fail(400, { message: 'Invalid move' } satisfies AdminActionData);
+		}
+		try {
+			await cms.move(col.slug, id, (before ? { before } : { after }) as never);
+		} catch (err) {
+			return failWith(err);
 		}
 		return { saved: true } satisfies AdminActionData;
 	},

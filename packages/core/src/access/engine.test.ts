@@ -1,6 +1,6 @@
 // Access engine tests (security-critical: written by Opus, plan §4.6, Decision 22).
 import { describe, expect, it } from 'vitest';
-import { collection, defineConfig } from '../config/collection';
+import { collection, defineConfig, global } from '../config/collection';
 import { fields as f } from '../config/fields';
 import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import { sanitizeConfig } from '../config/sanitize';
@@ -262,5 +262,54 @@ describe('field write access', () => {
 		const update: Record<string, unknown> = { key: 'swap' };
 		await applyWriteFieldAccess(media, media.fields, update, 'update', ctx(admin, update), { key: 'k' });
 		expect(update).toEqual({ key: 'k' });
+	});
+});
+
+describe('locked collections and globals (§13.3, §13.1)', () => {
+	const cfg = sanitizeConfig(
+		defineConfig({
+			collections: [
+				collection({
+					slug: 'fixed',
+					admin: { locked: true },
+					// Permissive rules must not re-open create/delete on a locked collection.
+					access: { create: () => true, delete: () => true, update: () => true, read: () => true },
+					fields: { title: f.text() },
+				}),
+			],
+			globals: [global({ slug: 'site', access: { read: () => true, update: () => true }, fields: { name: f.text() } })],
+		}),
+	);
+	const fixed = cfg.collectionsBySlug.fixed!;
+	const site = cfg.globalsBySlug.site!;
+
+	it('denies create and delete to everyone, admins included', async () => {
+		for (const u of [null, editor, admin]) {
+			expect(await collectionAccess(fixed, 'create', { req: req(u) })).toBe(false);
+			expect(await collectionAccess(fixed, 'delete', { req: req(u), id: 'x' })).toBe(false);
+		}
+	});
+	it('keeps update and read rules', async () => {
+		expect(await collectionAccess(fixed, 'update', { req: req(editor), id: 'x' })).toBe(true);
+		expect(await collectionAccess(fixed, 'read', { req: req(null) })).toBe(true);
+	});
+	it('overrideAccess (seed, system RPC) may still create and delete', async () => {
+		expect(await collectionAccess(fixed, 'create', { req: req(null), overrideAccess: true })).toBe(true);
+		expect(await collectionAccess(fixed, 'delete', { req: req(null), overrideAccess: true })).toBe(true);
+	});
+	it('globals: never create/delete, read/update follow their rules', async () => {
+		expect(await collectionAccess(site, 'create', { req: req(admin) })).toBe(false);
+		expect(await collectionAccess(site, 'delete', { req: req(admin) })).toBe(false);
+		expect(await collectionAccess(site, 'update', { req: req(null) })).toBe(true);
+	});
+	it('slug lookups ignore inherited keys', () => {
+		for (const k of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+			expect(cfg.collectionsBySlug[k]).toBeUndefined();
+			expect(cfg.globalsBySlug[k]).toBeUndefined();
+		}
+	});
+	it('globals are not reachable as collections', () => {
+		expect(cfg.collectionsBySlug['_global_site']).toBeUndefined();
+		expect(cfg.collectionsBySlug.site).toBeUndefined();
 	});
 });

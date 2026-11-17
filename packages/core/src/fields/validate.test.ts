@@ -145,6 +145,32 @@ describe('richText', () => {
 		expect(validateValue(field, 'text')).toBe(messages.richText());
 		expect(validateValue(field, [])).toBe(messages.richText());
 	});
+	it('checks nodes structurally', () => {
+		const ok = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a', marks: [{ type: 'bold' }] }] }] };
+		expect(validateValue(field, ok)).toBeNull();
+		const bad = (content: unknown[]) => validateValue(field, { type: 'doc', content });
+		expect(bad(['x'])).toBe(messages.richText());
+		expect(bad([null])).toBe(messages.richText());
+		expect(bad([{}])).toBe(messages.richText());
+		expect(bad([{ type: 1 }])).toBe(messages.richText());
+		expect(bad([{ type: 'text', text: 5 }])).toBe(messages.richText());
+		expect(bad([{ type: 'p', content: 'x' }])).toBe(messages.richText());
+		expect(bad([{ type: 'p', marks: [{}] }])).toBe(messages.richText());
+		expect(bad([{ type: 'p', marks: 'x' }])).toBe(messages.richText());
+		expect(bad([{ type: 'p', attrs: [] }])).toBe(messages.richText());
+	});
+	it('bounds depth and size', () => {
+		const nest = (d: number): unknown => {
+			let n: unknown = { type: 'text', text: 'x' };
+			for (let i = 0; i < d; i++) n = { type: 'blockquote', content: [n] };
+			return n;
+		};
+		expect(validateValue(field, { type: 'doc', content: [nest(40)] })).toBeNull();
+		expect(validateValue(field, { type: 'doc', content: [nest(60)] })).toBe(messages.richText());
+		expect(validateValue(field, { type: 'doc', content: [nest(100_000)] })).toBe(messages.richText());
+		const wide = Array.from({ length: 100_001 }, () => ({ type: 'paragraph' }));
+		expect(validateValue(field, { type: 'doc', content: wide })).toBe(messages.richText());
+	});
 });
 
 describe('json', () => {
@@ -348,5 +374,22 @@ describe('validateDocument', () => {
 	it('pathPrefix is prepended', () => {
 		const errors = validateDocument([text('a', { required: true })], {}, { pathPrefix: 'doc' });
 		expect(errors).toEqual([{ path: 'doc.a', message: messages.required() }]);
+	});
+});
+
+describe('draft option (§13.4)', () => {
+	it('skips required and minRows but keeps every other rule', () => {
+		const fields: ClientField[] = [
+			text('title', { required: true, maxLength: 3 }),
+			f('array', 'items', { fields: [text('label', { required: true })], layout: [], minRows: 2, maxRows: 3, required: true }),
+			f('relationship', 'rel', { relationTo: 'x', hasMany: true, required: true, minRows: 2 }),
+			f('relationship', 'one', { relationTo: 'x', required: true }),
+		];
+		const strict = validateDocument(fields, {}).map((e) => e.path);
+		expect(strict).toEqual(expect.arrayContaining(['title', 'items', 'rel', 'one']));
+		expect(validateDocument(fields, {}, { draft: true })).toEqual([]);
+		const bad = validateDocument(fields, { title: 'toolong', items: [{}, {}, {}, {}], rel: ['a', 'a'] }, { draft: true });
+		expect(bad.map((e) => e.path).sort()).toEqual(['items', 'rel', 'title']);
+		expect(validateValue(fields[0]!, '', true)).toBeNull();
 	});
 });

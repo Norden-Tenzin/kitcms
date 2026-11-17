@@ -17,7 +17,18 @@ import type {
 	SanitizedConfig,
 	SanitizedField,
 } from './sanitized';
-import { COLUMN_TYPES, DEFAULT_MAX_FILE_SIZE, SYSTEM_FIELDS } from './sanitized';
+import type { SanitizedBranding, SanitizedVersions } from './sanitized';
+import {
+	COLUMN_TYPES,
+	DEFAULT_AUTOSAVE_INTERVAL,
+	DEFAULT_MAX_FILE_SIZE,
+	DEFAULT_MAX_VERSIONS,
+	GLOBAL_TABLE_PREFIX,
+	ORDER_FIELD,
+	STATUS_FIELD,
+	SYSTEM_FIELDS,
+	VERSIONS_SUFFIX,
+} from './sanitized';
 
 // Raw (unvalidated) config values are loosely typed on purpose: this module is the validator.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -442,11 +453,50 @@ function sanitizeUpload(raw: unknown, path: string): SanitizedCollection['upload
 	return { mimeTypes: [...(mimeTypes as string[])], maxFileSize };
 }
 
-function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
+function sanitizeVersions(raw: unknown, path: string): SanitizedVersions {
+	if (raw === undefined || raw === false) return false;
+	if (raw === true) return { drafts: false, max: DEFAULT_MAX_VERSIONS };
+	if (!isObject(raw)) throw new ConfigError(path, 'must be `true` or an options object.');
+	const max = raw.max ?? DEFAULT_MAX_VERSIONS;
+	if (typeof max !== 'number' || !Number.isInteger(max) || max < 1) {
+		throw new ConfigError(`${path}.max`, 'must be a positive integer.');
+	}
+	const d = raw.drafts;
+	if (d === undefined || d === false) return { drafts: false, max };
+	if (d !== true && !isObject(d)) throw new ConfigError(`${path}.drafts`, 'must be `true` or an options object.');
+	const a = d === true ? undefined : d.autosave;
+	if (a === undefined || a === false) return { drafts: { autosave: false }, max };
+	if (a !== true && !isObject(a)) throw new ConfigError(`${path}.drafts.autosave`, 'must be `true` or an options object.');
+	const interval = a === true ? DEFAULT_AUTOSAVE_INTERVAL : (a.interval ?? DEFAULT_AUTOSAVE_INTERVAL);
+	if (typeof interval !== 'number' || !Number.isInteger(interval) || interval < 500) {
+		throw new ConfigError(`${path}.drafts.autosave.interval`, 'must be an integer ≥ 500 (ms).');
+	}
+	return { drafts: { autosave: { interval } }, max };
+}
+
+interface CollectionOpts {
+	kind: 'collection' | 'global';
+	/** Error path prefix: `collections.pages` or `globals.site`. */
+	path: string;
+	/** Globals: the public slug. */
+	globalSlug?: string;
+}
+
+function sanitizeCollection(raw: Raw, ctx: Ctx, opts?: CollectionOpts): SanitizedCollection {
 	const slug: string = raw.slug;
-	const path = `collections.${slug}`;
+	const kind = opts?.kind ?? 'collection';
+	const path = opts?.path ?? `collections.${slug}`;
 	const auth = raw.auth === true;
 	const upload = sanitizeUpload(raw.upload, `${path}.upload`);
+	if (raw.orderable !== undefined && typeof raw.orderable !== 'boolean') {
+		throw new ConfigError(`${path}.orderable`, 'must be a boolean.');
+	}
+	const orderable = raw.orderable === true;
+	const versions = sanitizeVersions(raw.versions, `${path}.versions`);
+	if (auth && versions) throw new ConfigError(`${path}.versions`, 'the auth collection cannot have versions.');
+	if (upload && versions && versions.drafts) {
+		throw new ConfigError(`${path}.versions.drafts`, 'upload collections cannot have drafts.');
+	}
 
 	// Reserved names for user fields.
 	const reserved: string[] = [...SYSTEM_FIELDS];
@@ -502,6 +552,8 @@ function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
 	}
 
 	const columnNames = new Set<string>([...SYSTEM_FIELDS, ...top.keys()]);
+	if (orderable) columnNames.add(ORDER_FIELD);
+	if (versions && versions.drafts) columnNames.add(STATUS_FIELD);
 	let defaultColumns: string[];
 	if (rawAdmin.defaultColumns !== undefined) {
 		if (!Array.isArray(rawAdmin.defaultColumns)) throw new ConfigError(`${path}.admin.defaultColumns`, 'must be an array.');
@@ -510,7 +562,9 @@ function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
 		}
 		defaultColumns = [...rawAdmin.defaultColumns];
 	} else {
-		defaultColumns = [...new Set([useAsTitle, 'updatedAt'])];
+		defaultColumns = [
+			...new Set([useAsTitle, ...(versions && versions.drafts ? [STATUS_FIELD] : []), 'updatedAt']),
+		];
 	}
 
 	const searchable = (n: string) => {
@@ -537,17 +591,25 @@ function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
 		defaultColumns,
 		listSearchableFields,
 		hidden: rawAdmin.hidden === true,
+		locked: rawAdmin.locked === true,
 	};
+	if (rawAdmin.locked !== undefined && typeof rawAdmin.locked !== 'boolean') {
+		throw new ConfigError(`${path}.admin.locked`, 'must be a boolean.');
+	}
+	if (admin.locked && auth) throw new ConfigError(`${path}.admin.locked`, 'the auth collection cannot be locked.');
 	if (rawAdmin.description !== undefined) admin.description = rawAdmin.description;
 	if (rawAdmin.group !== undefined) admin.group = rawAdmin.group;
 
 	// defaultSort
-	const defaultSort: string = raw.defaultSort ?? '-createdAt';
+	const defaultSort: string = raw.defaultSort ?? (orderable ? ORDER_FIELD : '-createdAt');
 	if (typeof defaultSort !== 'string') throw new ConfigError(`${path}.defaultSort`, 'must be a string.');
 	const sortName = defaultSort.startsWith('-') ? defaultSort.slice(1) : defaultSort;
 	const sortField = top.get(sortName);
 	const sortable =
-		(SYSTEM_FIELDS as readonly string[]).includes(sortName) || (sortField !== undefined && COLUMN_SET.has(sortField.type));
+		(SYSTEM_FIELDS as readonly string[]).includes(sortName) ||
+		(orderable && sortName === ORDER_FIELD) ||
+		(versions !== false && versions.drafts !== false && sortName === STATUS_FIELD) ||
+		(sortField !== undefined && COLUMN_SET.has(sortField.type));
 	if (!sortable) {
 		throw new ConfigError(`${path}.defaultSort`, `"${sortName}" must be a system field or a top-level column field.`);
 	}
@@ -560,7 +622,8 @@ function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
 	const rawHooks: Raw = isObject(raw.hooks) ? raw.hooks : {};
 	const hooks = Object.fromEntries(HOOK_KEYS.map((k) => [k, toArray(rawHooks[k])])) as unknown as NormalizedCollectionHooks;
 
-	return {
+	const out: SanitizedCollection = {
+		kind,
 		slug,
 		labels: { singular, plural },
 		fields,
@@ -569,14 +632,101 @@ function sanitizeCollection(raw: Raw, ctx: Ctx): SanitizedCollection {
 		defaultSort,
 		upload,
 		auth,
+		orderable,
+		versions,
 		access: isObject(raw.access) ? raw.access : {},
 		hooks,
 	};
+	if (opts?.globalSlug !== undefined) out.globalSlug = opts.globalSlug;
+	return out;
+}
+
+const GLOBAL_KEYS = new Set(['slug', 'fields', 'label', 'admin', 'access', 'hooks', 'versions']);
+
+function sanitizeGlobal(raw: Raw, ctx: Ctx): SanitizedCollection {
+	const slug: string = raw.slug;
+	const path = `globals.${slug}`;
+	for (const k of Object.keys(raw)) {
+		if (!GLOBAL_KEYS.has(k)) throw new ConfigError(`${path}.${k}`, 'is not a global option.');
+	}
+	const rawAccess: Raw = isObject(raw.access) ? raw.access : {};
+	for (const k of Object.keys(rawAccess)) {
+		if (k !== 'read' && k !== 'update') throw new ConfigError(`${path}.access.${k}`, 'globals only have `read` and `update` access.');
+	}
+	const rawHooks: Raw = isObject(raw.hooks) ? raw.hooks : {};
+	for (const k of ['beforeDelete', 'afterDelete']) {
+		if (rawHooks[k] !== undefined) throw new ConfigError(`${path}.hooks.${k}`, 'globals cannot be deleted.');
+	}
+	if (raw.label !== undefined && (typeof raw.label !== 'string' || raw.label === '')) {
+		throw new ConfigError(`${path}.label`, 'must be a non-empty string.');
+	}
+	const label: string = raw.label ?? toLabel(slug);
+	const rawAdmin: Raw = isObject(raw.admin) ? raw.admin : {};
+	const col = sanitizeCollection(
+		{
+			slug: GLOBAL_TABLE_PREFIX + slug,
+			fields: raw.fields,
+			labels: { singular: label, plural: label },
+			admin: { description: rawAdmin.description, group: rawAdmin.group, hidden: rawAdmin.hidden },
+			access: rawAccess,
+			hooks: rawHooks,
+			versions: raw.versions,
+			defaultSort: 'id',
+		},
+		ctx,
+		{ kind: 'global', path, globalSlug: slug },
+	);
+	if (col.admin.description === undefined) delete col.admin.description;
+	if (col.admin.group === undefined) delete col.admin.group;
+	return col;
+}
+
+/** CSS color grammar for branding: hex, rgb()/rgba()/hsl()/hsla()/oklch()/oklab() with plain numeric args, or a named color. */
+const CSS_COLOR =
+	/^(#[0-9a-fA-F]{3,4}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|(rgb|rgba|hsl|hsla|oklch|oklab)\([0-9.%\s,/+-]+(deg)?[0-9.%\s,/+-]*\)|[a-zA-Z]{3,30})$/;
+
+function sanitizeBranding(raw: unknown): SanitizedBranding {
+	const path = 'admin.branding';
+	if (raw === undefined) return { colors: {} };
+	if (!isObject(raw)) throw new ConfigError(path, 'must be an object.');
+	const out: SanitizedBranding = { colors: {} };
+	if (raw.logo !== undefined) {
+		const logo = raw.logo;
+		const ok =
+			typeof logo === 'string' &&
+			logo.length <= 100_000 &&
+			!/[\s"'<>()\\]/.test(logo.startsWith('data:') ? '' : logo) &&
+			(/^https:\/\/[^\s]+$/.test(logo) ||
+				/^\/(?!\/)[^\s]*$/.test(logo) ||
+				/^data:image\/(png|jpeg|gif|webp|svg\+xml|avif);base64,[A-Za-z0-9+/=]+$/.test(logo));
+		if (!ok) throw new ConfigError(`${path}.logo`, 'must be an https:// URL, a /-relative path or a base64 data:image/ URL.');
+		out.logo = logo;
+	}
+	if (raw.colors !== undefined) {
+		if (!isObject(raw.colors)) throw new ConfigError(`${path}.colors`, 'must be an object.');
+		for (const [k, v] of Object.entries(raw.colors)) {
+			if (k !== 'accent' && k !== 'accentText') throw new ConfigError(`${path}.colors.${k}`, 'unknown color (use `accent` or `accentText`).');
+			if (typeof v !== 'string' || v.length > 100 || !CSS_COLOR.test(v.trim())) {
+				throw new ConfigError(`${path}.colors.${k}`, 'must be a CSS color: hex, rgb(), hsl(), oklch(), oklab() or a named color.');
+			}
+			out.colors[k] = v.trim();
+		}
+		// A custom accent without its text colour could be unreadable (e.g. dark text on a dark accent).
+		if ((out.colors.accent === undefined) !== (out.colors.accentText === undefined)) {
+			throw new ConfigError(`${path}.colors`, 'set `accent` and `accentText` together, so text on the accent stays readable.');
+		}
+	}
+	return out;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------------------------
+
+/** A null-prototype lookup: `'constructor'`, `'__proto__'` etc. never resolve to inherited values. */
+function lookup<T>(entries: [string, T][]): Record<string, T> {
+	return Object.assign(Object.create(null) as Record<string, T>, Object.fromEntries(entries));
+}
 
 export function sanitizeConfig(config: Config): SanitizedConfig {
 	if (!isObject(config) || !Array.isArray(config.collections)) {
@@ -593,7 +743,13 @@ export function sanitizeConfig(config: Config): SanitizedConfig {
 		if (!COLLECTION_SLUG.test(slug)) {
 			throw new ConfigError(`collections.${slug}`, 'slugs must start with a lowercase letter and contain only lowercase letters, digits, `-` and `_`.');
 		}
-		if (slug.startsWith('_') || slug.startsWith('auth_') || slug.startsWith('sqlite_') || slug === 'd1_migrations') {
+		if (
+			slug.startsWith('_') ||
+			slug.startsWith('auth_') ||
+			slug.startsWith('sqlite_') ||
+			slug.endsWith(VERSIONS_SUFFIX) ||
+			slug === 'd1_migrations'
+		) {
 			throw new ConfigError(`collections.${slug}`, `"${slug}" is a reserved collection slug.`);
 		}
 		if (slugs.has(slug)) throw new ConfigError(`collections.${slug}`, `duplicate collection slug "${slug}".`);
@@ -620,6 +776,30 @@ export function sanitizeConfig(config: Config): SanitizedConfig {
 	const ctx: Ctx = { collections: new Map(rawCollections.map((c) => [c.slug as string, c.upload !== undefined && c.upload !== false])) };
 	const collections = rawCollections.map((c) => sanitizeCollection(c, ctx));
 
+	const rawGlobals: unknown = config.globals ?? [];
+	if (!Array.isArray(rawGlobals)) throw new ConfigError('globals', 'must be an array of `global()`s.');
+	const globalSlugs = new Set<string>();
+	const globals = (rawGlobals as unknown[]).map((g, i) => {
+		if (!isObject(g) || typeof g.slug !== 'string') throw new ConfigError(`globals.${i}`, 'is not a global. Use `global()`.');
+		const slug: string = g.slug;
+		if (!COLLECTION_SLUG.test(slug) || slug.endsWith(VERSIONS_SUFFIX)) {
+			throw new ConfigError(`globals.${slug}`, 'slugs must start with a lowercase letter and contain only lowercase letters, digits, `-` and `_` (and not end with `_versions`).');
+		}
+		if (globalSlugs.has(slug)) throw new ConfigError(`globals.${slug}`, `duplicate global slug "${slug}".`);
+		globalSlugs.add(slug);
+		return sanitizeGlobal(g, ctx);
+	});
+
+	if (config.rest !== undefined && typeof config.rest !== 'boolean') throw new ConfigError('rest', 'must be a boolean.');
+	let cache: SanitizedConfig['cache'] = false;
+	if (config.cache !== undefined && config.cache !== false) {
+		const ttl: unknown = isObject(config.cache) ? config.cache.ttl : undefined;
+		if (typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl < 1 || ttl > 86_400) {
+			throw new ConfigError('cache.ttl', 'must be an integer number of seconds between 1 and 86400.');
+		}
+		cache = { ttl };
+	}
+
 	const publicUrl = config.media?.publicUrl;
 	const media: SanitizedConfig['media'] = {};
 	if (publicUrl !== undefined) {
@@ -631,10 +811,14 @@ export function sanitizeConfig(config: Config): SanitizedConfig {
 
 	return {
 		collections,
-		collectionsBySlug: Object.fromEntries(collections.map((c) => [c.slug, c])),
+		collectionsBySlug: lookup(collections.map((c) => [c.slug, c])),
+		globals,
+		globalsBySlug: lookup(globals.map((g) => [g.globalSlug as string, g])),
+		rest: config.rest ?? true,
+		cache,
 		authCollection,
 		bindings: { db: config.bindings?.db ?? 'DB', bucket: config.bindings?.bucket ?? 'BUCKET' },
-		admin: { title: config.admin?.title ?? 'kitcms' },
+		admin: { title: config.admin?.title ?? 'kitcms', branding: sanitizeBranding(config.admin?.branding) },
 		media,
 	};
 }
@@ -664,22 +848,30 @@ function toClientField(field: SanitizedField): ClientField {
 }
 
 /** The serializable subset for the browser: no functions, `condition` → `hasCondition`. */
+function toClientCollection(c: SanitizedCollection): ClientCollection {
+	const out: ClientCollection = {
+		kind: c.kind,
+		slug: c.slug,
+		labels: c.labels,
+		fields: c.fields.map(toClientField),
+		layout: c.layout,
+		admin: c.admin,
+		defaultSort: c.defaultSort,
+		upload: c.upload,
+		auth: c.auth,
+		orderable: c.orderable,
+		versions: c.versions,
+		access: {},
+		hooks: {},
+	};
+	if (c.globalSlug !== undefined) out.globalSlug = c.globalSlug;
+	return out;
+}
+
 export function toClientConfig(config: SanitizedConfig): ClientConfig {
 	return {
-		collections: config.collections.map(
-			(c): ClientCollection => ({
-				slug: c.slug,
-				labels: c.labels,
-				fields: c.fields.map(toClientField),
-				layout: c.layout,
-				admin: c.admin,
-				defaultSort: c.defaultSort,
-				upload: c.upload,
-				auth: c.auth,
-				access: {},
-				hooks: {},
-			}),
-		),
+		collections: config.collections.map(toClientCollection),
+		globals: config.globals.map(toClientCollection),
 		authCollection: config.authCollection,
 		admin: config.admin,
 	};

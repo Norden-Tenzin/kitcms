@@ -53,7 +53,22 @@ export interface SelectArgs {
 	offset?: number;
 }
 
+/** A stored version (§13.4). `version` is the document data without system fields. */
+export interface VersionRow {
+	id: string;
+	parent: string;
+	version: Record<string, unknown>;
+	/** Collections/globals with drafts only. */
+	_status?: 'draft' | 'published';
+	autosave: boolean;
+	latest: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export interface DbAdapter {
+	/** The D1 session bookmark after the queries run so far (`null` without a session or before any query). */
+	bookmark?(): string | null;
 	select(args: SelectArgs): Stmt<Row[]>;
 	/** `id IN (...)`, plus an optional extra filter (the target's read access). Order not guaranteed. */
 	selectByIds(collection: string, ids: string[], where?: WhereInput): Stmt<Row[]>;
@@ -97,6 +112,44 @@ export interface DbAdapter {
 		toId: string,
 		limit: number,
 	): Stmt<{ refs: IncomingRef[]; total: number }>;
+
+	/** Orderable collections (§13.2): the largest `_order` key, or `null` when there is none. */
+	maxOrder(collection: string): Stmt<string | null>;
+	/**
+	 * Orderable collections: the order key of `target` and of its neighbour on `side`, ignoring
+	 * `excludeId` (the document being moved). `after` → the smallest key greater than the target's,
+	 * `before` → the largest key smaller than the target's. `null` result = the target doesn't
+	 * exist; a `null` `key` = it has no order key yet; a `null` `neighbour` = nothing on that side.
+	 */
+	orderNeighbour(
+		collection: string,
+		targetId: string,
+		side: 'before' | 'after',
+		excludeId: string,
+	): Stmt<{ key: string | null; neighbour: string | null } | null>;
+
+	/** Versions (§13.4). `collection` is the main table slug; its `_versions` table is used. */
+	insertVersion(collection: string, version: VersionRow): Stmt<void>;
+	/** Sets `latest = 0` on every version of `parent` (run before inserting the new latest one). */
+	clearLatest(collection: string, parent: string): Stmt<void>;
+	/** Deletes all but the newest `keep` versions of `parent` (by createdAt, then id). */
+	pruneVersions(collection: string, parent: string, keep: number): Stmt<void>;
+	/** Rewrites a version in place (autosave). */
+	updateVersion(
+		collection: string,
+		versionId: string,
+		values: { version: Record<string, unknown>; updatedAt: string },
+	): Stmt<void>;
+	/** The `latest` version of each parent (parents without versions are absent). */
+	latestVersions(collection: string, parents: string[]): Stmt<VersionRow[]>;
+	/** Versions of one parent, newest first, with the total. */
+	listVersions(
+		collection: string,
+		parent: string,
+		limit: number,
+		offset: number,
+	): Stmt<{ docs: VersionRow[]; total: number }>;
+	versionById(collection: string, versionId: string): Stmt<VersionRow | null>;
 
 	/** Executes the statements in one round trip (one D1 batch, atomic). Results in order. */
 	batch<const T extends readonly Stmt<unknown>[]>(

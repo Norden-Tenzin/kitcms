@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
 import { afterAll, describe, expect, it } from 'vitest';
-import { block, collection, defineConfig } from '../config/collection';
+import { block, collection, defineConfig, global } from '../config/collection';
 import { fields as f } from '../config/fields';
 import { sanitizeConfig } from '../config/sanitize';
 import { generateTypes, pascalCase } from './generate-types';
@@ -99,6 +99,32 @@ describe('generateTypes', () => {
 		expect(out).toContain('export interface HeroBlock2 {');
 		expect(out).toContain('l: HeroBlock2[]') ;
 	});
+	it('emits globals and a `globals` entry', () => {
+		const out = generateTypes(
+			sanitizeConfig(
+				defineConfig({
+					collections: [collection({ slug: 'media', upload: true, fields: {} }), collection({ slug: 'pages', fields: { title: f.text() } })],
+					globals: [
+						global({
+							slug: 'site',
+							fields: {
+								siteName: f.text({ required: true }),
+								logo: f.upload({ relationTo: 'media' }),
+								nav: f.array({ fields: { label: f.text(), page: f.relationship({ relationTo: 'pages' }) } }),
+							},
+						}),
+					],
+				}),
+			),
+		);
+		expect(out).toMatch(/export interface Site \{\n\tid: string;\n\tcreatedAt\?: string;\n\tupdatedAt\?: string;/);
+		expect(out).toContain('siteName: string;');
+		expect(out).toContain("logo?: Rel<'media'> | null;");
+		expect(out).toContain('export interface SiteNav {');
+		expect(out).toContain("globals: {\n\t\t'site': Site;\n\t};");
+		// no globals → no `globals` key
+		expect(types).not.toContain('globals:');
+	});
 	it('avoids reserved names', () => {
 		const out = generateTypes(sanitizeConfig(defineConfig({ collections: [collection({ slug: 'rel', fields: { a: f.text() } })] })));
 		expect(out).toContain('export interface Rel2 {');
@@ -183,5 +209,24 @@ describe('generateTypesFile', () => {
 		} finally {
 			fs.rmSync(root, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('generateTypes drafts', () => {
+	it('adds `_status` to collections and globals with drafts only', () => {
+		const out = generateTypes(
+			sanitizeConfig(
+				defineConfig({
+					collections: [
+						collection({ slug: 'pages', versions: { drafts: true }, fields: { title: f.text() } }),
+						collection({ slug: 'notes', versions: true, fields: { title: f.text() } }),
+					],
+					globals: [global({ slug: 'site', versions: { drafts: true }, fields: { name: f.text() } })],
+				}),
+			),
+		);
+		expect(out.match(/_status: 'draft' \| 'published';/g)).toHaveLength(2);
+		expect(out).toMatch(/interface Page \{[^}]*_status/);
+		expect(out).not.toMatch(/interface Note \{[^}]*_status/);
 	});
 });

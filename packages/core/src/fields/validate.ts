@@ -4,6 +4,7 @@
 
 import type { FieldError } from '../errors';
 import type { AnyField, Mode } from '../config/sanitized';
+import { isRichTextDoc } from '../richtext/valid';
 
 type Field = AnyField<Mode>;
 
@@ -83,8 +84,9 @@ function isJsonValue(value: unknown, depth: number): boolean {
 function checkRows(
 	length: number,
 	field: { minRows?: number; maxRows?: number },
+	draft: boolean,
 ): string | null {
-	if (field.minRows !== undefined && length < field.minRows) return messages.minRows(field.minRows);
+	if (!draft && field.minRows !== undefined && length < field.minRows) return messages.minRows(field.minRows);
 	if (field.maxRows !== undefined && length > field.maxRows) return messages.maxRows(field.maxRows);
 	return null;
 }
@@ -108,7 +110,7 @@ function isRelationId(value: unknown): value is string {
  * Built-in rules for one field's value. Doesn't recurse into group/array/blocks children (for
  * those it checks the container shape and row counts). Returns the message, or `null` when valid.
  */
-export function validateValue(field: Field, value: unknown): string | null {
+export function validateValue(field: Field, value: unknown, draft = false): string | null {
 	// Containers treat "no value" as empty, so required children and row counts still apply.
 	switch (field.type) {
 		case 'group':
@@ -118,7 +120,7 @@ export function validateValue(field: Field, value: unknown): string | null {
 		case 'blocks': {
 			const rows = isEmpty(value) ? [] : value;
 			if (!Array.isArray(rows)) return messages.list();
-			if (rows.length === 0 && field.required) return messages.required();
+			if (!draft && rows.length === 0 && field.required) return messages.required();
 			if (!rows.every(isPlainObject)) return messages.object();
 			if (field.type === 'array') {
 				for (const row of rows as Record<string, unknown>[]) {
@@ -126,7 +128,7 @@ export function validateValue(field: Field, value: unknown): string | null {
 					if (id !== undefined && (typeof id !== 'string' || id === '')) return messages.rowId();
 				}
 			}
-			return checkRows(rows.length, field);
+			return checkRows(rows.length, field, draft);
 		}
 		case 'checkbox':
 			if (isEmpty(value)) return null;
@@ -135,20 +137,20 @@ export function validateValue(field: Field, value: unknown): string | null {
 		case 'upload': {
 			if (field.hasMany) {
 				const empty = isEmpty(value) || (Array.isArray(value) && value.length === 0);
-				if (empty) return field.required ? messages.required() : null;
+				if (empty) return field.required && !draft ? messages.required() : null;
 				if (!Array.isArray(value)) return messages.list();
 				if (!value.every(isRelationId)) return messages.relation();
 				if (new Set(value).size !== value.length) return messages.duplicate();
-				return checkRows(value.length, field);
+				return checkRows(value.length, field, draft);
 			}
-			if (isEmpty(value)) return field.required ? messages.required() : null;
+			if (isEmpty(value)) return field.required && !draft ? messages.required() : null;
 			return isRelationId(value) ? null : messages.relation();
 		}
 		default:
 			break;
 	}
 
-	if (isEmpty(value)) return field.required ? messages.required() : null;
+	if (isEmpty(value)) return field.required && !draft ? messages.required() : null;
 
 	switch (field.type) {
 		case 'text':
@@ -174,11 +176,7 @@ export function validateValue(field: Field, value: unknown): string | null {
 				? null
 				: messages.date();
 		case 'richText':
-			return isPlainObject(value) &&
-				value.type === 'doc' &&
-				(value.content === undefined || Array.isArray(value.content))
-				? null
-				: messages.richText();
+			return isRichTextDoc(value) ? null : messages.richText();
 		case 'json':
 			return isJsonValue(value, 0) ? null : messages.json();
 		default:
@@ -191,6 +189,8 @@ export interface ValidateDocumentOptions {
 	skip?: (path: string, field: Field) => boolean;
 	/** Prepended to every error path. */
 	pathPrefix?: string;
+	/** Draft save (§13.4): `required` and `minRows` are not enforced; everything else is. */
+	draft?: boolean;
 }
 
 /**
@@ -224,7 +224,7 @@ function walk(
 		if (options.skip?.(path, field)) continue;
 		const value = data[field.name];
 
-		const message = validateValue(field, value);
+		const message = validateValue(field, value, options.draft === true);
 		if (message !== null) errors.push({ path, message });
 
 		switch (field.type) {

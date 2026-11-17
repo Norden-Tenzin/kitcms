@@ -52,6 +52,12 @@ export function generateTypes(config: SanitizedConfig): string {
 		collectionNames.set(c.slug, reserve(pascalCase(c.labels.singular) || pascalCase(c.slug) || 'Doc'));
 	}
 
+	const globalNames = new Map<string, string>();
+	for (const g of config.globals) {
+		const slug = g.globalSlug as string;
+		globalNames.set(slug, reserve(pascalCase(g.labels.singular) || pascalCase(slug) || 'Global'));
+	}
+
 	const iface = (name: string, lines: string[]) => (lines.length ? `export interface ${name} {\n${lines.map((l) => `\t${l}`).join('\n')}\n}` : `export interface ${name} {}`);
 
 	const blockNames = new Map<AnyBlock, string>();
@@ -118,6 +124,18 @@ export function generateTypes(config: SanitizedConfig): string {
 		const name = collectionNames.get(c.slug)!;
 		const lines = ['id: string;', 'createdAt: string;', 'updatedAt: string;', ...fieldLines(c.fields, name)];
 		if (c.upload) lines.push('url: string;');
+		// Read-only system key (§13.2): never accepted in create/update data.
+		if (c.orderable) lines.push('_order?: string | null;');
+		if (c.versions !== false && c.versions.drafts !== false) lines.push("_status: 'draft' | 'published';");
+		bodies.set(name, lines.join('\n'));
+		collectionBodies.push(iface(name, lines));
+	}
+
+	for (const g of config.globals) {
+		const name = globalNames.get(g.globalSlug as string)!;
+		// `id` is the global's slug; the timestamps are absent until the first save.
+		const lines = ['id: string;', 'createdAt?: string;', 'updatedAt?: string;', ...fieldLines(g.fields, name)];
+		if (g.versions !== false && g.versions.drafts !== false) lines.push("_status: 'draft' | 'published';");
 		bodies.set(name, lines.join('\n'));
 		collectionBodies.push(iface(name, lines));
 	}
@@ -132,6 +150,8 @@ export function generateTypes(config: SanitizedConfig): string {
 	}
 	parts.push(...collectionBodies.map((b) => `${b}\n`), ...nested.map((b) => `${b}\n`));
 	const entries = config.collections.map((c) => `\t\t${q(c.slug)}: ${collectionNames.get(c.slug)};`);
-	parts.push(`export interface KitcmsTypes {\n\tcollections: {\n${entries.join('\n')}\n\t};\n}\n`);
+	const globalEntries = config.globals.map((g) => `\t\t${q(g.globalSlug as string)}: ${globalNames.get(g.globalSlug as string)!};`);
+	const globalsBlock = globalEntries.length ? `\n\tglobals: {\n${globalEntries.join('\n')}\n\t};` : '';
+	parts.push(`export interface KitcmsTypes {\n\tcollections: {\n${entries.join('\n')}\n\t};${globalsBlock}\n}\n`);
 	return parts.join('\n');
 }

@@ -33,6 +33,8 @@ function createAuth(k: KitcmsInternals, secure: boolean) {
 	}
 	const { config } = k;
 	const tables = getTables(config);
+	// Auth deliberately uses the RAW D1 binding, not a replica session: sessions and sign-in must
+	// read their own latest writes, so they go to the primary (§13.10). Content reads use `k.db`.
 	const db = drizzle(getD1(k));
 	const cookieCache = k.options.auth?.cookieCache;
 	const baseOrigin = parseBaseOrigin(k.env.BETTER_AUTH_URL);

@@ -18,6 +18,10 @@ export type Rel<To extends string> = string & { readonly '~rel': To };
 /** The shape `kitcms generate:types` emits as `KitcmsTypes`. */
 export interface KitcmsTypes {
 	collections: Record<string, object>;
+	/** Globals (single documents). Absent in configs without globals. */
+	globals?: Record<string, object>;
+	/** Create/update input shapes per collection (optional: falls back to a partial document). */
+	inputs?: Record<string, object>;
 }
 
 /** Every document has these. */
@@ -25,11 +29,14 @@ export interface SystemFields {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
+	/** Orderable collections only: the read-only fractional order key. */
+	_order?: string | null;
 }
 /** Used when `kitcms()` is called without a type argument. */
 export type GenericDoc = Record<string, unknown> & SystemFields;
 export interface GenericTypes {
 	collections: Record<string, GenericDoc>;
+	globals: Record<string, Record<string, unknown> & { id: string }>;
 }
 
 /** How many levels of relationships to load. 0 (the default) returns ids. Max 2. */
@@ -109,6 +116,9 @@ export interface CallerOptions {
 	as?: 'system';
 }
 
+/** Drafts are only readable by trusted callers: `draft: true` requires `as: 'system'`. */
+export type DraftRead = { draft?: false; as?: 'system' } | { draft: true; as: 'system' };
+
 export interface FindArgs<Doc, D extends Depth> extends CallerOptions {
 	where?: Where<Doc>;
 	sort?: Sort<Doc>;
@@ -125,35 +135,109 @@ export interface ReadOptions<D extends Depth> extends CallerOptions {
 	depth?: D;
 }
 
+/** Options of every write. Writes over RPC are for trusted callers only (`as: 'system'`). */
+export interface WriteOptions<D extends Depth> {
+	as: 'system';
+	depth?: D;
+	/** Save as a draft (collections/globals with drafts). */
+	draft?: boolean;
+}
+
+/** Where to put a document of an orderable collection. */
+export type MoveTarget = { before: string; after?: never } | { after: string; before?: never };
+
 /** The RPC stub: structurally, a `Service<KitcmsRPCMethods>` binding (`env.CMS`). */
 export interface KitcmsBinding {
 	find(collection: string, options?: object): Promise<unknown>;
 	findOne(collection: string, options?: object): Promise<unknown>;
 	findByID(collection: string, id: string, options?: object): Promise<unknown>;
 	count(collection: string, options?: object): Promise<number>;
+	findGlobal(global: string, options?: object): Promise<unknown>;
 	getMediaUrl(key: string): Promise<string | null>;
+	create(collection: string, data: object, options: object): Promise<unknown>;
+	update(collection: string, id: string, data: object, options: object): Promise<unknown>;
+	delete(collection: string, id: string, options: object): Promise<unknown>;
+	move(collection: string, id: string, target: object, options: object): Promise<unknown>;
+	unpublish(collection: string, id: string, options: object): Promise<unknown>;
+	updateGlobal(global: string, data: object, options: object): Promise<unknown>;
 }
 
 type DocOf<T extends KitcmsTypes, S extends keyof T['collections']> = T['collections'][S];
+type GlobalsOf<T extends KitcmsTypes> = NonNullable<T['globals']>;
+type InputOf<T extends KitcmsTypes, S extends string> =
+	NonNullable<T['inputs']> extends infer I ? (S extends keyof I ? I[S] : Partial<DocOf<T, S>>) : never;
+/** Write input: relationship ids are plain strings. */
+type WritableValue<V> = V extends Rel<string> ? string : V extends readonly Rel<string>[] ? string[] : V;
+type Writable<T> = { [K in keyof T]?: WritableValue<T[K]> };
 
 export interface KitcmsClient<T extends KitcmsTypes = GenericTypes> {
 	find<S extends keyof T['collections'] & string, D extends Depth = 0>(
 		collection: S,
-		args?: FindArgs<DocOf<T, S>, D>,
+		args?: Omit<FindArgs<DocOf<T, S>, D>, 'as'> & DraftRead,
 	): Promise<PaginatedDocs<Populate<DocOf<T, S>, T, D>>>;
 
 	/** The first match, or `null`. */
 	findOne<S extends keyof T['collections'] & string, D extends Depth = 0>(
 		collection: S,
-		args?: Omit<FindArgs<DocOf<T, S>, D>, 'limit' | 'page' | 'pagination'>,
+		args?: Omit<FindArgs<DocOf<T, S>, D>, 'limit' | 'page' | 'pagination' | 'as'> & DraftRead,
 	): Promise<Populate<DocOf<T, S>, T, D> | null>;
 
 	/** `null` when the document doesn't exist or the caller may not read it. */
 	findByID<S extends keyof T['collections'] & string, D extends Depth = 0>(
 		collection: S,
 		id: string,
-		args?: ReadOptions<D>,
+		args?: Omit<ReadOptions<D>, 'as'> & DraftRead,
 	): Promise<Populate<DocOf<T, S>, T, D> | null>;
+
+	/** A global. An unsaved global returns its defaults. */
+	findGlobal<S extends keyof GlobalsOf<T> & string, D extends Depth = 0>(
+		global: S,
+		args?: Omit<ReadOptions<D>, 'as'> & DraftRead,
+	): Promise<Populate<GlobalsOf<T>[S], T, D>>;
+
+	/** Trusted callers only. Throws `FORBIDDEN` without `as: 'system'`. */
+	create<S extends keyof T['collections'] & string, D extends Depth = 0>(
+		collection: S,
+		data: InputOf<T, S> | Writable<DocOf<T, S>>,
+		options: WriteOptions<D>,
+	): Promise<Populate<DocOf<T, S>, T, D>>;
+
+	/** Partial update. Trusted callers only. */
+	update<S extends keyof T['collections'] & string, D extends Depth = 0>(
+		collection: S,
+		id: string,
+		data: Partial<InputOf<T, S>> | Writable<DocOf<T, S>>,
+		options: WriteOptions<D>,
+	): Promise<Populate<DocOf<T, S>, T, D>>;
+
+	/** Trusted callers only. Returns the deleted document. */
+	delete<S extends keyof T['collections'] & string>(
+		collection: S,
+		id: string,
+		options: { as: 'system' },
+	): Promise<DocOf<T, S>>;
+
+	/** Orderable collections: place a document before/after another. Trusted callers only. */
+	move<S extends keyof T['collections'] & string>(
+		collection: S,
+		id: string,
+		target: MoveTarget,
+		options: { as: 'system' },
+	): Promise<DocOf<T, S>>;
+
+	/** Drafts: take a published document offline. Trusted callers only. */
+	unpublish<S extends keyof T['collections'] & string>(
+		collection: S,
+		id: string,
+		options: { as: 'system' },
+	): Promise<DocOf<T, S>>;
+
+	/** Partial update of a global. Trusted callers only. */
+	updateGlobal<S extends keyof GlobalsOf<T> & string, D extends Depth = 0>(
+		global: S,
+		data: Writable<GlobalsOf<T>[S]>,
+		options: WriteOptions<D>,
+	): Promise<Populate<GlobalsOf<T>[S], T, D>>;
 
 	count<S extends keyof T['collections'] & string>(
 		collection: S,
@@ -217,6 +301,16 @@ export function kitcms<T extends KitcmsTypes = GenericTypes>(binding: KitcmsBind
 		findOne: (collection, args) => call(() => binding.findOne(collection, args) as Promise<never>),
 		findByID: (collection, id, args) => call(() => binding.findByID(collection, id, args) as Promise<never>),
 		count: (collection, args) => call(() => binding.count(collection, args)),
+		findGlobal: (global, args) => call(() => binding.findGlobal(global, args) as Promise<never>),
 		getMediaUrl: (key) => call(() => binding.getMediaUrl(key)),
+		create: (collection, data, options) => call(() => binding.create(collection, data, options) as Promise<never>),
+		update: (collection, id, data, options) =>
+			call(() => binding.update(collection, id, data, options) as Promise<never>),
+		delete: (collection, id, options) => call(() => binding.delete(collection, id, options) as Promise<never>),
+		move: (collection, id, target, options) =>
+			call(() => binding.move(collection, id, target, options) as Promise<never>),
+		unpublish: (collection, id, options) => call(() => binding.unpublish(collection, id, options) as Promise<never>),
+		updateGlobal: (global, data, options) =>
+			call(() => binding.updateGlobal(global, data, options) as Promise<never>),
 	};
 }

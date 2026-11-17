@@ -1,15 +1,15 @@
 // The D1 implementation of `DbAdapter`. Statements are lazy: each method builds Drizzle queries
 // and a mapper; `batch()` flattens every query of every statement into ONE `d1.batch()` call
 // (one round trip, atomic) and slices the results back per statement.
-import { and, asc, desc, eq, getTableColumns, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, getTableName, inArray, max, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { COLUMN_TYPES, type SanitizedCollection, type SanitizedConfig } from '../config/sanitized';
+import { COLUMN_TYPES, ORDER_FIELD, STATUS_FIELD, VERSIONS_SUFFIX, type SanitizedCollection, type SanitizedConfig } from '../config/sanitized';
 import type { WhereInput } from '../config/where';
 import { QueryError, ValidationError } from '../errors';
 import { getTables, type AnyTable } from '../schema/drizzle';
 import { REFS_TABLE } from '../schema/spec';
-import type { DbAdapter, IncomingRef, Ref, Row, SelectArgs, Stmt } from './adapter';
+import type { DbAdapter, IncomingRef, Ref, Row, SelectArgs, Stmt, VersionRow } from './adapter';
 import { MAX_IN_VALUES, compileWhere } from './where';
 
 /** Rows per `_refs` insert statement: 5 bound params each, plus the guard, under D1's 100 limit. */
@@ -34,12 +34,19 @@ function asStmt<T>(s: Stmt<T>): DbStmt<T> {
 	return s;
 }
 
-export function createD1Adapter(config: SanitizedConfig, d1: D1Database): DbAdapter {
+/**
+ * `d1` is the raw binding or a `D1DatabaseSession` (read replication, §13.10): Drizzle only calls
+ * `prepare`/`batch`, which both have. Tables are cached per config by `getTables`, so creating an
+ * adapter per request is just wrapping.
+ */
+export function createD1Adapter(config: SanitizedConfig, d1: D1Database | D1DatabaseSession): DbAdapter {
 	const tables = getTables(config);
-	const db = drizzle(d1);
+	// Drizzle's d1 driver is typed for `D1Database`; a session has the same prepare/batch surface.
+	const db = drizzle(d1 as D1Database);
 	const refsTable = tables[REFS_TABLE]!;
 	const refCols = refsTable as unknown as Record<string, SQLiteColumn>;
-	const collections = new Map(config.collections.map((c) => [c.slug, c]));
+	// Globals are keyed by their table slug (`_global_<slug>`); the Local API resolves public slugs.
+	const collections = new Map([...config.collections, ...config.globals].map((c) => [c.slug, c]));
 
 	function ctxOf(slug: string): { col: SanitizedCollection; table: AnyTable } {
 		const col = collections.get(slug);
@@ -128,7 +135,12 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database): DbAdap
 		for (const key of sort ?? []) {
 			const desc_ = key.startsWith('-');
 			const name = desc_ ? key.slice(1) : key;
-			const system = name === 'id' || name === 'createdAt' || name === 'updatedAt';
+			const system =
+				name === 'id' ||
+				name === 'createdAt' ||
+				name === 'updatedAt' ||
+				(col.orderable && name === ORDER_FIELD) ||
+				(name === STATUS_FIELD && col.versions !== false && col.versions.drafts !== false);
 			if (!system && !columnFields.has(name)) {
 				throw new QueryError(`Can't sort by "${name}" on collection "${slug}".`);
 			}
@@ -202,6 +214,42 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database): DbAdap
 		const { table } = ctxOf(slug);
 		const cond = and(eq(table.id as SQLiteColumn, id), condition(slug, where));
 		return new DbStmt([db.delete(table).where(cond).returning()], one);
+	}
+
+	// ----- order (§13.2) --------------------------------------------------------------------
+
+	function orderCol(slug: string): SQLiteColumn {
+		const { col, table } = ctxOf(slug);
+		if (!col.orderable) throw new QueryError(`Collection "${slug}" is not orderable.`);
+		return table[ORDER_FIELD] as SQLiteColumn;
+	}
+
+	function maxOrder(slug: string): Stmt<string | null> {
+		const { table } = ctxOf(slug);
+		const q = db.select({ m: max(orderCol(slug)) }).from(table);
+		return new DbStmt([q], (r) => ((r[0] as { m: string | null }[])[0]?.m ?? null));
+	}
+
+	function orderNeighbour(
+		slug: string,
+		targetId: string,
+		side: 'before' | 'after',
+		excludeId: string,
+	): Stmt<{ key: string | null; neighbour: string | null } | null> {
+		const { table } = ctxOf(slug);
+		const order = orderCol(slug);
+		const name = sql.identifier(getTableName(table));
+		// `o` aliases the inner scan; the qualified outer column refers to the target row (drizzle drops
+		// table qualifiers on columns in single-table selects, so it is written out here).
+		const neighbour =
+			side === 'after'
+				? sql<string | null>`(select min(o."_order") from ${name} as o where o."_order" > ${name}."_order" and o."id" <> ${excludeId})`
+				: sql<string | null>`(select max(o."_order") from ${name} as o where o."_order" < ${name}."_order" and o."id" <> ${excludeId})`;
+		const q = db.select({ key: order, neighbour }).from(table).where(eq(table.id as SQLiteColumn, targetId)).limit(1);
+		return new DbStmt([q], (r) => {
+			const row = (r[0] as { key: string | null; neighbour: string | null }[])[0];
+			return row ? { key: row.key ?? null, neighbour: row.neighbour ?? null } : null;
+		});
 	}
 
 	// ----- _refs ----------------------------------------------------------------------------
@@ -286,9 +334,112 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database): DbAdap
 		}));
 	}
 
+	// ----- versions (§13.4) -----------------------------------------------------------------
+
+	function versionsOf(slug: string): { table: AnyTable; cols: Record<string, SQLiteColumn> } {
+		const { col } = ctxOf(slug);
+		const table = tables[slug + VERSIONS_SUFFIX];
+		if (col.versions === false || !table) throw new QueryError(`Collection "${slug}" has no versions.`);
+		return { table, cols: table as unknown as Record<string, SQLiteColumn> };
+	}
+
+	const toVersion = (raw: Record<string, unknown>): VersionRow => toDoc(raw) as unknown as VersionRow;
+
+	function insertVersion(slug: string, v: VersionRow): Stmt<void> {
+		const { table } = versionsOf(slug);
+		return new DbStmt([db.insert(table).values(toDb(table, v as never) as never)], () => undefined);
+	}
+
+	function clearLatest(slug: string, parent: string): Stmt<void> {
+		const { table, cols } = versionsOf(slug);
+		return new DbStmt(
+			[db.update(table).set({ latest: false } as never).where(and(eq(cols.parent!, parent), eq(cols.latest!, true)))],
+			() => undefined,
+		);
+	}
+
+	function pruneVersions(slug: string, parent: string, keep: number): Stmt<void> {
+		const { table, cols } = versionsOf(slug);
+		const newest = db
+			.select({ id: cols.id! })
+			.from(table)
+			.where(eq(cols.parent!, parent))
+			.orderBy(desc(cols.createdAt!), desc(cols.id!))
+			.limit(keep);
+		return new DbStmt(
+			[db.delete(table).where(and(eq(cols.parent!, parent), notInArray(cols.id!, newest)))],
+			() => undefined,
+		);
+	}
+
+	function updateVersion(
+		slug: string,
+		versionId: string,
+		values: { version: Record<string, unknown>; updatedAt: string },
+	): Stmt<void> {
+		const { table, cols } = versionsOf(slug);
+		return new DbStmt(
+			[db.update(table).set(toDb(table, values) as never).where(eq(cols.id!, versionId))],
+			() => undefined,
+		);
+	}
+
+	function latestVersions(slug: string, parents: string[]): Stmt<VersionRow[]> {
+		const { table, cols } = versionsOf(slug);
+		const unique = [...new Set(parents)];
+		const queries: Query[] = [];
+		for (let i = 0; i < unique.length; i += MAX_IN_VALUES) {
+			queries.push(
+				db
+					.select()
+					.from(table)
+					.where(and(inArray(cols.parent!, unique.slice(i, i + MAX_IN_VALUES)), eq(cols.latest!, true))),
+			);
+		}
+		return new DbStmt(queries, (results) =>
+			results.flatMap((r) => (r as Record<string, unknown>[]).map(toVersion)),
+		);
+	}
+
+	function listVersions(
+		slug: string,
+		parent: string,
+		limit: number,
+		offset: number,
+	): Stmt<{ docs: VersionRow[]; total: number }> {
+		const { table, cols } = versionsOf(slug);
+		const rows = db
+			.select()
+			.from(table)
+			.where(eq(cols.parent!, parent))
+			.orderBy(desc(cols.createdAt!), desc(cols.id!))
+			.limit(limit)
+			.offset(offset);
+		const total = db.select({ n: sql<number>`count(*)` }).from(table).where(eq(cols.parent!, parent));
+		return new DbStmt([rows, total], (r) => ({
+			docs: (r[0] as Record<string, unknown>[]).map(toVersion),
+			total: Number((r[1] as { n: number }[])[0]?.n ?? 0),
+		}));
+	}
+
+	function versionById(slug: string, versionId: string): Stmt<VersionRow | null> {
+		const { table, cols } = versionsOf(slug);
+		return new DbStmt([db.select().from(table).where(eq(cols.id!, versionId)).limit(1)], (r) => {
+			const row = (r[0] as Record<string, unknown>[])[0];
+			return row ? toVersion(row) : null;
+		});
+	}
+
 	return {
 		select,
 		selectByIds,
+		insertVersion,
+		clearLatest,
+		pruneVersions,
+		updateVersion,
+		latestVersions,
+		listVersions,
+		versionById,
 		count,
 		insert,
 		update,
@@ -296,6 +447,9 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database): DbAdap
 		setRefs,
 		deleteRefsFrom,
 		refsTo,
+		maxOrder,
+		orderNeighbour,
+		bookmark: () => ('getBookmark' in d1 ? d1.getBookmark() : null),
 		batch: ((stmts: readonly Stmt<unknown>[]) => batch(stmts)) as DbAdapter['batch'],
 		run: async <T>(stmt: Stmt<T>) => (await batch([stmt]))[0] as T,
 	};

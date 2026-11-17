@@ -19,8 +19,14 @@ interface Post {
 	tags: Rel<'categories'>[];
 	meta: { description?: string | null };
 }
+interface Site {
+	id: string;
+	siteName: string;
+	logo?: Rel<'categories'> | null;
+}
 interface Types {
 	collections: { posts: Post; categories: Category };
+	globals: { site: Site };
 }
 
 declare const binding: KitcmsBinding;
@@ -73,4 +79,32 @@ export async function checks() {
 	const loose = kitcms(binding);
 	const g = await loose.find('anything', { where: { whatever: { equals: 1 } }, sort: '-x' });
 	assert<Eq<typeof g.docs[number]['id'], string>>();
+
+	// Globals
+	const site = await cms.findGlobal('site');
+	assert<Eq<typeof site.siteName, string>>();
+	const site1 = await cms.findGlobal('site', { depth: 1 });
+	assert<Eq<typeof site1.logo, Category | string | null | undefined>>();
+	// @ts-expect-error unknown global
+	await cms.findGlobal('nope');
+
+	// Drafts need system
+	await cms.findByID('posts', 'x', { draft: true, as: 'system' });
+	// @ts-expect-error drafts are not readable anonymously
+	await cms.findByID('posts', 'x', { draft: true });
+
+	// Writes need system
+	const created = await cms.create('posts', { title: 'x', category: 'c1', tags: ['c1'] }, { as: 'system' });
+	assert<Eq<typeof created.title, string>>();
+	// @ts-expect-error writes need as: 'system'
+	await cms.create('posts', { title: 'x' }, {});
+	// @ts-expect-error options are required
+	await cms.update('posts', 'id', { title: 'y' });
+	await cms.update('posts', 'id', { title: 'y' }, { as: 'system', draft: true });
+	await cms.delete('posts', 'id', { as: 'system' });
+	await cms.move('posts', 'id', { after: 'id2' }, { as: 'system' });
+	// @ts-expect-error exactly one of before/after
+	await cms.move('posts', 'id', { after: 'a', before: 'b' }, { as: 'system' });
+	await cms.unpublish('posts', 'id', { as: 'system' });
+	await cms.updateGlobal('site', { siteName: 'x', logo: 'c1' }, { as: 'system' });
 }

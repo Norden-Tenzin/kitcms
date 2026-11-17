@@ -10,6 +10,7 @@
 // - A `where` from a rule is ANDed with the caller's `where` as a separate group (`mergeWhere`),
 //   so nothing the caller passes can widen it.
 // - `overrideAccess` skips collection AND field rules. It is never derived from client input.
+// - `admin.locked` collections and globals deny create/delete to everyone but `overrideAccess`.
 // - Upload built-in fields (filename, key, ...) are writable only through the upload endpoint,
 //   which marks its `req` with `markUploadWrite` (an unforgeable WeakSet entry, not a context key).
 
@@ -78,6 +79,11 @@ export async function collectionAccess(
 	args: AccessArgsInput,
 ): Promise<AccessDecision> {
 	if (args.overrideAccess) return true;
+	// Locked collections (§13.3) and globals: no create/delete, whatever the rules say. Checked
+	// before the rule, so a permissive `create`/`delete` rule can't re-open them.
+	if ((operation === 'create' || operation === 'delete') && (collection.admin.locked || collection.kind === 'global')) {
+		return false;
+	}
 	const rule = collection.access[operation] as
 		| ((a: { req: KitcmsReq; id?: string; data?: Record<string, unknown> }) => unknown)
 		| undefined;

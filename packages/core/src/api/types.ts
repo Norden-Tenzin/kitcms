@@ -11,7 +11,11 @@ import type {
 	Config,
 	DocOf as DocOfRaw,
 	GenericDoc,
+	GenericGlobalDoc,
 	GenericInput,
+	GlobalDocOf as GlobalDocOfRaw,
+	GlobalInputOf as GlobalInputOfRaw,
+	GlobalSlug,
 	InputOf as InputOfRaw,
 	RegisteredConfig,
 } from '../config/collection';
@@ -28,6 +32,13 @@ export type DocOf<C extends Config, S extends string> =
 	IsWide<CollectionSlug<C>> extends true ? GenericDoc : DocOfRaw<C, S>;
 export type InputOf<C extends Config, S extends string> =
 	IsWide<CollectionSlug<C>> extends true ? GenericInput : InputOfRaw<C, S>;
+
+type IsWideGlobal<C extends Config> = string extends GlobalSlug<C> ? true : false;
+/** The document type of global `S`. */
+export type GlobalDocOf<C extends Config, S extends string> =
+	IsWideGlobal<C> extends true ? GenericGlobalDoc : GlobalDocOfRaw<C, S>;
+export type GlobalInputOf<C extends Config, S extends string> =
+	IsWideGlobal<C> extends true ? GenericInput : GlobalInputOfRaw<C, S>;
 
 type Prev = [never, 0, 1, 2];
 /**
@@ -59,7 +70,27 @@ export interface OperationOptions {
 	context?: Record<string, unknown>;
 }
 
-export interface FindArgs<Doc, D extends Depth> extends OperationOptions {
+/** Reads of collections/globals with drafts (§13.4). */
+export interface DraftReadOption {
+	/**
+	 * `true`: return the latest draft when it is newer than the published document, and include
+	 * unpublished documents. Default: published documents only. Ignored without drafts.
+	 */
+	draft?: boolean;
+}
+
+/** Writes of collections/globals with drafts (§13.4). */
+export interface DraftWriteOption {
+	/**
+	 * `true`: save as a draft (published content is untouched; `required`/`minRows` not enforced).
+	 * Default: publish. Ignored without drafts.
+	 */
+	draft?: boolean;
+	/** Admin autosave: update the latest autosave version in place instead of adding one. */
+	autosave?: boolean;
+}
+
+export interface FindArgs<Doc, D extends Depth> extends OperationOptions, DraftReadOption {
 	where?: Where<Doc>;
 	/** Default: the collection's `defaultSort`, else `'-createdAt'`. Ties break on `id`. */
 	sort?: Sort<Doc>;
@@ -82,8 +113,37 @@ export interface PaginatedDocs<T> {
 	hasPrevPage: boolean;
 }
 
-export interface ReadOptions<D extends Depth> extends OperationOptions {
+export interface ReadOptions<D extends Depth> extends OperationOptions, DraftReadOption {
 	depth?: D;
+}
+
+export interface WriteOptions<D extends Depth> extends OperationOptions, DraftWriteOption {
+	/** Depth of the returned document. */
+	depth?: D;
+}
+
+/** Where to put a document of an orderable collection (§13.2). Exactly one key. */
+export type MoveTarget = { before: string; after?: never } | { after: string; before?: never };
+
+/** One stored version (§13.4). `version` holds the document data (no system fields). */
+export interface VersionDoc<Doc> {
+	id: string;
+	/** The document id (for globals: the global slug). */
+	parent: string;
+	version: Doc;
+	/** Collections/globals with drafts only. */
+	_status?: 'draft' | 'published';
+	autosave: boolean;
+	/** The newest version of its document. */
+	latest: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface FindVersionsArgs extends OperationOptions {
+	/** Page size. Default 10, max 100. Newest first. */
+	limit?: number;
+	page?: number;
 }
 
 /**
@@ -111,14 +171,14 @@ export interface LocalAPI<C extends Config = RegisteredConfig> {
 
 	count<S extends CollectionSlug<C>>(
 		collection: S,
-		args?: { where?: Where<DocOf<C, S>> } & OperationOptions,
+		args?: { where?: Where<DocOf<C, S>> } & OperationOptions & DraftReadOption,
 	): Promise<number>;
 
 	/** Throws `ValidationError` (with field errors) or `ForbiddenError`. */
 	create<S extends CollectionSlug<C>, D extends Depth = 0>(
 		collection: S,
 		data: InputOf<C, S>,
-		options?: ReadOptions<D>,
+		options?: WriteOptions<D>,
 	): Promise<Populate<DocOf<C, S>, C, D>>;
 
 	/** Partial update. Throws `NotFoundError`, `ValidationError` or `ForbiddenError`. */
@@ -126,8 +186,70 @@ export interface LocalAPI<C extends Config = RegisteredConfig> {
 		collection: S,
 		id: string,
 		data: Partial<InputOf<C, S>>,
-		options?: ReadOptions<D>,
+		options?: WriteOptions<D>,
 	): Promise<Populate<DocOf<C, S>, C, D>>;
+
+	/**
+	 * Orderable collections (§13.2): puts the document directly before/after another one.
+	 * Runs as an update with no field changes (update access, hooks with `context.move = true`).
+	 */
+	move<S extends CollectionSlug<C>>(
+		collection: S,
+		id: string,
+		target: MoveTarget,
+		options?: OperationOptions,
+	): Promise<DocOf<C, S>>;
+
+	/** Drafts (§13.4): takes a published document offline (`_status = 'draft'`), keeping its data. */
+	unpublish<S extends CollectionSlug<C>>(
+		collection: S,
+		id: string,
+		options?: OperationOptions,
+	): Promise<DocOf<C, S>>;
+
+	/** Versions of one document, newest first. Needs read AND update access to the document. */
+	findVersions<S extends CollectionSlug<C>>(
+		collection: S,
+		id: string,
+		args?: FindVersionsArgs,
+	): Promise<PaginatedDocs<VersionDoc<DocOf<C, S>>>>;
+
+	findVersionByID<S extends CollectionSlug<C>>(
+		collection: S,
+		versionId: string,
+		options?: OperationOptions,
+	): Promise<VersionDoc<DocOf<C, S>> | null>;
+
+	/** Writes a version's data back as an update (as a draft with `{ draft: true }`). */
+	restoreVersion<S extends CollectionSlug<C>, D extends Depth = 0>(
+		collection: S,
+		versionId: string,
+		options?: WriteOptions<D>,
+	): Promise<Populate<DocOf<C, S>, C, D>>;
+
+	/** A global (§13.1). Never `null`: an unsaved global returns its defaults. */
+	findGlobal<S extends GlobalSlug<C>, D extends Depth = 0>(
+		global: S,
+		options?: ReadOptions<D>,
+	): Promise<Populate<GlobalDocOf<C, S>, C, D>>;
+
+	/** Partial update of a global (creates its row on the first save). */
+	updateGlobal<S extends GlobalSlug<C>, D extends Depth = 0>(
+		global: S,
+		data: Partial<GlobalInputOf<C, S>>,
+		options?: WriteOptions<D>,
+	): Promise<Populate<GlobalDocOf<C, S>, C, D>>;
+
+	findGlobalVersions<S extends GlobalSlug<C>>(
+		global: S,
+		args?: FindVersionsArgs,
+	): Promise<PaginatedDocs<VersionDoc<GlobalDocOf<C, S>>>>;
+
+	restoreGlobalVersion<S extends GlobalSlug<C>, D extends Depth = 0>(
+		global: S,
+		versionId: string,
+		options?: WriteOptions<D>,
+	): Promise<Populate<GlobalDocOf<C, S>, C, D>>;
 
 	/**
 	 * Returns the deleted document. Throws `NotFoundError`, `ForbiddenError`, or

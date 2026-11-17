@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { USAGE, isCommand, parseArgs } from './args';
 import { generateSchema, generateTypesFile, info, migrate, migrateCreate, migrateStatus, type Ctx } from './commands';
 import { CliError } from './load-config';
+import { seed } from './seed';
 
 function readVersion(): string {
 	try {
@@ -26,7 +27,7 @@ export async function run(argv: string[], cwd: string, log: (m: string) => void 
 		return args.help && !bad ? 0 : 1;
 	}
 	if (args.help) return log(USAGE), 0;
-	const ctx: Ctx = { root: cwd, configOption: args.config, remote: args.remote, log };
+	const ctx: Ctx = { root: cwd, configOption: args.config, remote: args.remote, seed: args.seed, log };
 	try {
 		switch (args.command) {
 			case 'generate:schema':
@@ -43,6 +44,9 @@ export async function run(argv: string[], cwd: string, log: (m: string) => void 
 				break;
 			case 'migrate:status':
 				await migrateStatus(ctx);
+				break;
+			case 'seed':
+				await seed(ctx);
 				break;
 			case 'info':
 				await info(ctx, readVersion());

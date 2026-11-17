@@ -108,6 +108,10 @@ function rpcEntryPlugin(options: KitcmsViteOptions): Plugin {
 	return {
 		name: 'kitcms:rpc-entry',
 		enforce: 'post',
+		// One copy of Kit and Svelte, even when @kitcms/* are linked from another checkout
+		// (`link:` / workspaces): a second @sveltejs/kit makes thrown `redirect()`/`error()`
+		// unrecognisable, so /admin answered 500 instead of redirecting.
+		config: () => ({ resolve: { dedupe: ['@sveltejs/kit', 'svelte'] } }),
 		configResolved(config) {
 			if (options.rpcEntry === false) return;
 			const file = path.resolve(config.root, options.rpcEntry ?? DEFAULT_RPC_ENTRY);

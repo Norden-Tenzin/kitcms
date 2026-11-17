@@ -104,6 +104,63 @@ import config from './kitcms.config';
 export class KitcmsRPC extends createKitcmsRPC(config) {}
 ```
 
+## Drafts and versions
+
+```ts
+collection({ slug: 'pages', versions: { drafts: { autosave: true }, max: 20 }, fields: { /* ... */ } });
+```
+
+- The table holds the **published** state. Reads without `draft: true` only return published documents (also when populating relationships); `draft: true` needs a signed-in user or `overrideAccess`.
+- `cms.update(..., { draft: true })` saves a draft version; `cms.update(...)` without it publishes the latest draft merged with `data`. `cms.unpublish(collection, id)` takes a document offline.
+- `cms.findVersions`, `findVersionByID`, `restoreVersion` (and the `...Global...` variants) need read **and** update access to the document.
+- `versions: true` keeps history only (no drafts, no `_status`).
+
+## Admin branding
+
+`admin.branding` white-labels the admin. Everything is optional and validated when the config loads:
+
+```ts
+admin: {
+	title: 'My site',
+	branding: {
+		logo: 'https://cdn.example.com/logo.svg', // https://, a /-relative path, or a base64 data:image/ URL
+		colors: { accent: '#0b7285', accentText: '#ffffff' }, // CSS colors: hex, rgb(), hsl(), oklch(), oklab() or a named color
+	},
+},
+```
+
+- `colors.accent` and `colors.accentText` are set as the `--kc-accent` and `--kc-accent-text` CSS variables on the admin root. Set both or neither. Hover and focus states follow the accent. Without them the default theme is used, including dark mode.
+- `logo` is shown in the admin header (next to the title) and above the sign-in and first-user forms. The title is always shown as text.
+
+## REST API
+
+A JSON fallback for browsers and third parties that can't use a Service Binding. On Cloudflare, prefer Service Binding RPC (`@kitcms/client`) (no public surface, no auth round trip). It is served by the generated `src/routes/(kitcms)/api/[...path]/+server.ts` (`export { GET, POST, PATCH, DELETE } from '@kitcms/core/sveltekit/api'`; re-run the scaffold or add `PATCH, DELETE` to existing apps).
+
+| Route | Action |
+|---|---|
+| `GET /api/collections/:slug` | `find` (paginated) |
+| `POST /api/collections/:slug` | `create` (201). Not for `upload` or auth collections (405) |
+| `GET / PATCH / DELETE /api/collections/:slug/:id` | `findByID` (404 when missing) / `update` / `delete` |
+| `POST /api/collections/:slug/:id/move` | body `{ "before": id }` or `{ "after": id }` (orderable collections) |
+| `POST /api/collections/:slug/:id/unpublish` | take a published doc offline (drafts) |
+| `GET / PATCH /api/globals/:slug` | `findGlobal` / `updateGlobal` |
+
+Read params: `where` (JSON object, same syntax as the Local API), `sort` (`-createdAt`), `limit`, `page`, `depth` (0-2), `pagination=false`, `draft=true` (signed-in only). Numbers must be plain integers, or the response is `400`. Write params: `depth`, `draft=true` (save as draft). Bodies must be `application/json` (415), at most 1 MiB (413) and a JSON object (400).
+
+Auth: the caller is the session user (Better Auth cookie) or anonymous. It goes through the same access rules, hooks and validation as the Local API, and nothing in the request can bypass them. Anonymous writes reach the pipeline and are denied by the default rules. Every `POST`/`PATCH`/`DELETE` also needs a same-origin `Origin` header (CSRF), or the response is `403`.
+
+Errors are `{ "error": string, "code": string, "errors"?: FieldError[], "references"?: [...] }` with the kitcms status (validation 400, forbidden 403, not found 404, still referenced 409). Unexpected failures return `500 { "error": "Internal error" }`. Responses send `cache-control: no-store`.
+
+Turn it off with `defineConfig({ rest: false })`: every `/api/collections/*` and `/api/globals/*` route then returns 404 (admin, upload and media routes are unaffected).
+
+## Edge cache (optional)
+
+`defineConfig({ cache: { ttl: 60 } })` caches anonymous published reads of the Local API (`find`, `findOne`, `findByID`, `count`, `findGlobal`) in the Workers Cache API, per data centre. This covers public pages, anonymous RPC and anonymous REST. Signed-in users, drafts, `overrideAccess` and calls that pass `req` or `context` are never cached.
+
+Every write (from any caller) replaces a generation token, so the data centre that handled the write serves fresh content immediately. Other data centres keep their entries until `ttl` seconds pass. Keys include a fingerprint of your schema, so a deploy with a changed schema never reads old entries.
+
+The Cache API does nothing on `*.workers.dev`; use a custom domain. If the cache is unavailable, reads fall back to D1.
+
 ## CLI
 
 The `kitcms` bin (from `@kitcms/core`) runs these commands. Each one reads the config from `src/kitcms.config.ts` or `kitcms.config.ts`, or from `--config <path>`:

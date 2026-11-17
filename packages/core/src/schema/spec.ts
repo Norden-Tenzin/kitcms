@@ -19,10 +19,25 @@
 //     group, array, blocks, json, richText→ json
 //   User field columns are always NULLABLE (except checkbox): `required` is enforced by validation,
 //   so adding a required field never breaks a migration on a non-empty table.
+// System columns after updatedAt (Phase 2, plan §13), before the field columns:
+//   _order     text, nullable                         — `orderable: true` only (fractional-index key)
+//   _status    text, NOT NULL, default 'published'    — `versions.drafts` only ('draft' | 'published')
 // Indexes on a collection table:
 //   `${slug}_createdAt_idx` on (createdAt)                — the default sort
 //   `${slug}_${field}_unique` UNIQUE on (field)           — `unique: true`
 //   `${slug}_${field}_idx` on (field)                     — `index: true` (and not unique), and every single relationship/upload
+//
+//   `${slug}__order_idx` on (_order), `${slug}__status_idx` on (_status) — when those columns exist
+//
+// Global tables (§13.1): every global is a collection table named `_global_<slug>` holding one row
+// (id = the global slug). Same mapping as above. Emitted after the collections.
+//
+// Version tables (§13.4): for every collection/global with `versions`, `${table}_versions`:
+//   id text pk nn (ULID), parent text nn FK → table(id) ON DELETE CASCADE, version json nn,
+//   _status text nn (drafts only), autosave boolean nn default false, latest boolean nn default false,
+//   createdAt timestamp nn, updatedAt timestamp nn
+//   idx: `${vt}_parent_idx` (parent, createdAt), `${vt}_latest_idx` (parent, latest)
+// Emitted after every collection and global table.
 //
 // `_refs` (one table, every reference from every document, Decision 6/20):
 //   fromCollection text not null, fromId text not null, path text not null,
@@ -48,7 +63,7 @@
 //   auth_rate_limits:   id text pk, key text nn, count integer nn, lastRequest integer nn
 //                       idx: auth_rate_limits_key_unique UNIQUE (key)
 //
-// Table order: collections in config order, then `_refs`, then the auth tables. FK references
+// Table order: collections, then globals (config order), then version tables, then `_refs`, then the auth tables. FK references
 // are lazy (`() => table.id`), so order doesn't matter for correctness.
 
 export type ColumnKind = 'text' | 'real' | 'integer' | 'boolean' | 'timestamp' | 'json';

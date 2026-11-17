@@ -58,15 +58,27 @@ pnpm add @kitcms/client
 
 ## Trusted calls
 
-`{ as: 'system' }` skips the collection and field access rules, so the call sees drafts too. Hooks still run. Use it only from Workers you control:
+`{ as: 'system' }` skips the collection and field access rules. Hooks and validation still run. Use it only from Workers you control:
 
 ```ts
 const all = await cms.find('pages', { as: 'system', limit: 50 });
+const draft = await cms.findByID('pages', id, { as: 'system', draft: true }); // drafts: system only
+```
+
+Writes are **system-only**. Without `{ as: 'system' }` they fail with `FORBIDDEN` before doing anything:
+
+```ts
+const page = await cms.create('pages', { title: 'Hello' }, { as: 'system' });
+await cms.update('pages', page.id, { title: 'Hi' }, { as: 'system', draft: true });
+await cms.move('pages', page.id, { after: otherId }, { as: 'system' }); // orderable collections
+await cms.unpublish('pages', page.id, { as: 'system' });
+await cms.delete('pages', page.id, { as: 'system' });
+await cms.updateGlobal('site', { siteName: 'Dzongla' }, { as: 'system' });
 ```
 
 ## Notes
 
-- The client exposes read methods only in v1: `find`, `findOne`, `findByID`, `count` and `getMediaUrl`.
+- Reads: `find`, `findOne`, `findByID`, `count`, `findGlobal`, `getMediaUrl` (anonymous by default). Writes: `create`, `update`, `delete`, `move`, `unpublish`, `updateGlobal` (system only).
 - Under `vite dev`, the CMS RPC entrypoint is not served, and a running dev server shadows it for consumers. To test a consumer, run the CMS with `pnpm preview` (`wrangler dev`).
 - Set `media.publicUrl` in the CMS config. Without it, media URLs are relative (`/api/media/...`), which a headless consumer can't use.
 

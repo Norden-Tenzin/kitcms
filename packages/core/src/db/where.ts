@@ -18,7 +18,7 @@ import {
 	type SQL,
 } from 'drizzle-orm';
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
-import type { SanitizedCollection } from '../config/sanitized';
+import { STATUS_FIELD, type SanitizedCollection } from '../config/sanitized';
 import type { WhereInput } from '../config/where';
 import { QueryError } from '../errors';
 import type { AnyTable } from '../schema/drizzle';
@@ -71,6 +71,14 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 function resolve(ctx: WhereContext, name: string): Target {
 	const col = (ctx.table as Record<string, SQLiteColumn | undefined>)[name];
+	if (
+		name === STATUS_FIELD &&
+		col &&
+		ctx.collection.versions !== false &&
+		ctx.collection.versions.drafts !== false
+	) {
+		return { kind: 'text', name, col };
+	}
 	if (SYSTEM.has(name)) {
 		if (!col) throw new QueryError(`Unknown field "${name}".`);
 		return { kind: name === 'id' ? 'id' : 'date', name, col };

@@ -29,6 +29,10 @@
 			"types": "./src/sveltekit/api.ts",
 			"default": "./src/sveltekit/api.ts"
 		},
+		"./richtext": {
+			"types": "./src/richtext/index.ts",
+			"default": "./src/richtext/index.ts"
+		},
 		"./vite": {
 			"types": "./src/vite/index.ts",
 			"default": "./src/vite/index.ts"

@@ -150,8 +150,27 @@ type HookFn<K extends keyof CollectionHooks> = Exclude<NonNullable<CollectionHoo
 /** Collection hooks with every entry normalized to an array (possibly empty). */
 export type NormalizedCollectionHooks = { [K in keyof CollectionHooks]-?: HookFn<K>[] };
 
+/** Sanitized `versions` option (§13.4). */
+export type SanitizedVersions =
+	| false
+	| {
+			/** `false` = history only. */
+			drafts: false | { autosave: false | { interval: number } };
+			/** Versions kept per document. */
+			max: number;
+	  };
+
+/**
+ * A collection, or a global (§13.1). A global is a single-row collection internally:
+ * `kind: 'global'`, `slug` = its table name `_global_<slug>`, `globalSlug` = the public slug.
+ * Globals are never in `collectionsBySlug`, so the collection API can't reach them.
+ */
 export interface AnyCollection<M extends Mode = 'server'> {
+	kind: 'collection' | 'global';
+	/** The table name. For a global: `_global_<globalSlug>`. */
 	slug: string;
+	/** Globals only: the public slug (`cms.findGlobal(globalSlug)`, `/admin/globals/<globalSlug>`). */
+	globalSlug?: string;
 	labels: Labels;
 	/** Data fields, including built-in upload/auth fields. Excludes `id`, `createdAt`, `updatedAt`. */
 	fields: AnyField<M>[];
@@ -164,11 +183,16 @@ export interface AnyCollection<M extends Mode = 'server'> {
 		description?: string;
 		group?: string;
 		hidden: boolean;
+		/** No create/delete except with `overrideAccess` (§13.3). Always `false` for globals. */
+		locked: boolean;
 	};
-	/** `'-createdAt'` unless set. */
+	/** `'_order'` for orderable collections, else `'-createdAt'`, unless set. */
 	defaultSort: string;
 	upload: false | { mimeTypes: string[]; maxFileSize: number };
 	auth: boolean;
+	/** Has the `_order` system column (§13.2). Always `false` for globals. */
+	orderable: boolean;
+	versions: SanitizedVersions;
 	/** Server only. As written in the config (defaults are applied by the access engine). */
 	access: M extends 'server' ? CollectionAccess : Record<string, never>;
 	hooks: M extends 'server' ? NormalizedCollectionHooks : Record<string, never>;
@@ -177,24 +201,52 @@ export type SanitizedCollection = AnyCollection<'server'>;
 export type ClientCollection = AnyCollection<'client'>;
 
 export interface SanitizedConfig {
+	/** Collections only (never globals). */
 	collections: SanitizedCollection[];
-	/** Lookup by slug. */
+	/** Lookup by slug. Collections only: globals are deliberately absent. */
 	collectionsBySlug: Record<string, SanitizedCollection>;
+	/** Globals (`kind: 'global'`), in config order. */
+	globals: SanitizedCollection[];
+	/** Lookup by PUBLIC global slug. */
+	globalsBySlug: Record<string, SanitizedCollection>;
+	/** REST fallback API on (§13.7). */
+	rest: boolean;
+	/** Edge cache for anonymous published reads (§13.9). */
+	cache: false | { ttl: number };
 	/** Slug of the `auth: true` collection (added as `users` when the config has none). */
 	authCollection: string;
 	bindings: { db: string; bucket: string };
-	admin: { title: string };
+	admin: { title: string; branding: SanitizedBranding };
 	media: { publicUrl?: string };
+}
+
+/** Validated branding (§13.6): every value is safe to put in a CSS variable / `src`. */
+export interface SanitizedBranding {
+	logo?: string;
+	colors: { accent?: string; accentText?: string };
 }
 
 /** What the admin in the browser receives: no functions, JSON-serializable. */
 export interface ClientConfig {
 	collections: ClientCollection[];
+	globals: ClientCollection[];
 	authCollection: string;
-	admin: { title: string };
+	admin: { title: string; branding: SanitizedBranding };
 }
 
 /** Built-in default: 50 MiB. */
 export const DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024;
 /** Reserved top-level field names. */
 export const SYSTEM_FIELDS = ['id', 'createdAt', 'updatedAt'] as const;
+/** System column of orderable collections (§13.2). */
+export const ORDER_FIELD = '_order';
+/** System column of collections/globals with drafts (§13.4). */
+export const STATUS_FIELD = '_status';
+/** Table-name prefix of globals (§13.1). */
+export const GLOBAL_TABLE_PREFIX = '_global_';
+/** Suffix of version tables (§13.4): `pages_versions`, `_global_site_versions`. */
+export const VERSIONS_SUFFIX = '_versions';
+/** Default autosave interval, ms. */
+export const DEFAULT_AUTOSAVE_INTERVAL = 2000;
+/** Default versions kept per document. */
+export const DEFAULT_MAX_VERSIONS = 50;

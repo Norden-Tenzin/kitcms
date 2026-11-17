@@ -1,7 +1,7 @@
 // Pipeline integration tests: Local API → access → hooks → validate → D1 (Miniflare) → hooks.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../../test/d1';
-import { block, collection, defineConfig } from '../config/collection';
+import { block, collection, defineConfig, global } from '../config/collection';
 import { fields as f } from '../config/fields';
 import type { KitcmsUser } from '../config/hooks';
 import { sanitizeConfig } from '../config/sanitize';
@@ -65,6 +65,41 @@ const config = sanitizeConfig(
 					sections: f.blocks({ blocks: [Hero] }),
 					publishedAt: f.date(),
 				},
+			}),
+		],
+		globals: [
+			global({
+				slug: 'site',
+				access: { read: () => true },
+				hooks: {
+					beforeChange: ({ data, operation }) => {
+						calls.push(`global:beforeChange:${operation}`);
+						return data;
+					},
+					afterChange: ({ operation }) => {
+						calls.push(`global:afterChange:${operation}`);
+					},
+					afterRead: ({ doc }) => ({ ...doc, computed: `site:${String(doc.siteName)}` }),
+				},
+				fields: {
+					siteName: f.text({ required: true, defaultValue: 'My site' }),
+					tagline: f.textarea(),
+					logo: f.upload({ relationTo: 'media' }),
+					colors: f.group({ fields: { accent: f.text({ defaultValue: '#000' }) } }),
+					nav: f.array({ fields: { label: f.text({ required: true }) } }),
+					internal: f.text({
+						access: { read: ({ req }) => req.user?.role === 'admin', update: ({ req }) => req.user?.role === 'admin' },
+					}),
+				},
+			}),
+			global({
+				slug: 'private',
+				fields: { note: f.text() },
+			}),
+			global({
+				slug: 'closed',
+				access: { read: () => ({ id: { equals: 'x' } }) as never, update: () => false },
+				fields: { note: f.text() },
 			}),
 		],
 	}),
@@ -306,5 +341,110 @@ describe('upload built-ins', () => {
 		// The forged values are dropped by field access, so the required built-ins are missing.
 		expect(err).toBeInstanceOf(ValidationError);
 		expect((err as ValidationError).errors.map((e) => e.path)).toContain('key');
+	});
+});
+
+describe('globals', () => {
+	const rows = async (table: string) =>
+		(await db.d1.prepare(`select count(*) as n from ${table}`).first<{ n: number }>())!.n;
+
+	it('findGlobal on an unsaved global returns the static defaults and does not write', async () => {
+		batches = 0;
+		const doc = await as(null).findGlobal('site');
+		expect(batches).toBe(1);
+		expect(doc).toMatchObject({
+			id: 'site',
+			siteName: 'My site',
+			colors: { accent: '#000' },
+			nav: [],
+			computed: 'site:My site',
+		});
+		expect(doc).not.toHaveProperty('createdAt');
+		expect(doc).not.toHaveProperty('updatedAt');
+		expect(await rows('_global_site')).toBe(0);
+	});
+
+	it('is not reachable through the collection API', async () => {
+		await expect(as(admin).find('_global_site' as never)).rejects.toBeInstanceOf(NotFoundError);
+		await expect(as(admin).findByID('_global_site' as never, 'site')).rejects.toBeInstanceOf(NotFoundError);
+		await expect(as(admin).create('_global_site' as never, { siteName: 'x' } as never)).rejects.toBeInstanceOf(NotFoundError);
+		await expect(as(admin).findGlobal('nope' as never)).rejects.toThrow('Unknown global "nope".');
+		await expect(as(admin).updateGlobal('pages' as never, {})).rejects.toBeInstanceOf(NotFoundError);
+	});
+
+	it('the first updateGlobal inserts id = slug (2 round trips), the second is a partial update', async () => {
+		calls.length = 0;
+		batches = 0;
+		const first = await as(admin).updateGlobal('site', { siteName: 'Hotel' });
+		expect(batches).toBe(2);
+		expect(first).toMatchObject({ id: 'site', siteName: 'Hotel', colors: { accent: '#000' }, nav: [] });
+		expect(typeof first.createdAt).toBe('string');
+		expect(calls).toEqual(['global:beforeChange:create', 'global:afterChange:create']);
+		expect(await rows('_global_site')).toBe(1);
+
+		calls.length = 0;
+		batches = 0;
+		const second = await as(admin).updateGlobal('site', { tagline: 'Welcome', nav: [{ label: 'Home' }] });
+		expect(batches).toBe(2);
+		expect(calls).toEqual(['global:beforeChange:update', 'global:afterChange:update']);
+		expect(second).toMatchObject({ id: 'site', siteName: 'Hotel', tagline: 'Welcome', computed: 'site:Hotel' });
+		expect(second.createdAt).toBe(first.createdAt);
+		expect(Date.parse(second.updatedAt!)).toBeGreaterThan(Date.parse(first.updatedAt!));
+		expect((second.nav as { id: string; label: string }[])[0]).toMatchObject({ label: 'Home' });
+		expect(await rows('_global_site')).toBe(1);
+
+		const found = await as(null).findGlobal('site');
+		expect(found).toMatchObject({ siteName: 'Hotel', tagline: 'Welcome', createdAt: first.createdAt });
+	});
+
+	it('validates (required, nested)', async () => {
+		const err = await as(admin)
+			.updateGlobal('site', { siteName: '', nav: [{}] } as never)
+			.catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ValidationError);
+		expect((err as ValidationError).errors.map((e) => e.path).sort()).toEqual(['nav.0.label', 'siteName']);
+		await expect(as(admin).updateGlobal('site', 'x' as never)).rejects.toBeInstanceOf(QueryError);
+	});
+
+	it('read/update access: signed-in only by default, rules are booleans only', async () => {
+		await expect(as(null).findGlobal('private')).rejects.toBeInstanceOf(ForbiddenError);
+		await expect(as(null).updateGlobal('site', { tagline: 'x' })).rejects.toBeInstanceOf(ForbiddenError);
+		await expect(as(editor).updateGlobal('private', { note: 'n' })).resolves.toMatchObject({ id: 'private', note: 'n' });
+		await expect(as(editor).findGlobal('private')).resolves.toMatchObject({ note: 'n' });
+		// A `where` result can't apply to a single row: fail closed.
+		await expect(as(admin).findGlobal('closed')).rejects.toBeInstanceOf(ForbiddenError);
+		await expect(as(admin).updateGlobal('closed', { note: 'x' })).rejects.toBeInstanceOf(ForbiddenError);
+		// overrideAccess bypasses.
+		await expect(as(null).findGlobal('closed', { overrideAccess: true })).resolves.toMatchObject({ id: 'closed' });
+	});
+
+	it('applies field access on read and write', async () => {
+		await as(admin).updateGlobal('site', { internal: 'secret' });
+		expect(await as(admin).findGlobal('site')).toMatchObject({ internal: 'secret' });
+		expect(await as(null).findGlobal('site')).not.toHaveProperty('internal');
+		// An editor's write to a restricted field is dropped; the stored value stays.
+		await as(editor).updateGlobal('site', { internal: 'hacked', tagline: 'Edited' });
+		expect(await as(admin).findGlobal('site')).toMatchObject({ internal: 'secret', tagline: 'Edited' });
+	});
+
+	it('populates uploads at depth 1', async () => {
+		const img = await as(admin).create('media', media('logo'), { overrideAccess: true });
+		await as(admin).updateGlobal('site', { logo: img.id });
+		batches = 0;
+		const doc = await as(null).findGlobal('site', { depth: 1 });
+		expect(batches).toBe(2);
+		expect(doc.logo).toMatchObject({ id: img.id, alt: 'logo' });
+		expect((await as(null).findGlobal('site')).logo).toBe(img.id);
+		const written = await as(admin).updateGlobal('site', { tagline: 'again' }, { depth: 1 });
+		expect(written.logo).toMatchObject({ id: img.id });
+	});
+
+	it('protects media referenced by a global from deletion', async () => {
+		const doc = await as(null).findGlobal('site');
+		const err = await as(admin).delete('media', doc.logo as string).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ReferencedError);
+		expect((err as ReferencedError).references).toEqual([{ collection: '_global_site', id: 'site', path: 'logo' }]);
+		await as(admin).updateGlobal('site', { logo: null } as never);
+		await expect(as(admin).delete('media', doc.logo as string)).resolves.toBeTruthy();
 	});
 });

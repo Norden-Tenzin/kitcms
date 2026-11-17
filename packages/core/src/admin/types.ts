@@ -1,7 +1,7 @@
 // The admin contract shared by core (producer: load + actions) and @kitcms/ui (consumer).
 // Browser-safe: types only.
 
-import type { ClientCollection } from '../config/sanitized';
+import type { ClientCollection, SanitizedBranding } from '../config/sanitized';
 import type { FieldError } from '../errors';
 
 export type AdminRoute =
@@ -10,14 +10,33 @@ export type AdminRoute =
 	| { view: 'dashboard' }
 	| { view: 'list'; collection: string }
 	| { view: 'create'; collection: string }
-	| { view: 'edit'; collection: string; id: string };
+	| { view: 'edit'; collection: string; id: string }
+	| { view: 'global'; global: string }
+	| { view: 'versions'; collection: string; id: string; global?: undefined }
+	| { view: 'versions'; global: string; collection?: undefined; id?: undefined };
 
 export type AdminDoc = Record<string, unknown> & { id: string };
 
 export interface AdminNavItem {
+	/** Collections: the collection slug. Globals (in `globals` lists): the public global slug. */
 	slug: string;
 	label: string;
 	group?: string;
+}
+
+/** Where a document of a collection/global with drafts stands (§13.4). `changed` = published with a newer draft. */
+export type AdminDocStatus = 'draft' | 'published' | 'changed';
+
+/** One row of the versions view. */
+export interface AdminVersion {
+	id: string;
+	/** Drafts collections/globals only. */
+	status?: 'draft' | 'published';
+	autosave: boolean;
+	latest: boolean;
+	createdAt: string;
+	/** The version's title field value, when readable. */
+	label?: string;
 }
 
 export interface AdminUser {
@@ -36,11 +55,15 @@ export interface AdminPermissions {
 
 interface Base {
 	title: string;
+	/** `admin.branding` from the config (§13.6): logo and accent colours, already validated. */
+	branding: SanitizedBranding;
 }
 
 interface SignedIn extends Base {
 	user: AdminUser;
 	nav: AdminNavItem[];
+	/** Visible globals (`/admin/globals/:slug`), in config order. */
+	globals: AdminNavItem[];
 }
 
 export interface ListQuery {
@@ -61,6 +84,7 @@ export type AdminData =
 	| (SignedIn & {
 			route: { view: 'dashboard' };
 			collections: (AdminNavItem & { description?: string; totalDocs: number })[];
+			globals: (AdminNavItem & { description?: string })[];
 	  })
 	| (SignedIn & {
 			route: { view: 'list'; collection: string };
@@ -88,6 +112,35 @@ export type AdminData =
 			hiddenFields: string[];
 			/** Whether this is the signed-in user's own document in the auth collection. */
 			isSelf: boolean;
+			/** Collections with drafts only. */
+			status?: AdminDocStatus;
+			/** Number of stored versions; absent when there are none to see (no versions, or no update access). */
+			versionCount?: number;
+	  })
+	| (SignedIn & {
+			route: { view: 'global'; global: string };
+			/** The global as a client collection (`slug` is its table name `_global_<slug>`, `kind: 'global'`). */
+			collection: ClientCollection;
+			/** `create`/`delete` are always false for globals. */
+			permissions: AdminPermissions;
+			/** The stored global, or its static defaults when never saved (`id` = the global slug). */
+			doc: AdminDoc;
+			hiddenFields: string[];
+			/** Globals with drafts only. */
+			status?: AdminDocStatus;
+			versionCount?: number;
+	  })
+	| (SignedIn & {
+			route: Extract<AdminRoute, { view: 'versions' }>;
+			/** The collection, or the global as a client collection. */
+			collection: ClientCollection;
+			permissions: AdminPermissions;
+			/** Title of the document the versions belong to. */
+			docTitle: string;
+			versions: AdminVersion[];
+			totalDocs: number;
+			page: number;
+			totalPages: number;
 	  });
 
 export type AdminDataOf<V extends AdminData['route']['view']> = Extract<
@@ -123,4 +176,10 @@ export const FORM = {
 	currentPassword: '__currentPassword',
 	/** Bulk delete: repeated, one per selected id. */
 	ids: '__ids',
+	/** Save as a draft instead of publishing (§13.4). The name of the "Save draft" submit button. */
+	draft: '__draft',
+	/** With `draft`: this is an autosave (updates the latest autosave version in place). */
+	autosave: '__autosave',
+	/** The version to restore (the `restoreVersion` action). */
+	versionId: '__versionId',
 } as const;

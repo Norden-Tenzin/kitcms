@@ -1,6 +1,6 @@
 {
 	"extends": "../../../../tsconfig.base.json",
-	"compilerOptions": { "noEmit": true, "types": ["node"] },
+	"compilerOptions": { "noEmit": true, "types": ["node", "@cloudflare/workers-types"] },
 	"include": ["*.ts"],
 	"exclude": ["__fixtures__"]
 }

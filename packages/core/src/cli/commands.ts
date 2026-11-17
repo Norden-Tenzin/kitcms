@@ -14,6 +14,8 @@ export interface Ctx {
 	root: string;
 	configOption: string | undefined;
 	remote: boolean;
+	/** `seed`: the seed file (default `src/kitcms.seed.ts`). */
+	seed?: string;
 	log: (msg: string) => void;
 }
 

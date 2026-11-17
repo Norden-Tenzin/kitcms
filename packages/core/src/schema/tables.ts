@@ -1,5 +1,6 @@
 // SanitizedConfig → TableSpec[]. The mapping is documented in ./spec.ts. Pure, Workers-safe.
 import type { SanitizedConfig, SanitizedField } from '../config/sanitized';
+import { ORDER_FIELD, STATUS_FIELD, VERSIONS_SUFFIX } from '../config/sanitized';
 import { AUTH_TABLES, REFS_TABLE, type ColumnSpec, type IndexSpec, type TableSpec } from './spec';
 
 const text = (name: string, extra: Partial<ColumnSpec> = {}): ColumnSpec => ({ name, kind: 'text', ...extra });
@@ -44,7 +45,8 @@ function fieldColumn(slug: string, field: SanitizedField, indexes: IndexSpec[]):
 export function toTableSpecs(config: SanitizedConfig): TableSpec[] {
 	const tables: TableSpec[] = [];
 
-	for (const collection of config.collections) {
+	const versionTables: TableSpec[] = [];
+	for (const collection of [...config.collections, ...config.globals]) {
 		const slug = collection.slug;
 		const columns: ColumnSpec[] = [
 			text('id', { primaryKey: true, notNull: true }),
@@ -52,9 +54,41 @@ export function toTableSpecs(config: SanitizedConfig): TableSpec[] {
 			ts('updatedAt', { notNull: true }),
 		];
 		const indexes: IndexSpec[] = [idx(`${slug}_createdAt_idx`, ['createdAt'])];
+		const drafts = collection.versions !== false && collection.versions.drafts !== false;
+		if (collection.orderable) {
+			columns.push(text(ORDER_FIELD));
+			indexes.push(idx(`${slug}_${ORDER_FIELD}_idx`, [ORDER_FIELD]));
+		}
+		if (drafts) {
+			// Default 'published': turning drafts on for an existing collection keeps its docs public.
+			columns.push(text(STATUS_FIELD, { notNull: true, default: 'published' }));
+			indexes.push(idx(`${slug}_${STATUS_FIELD}_idx`, [STATUS_FIELD]));
+		}
 		for (const field of collection.fields) columns.push(fieldColumn(slug, field, indexes));
 		tables.push({ name: slug, columns, indexes });
+
+		if (collection.versions !== false) {
+			const vt = slug + VERSIONS_SUFFIX;
+			const vcols: ColumnSpec[] = [
+				text('id', { primaryKey: true, notNull: true }),
+				text('parent', { notNull: true, references: { table: slug, column: 'id', onDelete: 'cascade' } }),
+				{ name: 'version', kind: 'json', notNull: true },
+			];
+			if (drafts) vcols.push(text(STATUS_FIELD, { notNull: true }));
+			vcols.push(
+				{ name: 'autosave', kind: 'boolean', notNull: true, default: false },
+				{ name: 'latest', kind: 'boolean', notNull: true, default: false },
+				ts('createdAt', { notNull: true }),
+				ts('updatedAt', { notNull: true }),
+			);
+			versionTables.push({
+				name: vt,
+				columns: vcols,
+				indexes: [idx(`${vt}_parent_idx`, ['parent', 'createdAt']), idx(`${vt}_latest_idx`, ['parent', 'latest'])],
+			});
+		}
 	}
+	tables.push(...versionTables);
 
 	tables.push({
 		name: REFS_TABLE,
