@@ -41,7 +41,7 @@ describe('helpers', () => {
 		expect(toAppName('!!!')).toBe('kitcms-app');
 	});
 	it('parses the D1 id from JSON and TOML output', () => {
-		const id = '64e7ad86-8d61-47e1-9c24-eae78559a387';
+		const id = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 		expect(parseDatabaseId(`{\n "d1_databases": [{ "binding": "DB", "database_id": "${id}" }]\n}`)).toBe(id);
 		expect(parseDatabaseId(`[[d1_databases]]\ndatabase_id = "${id}"`)).toBe(id);
 		expect(parseDatabaseId(`created ${id}`)).toBe(id);
