@@ -12,3 +12,7 @@ coverage/
 .claude/worktrees/
 packages/core/spike/types/stress/
 scripts/bench/out/
+.tmp-schema-test/
+packages/core/src/cli/__fixtures__/.run-*/
+.tmp-*/
+.dev-registry/

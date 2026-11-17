@@ -4,6 +4,13 @@ A lightweight, Payload-style CMS for SvelteKit that runs only on Cloudflare Work
 
 This repository is the monorepo for the packages and the playground apps. The roadmap lives in `plans/kitcms-plan.md` (not committed).
 
+## Packages
+
+- [`@kitcms/core`](packages/core/README.md): config, the Local API, D1 and R2, auth, the SvelteKit integration, RPC and the `kitcms` CLI
+- [`@kitcms/ui`](packages/ui/README.md): the Svelte 5 admin
+- [`@kitcms/client`](packages/client/README.md): the typed Service Binding client for headless consumers
+- [`create-kitcms`](packages/create-kitcms/README.md): the scaffolder (`pnpm create kitcms@latest`)
+
 ## Commands
 
 ```sh
