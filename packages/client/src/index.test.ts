@@ -79,4 +79,19 @@ describe('kitcms()', () => {
 		);
 		await expect(cms.findByID('x', '1')).rejects.toMatchObject({ code: 'QUERY' });
 	});
+
+	it('adds the default tenant unless a call names one; never to globals', async () => {
+		const b = fake({ findGlobal: async (...a: unknown[]) => (b.calls.push(['findGlobal', a]), {}) } as never);
+		const cms = kitcms(b, { tenant: 'T1' });
+		await cms.find('pages' as never);
+		await cms.find('pages' as never, { tenant: 'T2' } as never);
+		await cms.count('pages' as never, { as: 'system' } as never);
+		await cms.findGlobal('site' as never);
+		expect(b.calls).toEqual([
+			['find', ['pages', { tenant: 'T1' }]],
+			['find', ['pages', { tenant: 'T2' }]],
+			['count', ['pages', { as: 'system', tenant: 'T1' }]],
+			['findGlobal', ['site', undefined]],
+		]);
+	});
 });

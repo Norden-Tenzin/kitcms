@@ -114,6 +114,20 @@ export interface PaginatedDocs<T> {
 /** `'system'`: trusted caller, reads skip access rules. Default: anonymous. Use only from Workers you control. */
 export interface CallerOptions {
 	as?: 'system';
+	/** Multi-tenant apps (§15.2): the tenant to act on. Defaults to the client's `tenant`. */
+	tenant?: string;
+}
+
+/** Options of `delete`, `move` and `unpublish`: trusted callers only. */
+export interface SystemOptions {
+	as: 'system';
+	tenant?: string;
+}
+
+/** `kitcms(binding, options)`. */
+export interface ClientOptions {
+	/** Default tenant for every call (multi-tenant apps). A per-call `tenant` wins. */
+	tenant?: string;
 }
 
 /** Drafts are only readable by trusted callers: `draft: true` requires `as: 'system'`. */
@@ -138,6 +152,7 @@ export interface ReadOptions<D extends Depth> extends CallerOptions {
 /** Options of every write. Writes over RPC are for trusted callers only (`as: 'system'`). */
 export interface WriteOptions<D extends Depth> {
 	as: 'system';
+	tenant?: string;
 	depth?: D;
 	/** Save as a draft (collections/globals with drafts). */
 	draft?: boolean;
@@ -214,7 +229,7 @@ export interface KitcmsClient<T extends KitcmsTypes = GenericTypes> {
 	delete<S extends keyof T['collections'] & string>(
 		collection: S,
 		id: string,
-		options: { as: 'system' },
+		options: SystemOptions,
 	): Promise<DocOf<T, S>>;
 
 	/** Orderable collections: place a document before/after another. Trusted callers only. */
@@ -222,14 +237,14 @@ export interface KitcmsClient<T extends KitcmsTypes = GenericTypes> {
 		collection: S,
 		id: string,
 		target: MoveTarget,
-		options: { as: 'system' },
+		options: SystemOptions,
 	): Promise<DocOf<T, S>>;
 
 	/** Drafts: take a published document offline. Trusted callers only. */
 	unpublish<S extends keyof T['collections'] & string>(
 		collection: S,
 		id: string,
-		options: { as: 'system' },
+		options: SystemOptions,
 	): Promise<DocOf<T, S>>;
 
 	/** Partial update of a global. Trusted callers only. */
@@ -287,7 +302,16 @@ export function parseKitcmsError(err: unknown): unknown {
 // ---------------------------------------------------------------------------------------------
 
 /** Wraps a kitcms Service Binding. Pass the generated `KitcmsTypes` for typed collections. */
-export function kitcms<T extends KitcmsTypes = GenericTypes>(binding: KitcmsBinding): KitcmsClient<T> {
+export function kitcms<T extends KitcmsTypes = GenericTypes>(
+	binding: KitcmsBinding,
+	clientOptions: ClientOptions = {},
+): KitcmsClient<T> {
+	const tenant = clientOptions.tenant;
+	/** Adds the default tenant unless the call names one. */
+	const o = <O>(opts: O): O =>
+		tenant === undefined || (opts && typeof opts === 'object' && 'tenant' in opts && (opts as { tenant?: unknown }).tenant !== undefined)
+			? opts
+			: ({ ...(opts as object | undefined), tenant } as O);
 	async function call<R>(fn: () => Promise<R>): Promise<R> {
 		try {
 			return await fn();
@@ -297,19 +321,20 @@ export function kitcms<T extends KitcmsTypes = GenericTypes>(binding: KitcmsBind
 	}
 	// Options are forwarded untouched; the server whitelists and validates them.
 	return {
-		find: (collection, args) => call(() => binding.find(collection, args) as Promise<never>),
-		findOne: (collection, args) => call(() => binding.findOne(collection, args) as Promise<never>),
-		findByID: (collection, id, args) => call(() => binding.findByID(collection, id, args) as Promise<never>),
-		count: (collection, args) => call(() => binding.count(collection, args)),
+		find: (collection, args) => call(() => binding.find(collection, o(args)) as Promise<never>),
+		findOne: (collection, args) => call(() => binding.findOne(collection, o(args)) as Promise<never>),
+		findByID: (collection, id, args) => call(() => binding.findByID(collection, id, o(args)) as Promise<never>),
+		count: (collection, args) => call(() => binding.count(collection, o(args))),
+		// Globals are never tenant-scoped (Decision 31): no default tenant.
 		findGlobal: (global, args) => call(() => binding.findGlobal(global, args) as Promise<never>),
 		getMediaUrl: (key) => call(() => binding.getMediaUrl(key)),
-		create: (collection, data, options) => call(() => binding.create(collection, data, options) as Promise<never>),
+		create: (collection, data, options) => call(() => binding.create(collection, data, o(options)) as Promise<never>),
 		update: (collection, id, data, options) =>
-			call(() => binding.update(collection, id, data, options) as Promise<never>),
-		delete: (collection, id, options) => call(() => binding.delete(collection, id, options) as Promise<never>),
+			call(() => binding.update(collection, id, data, o(options)) as Promise<never>),
+		delete: (collection, id, options) => call(() => binding.delete(collection, id, o(options)) as Promise<never>),
 		move: (collection, id, target, options) =>
-			call(() => binding.move(collection, id, target, options) as Promise<never>),
-		unpublish: (collection, id, options) => call(() => binding.unpublish(collection, id, options) as Promise<never>),
+			call(() => binding.move(collection, id, target, o(options)) as Promise<never>),
+		unpublish: (collection, id, options) => call(() => binding.unpublish(collection, id, o(options)) as Promise<never>),
 		updateGlobal: (global, data, options) =>
 			call(() => binding.updateGlobal(global, data, options) as Promise<never>),
 	};
