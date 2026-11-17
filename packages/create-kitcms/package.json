@@ -1,24 +1,27 @@
 {
 	"name": "create-kitcms",
 	"version": "0.0.0",
+	"description": "Scaffold a kitcms app: pnpm create kitcms",
 	"license": "MIT",
 	"type": "module",
-	"sideEffects": false,
 	"exports": {
 		".": {
-			"types": "./src/index.ts",
-			"default": "./src/index.ts"
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
 		}
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"prepack": "node scripts/copy-templates.js && pnpm build"
 	},
 	"bin": {
 		"create-kitcms": "./bin/create.js"
 	},
 	"files": [
 		"bin",
-		"src"
+		"dist",
+		"templates"
 	],
 	"devDependencies": {
 		"@types/node": "^26.6.6"
