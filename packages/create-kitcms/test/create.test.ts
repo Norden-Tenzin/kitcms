@@ -60,8 +60,63 @@ describe('run', () => {
 	});
 
 	it('rejects unknown templates', async () => {
-		expect(await run(['app', '--template', 'website'], deps())).toBe(1);
 		expect(await run(['app', '--template', 'zzz'], deps())).toBe(1);
+	});
+
+	it('prompts for the template when interactive and none is given', async () => {
+		const asked: string[] = [];
+		const d = { ...deps(), interactive: true, ask: async (q: string, f: string) => (asked.push(q), q.startsWith('Template') ? 'website' : f) };
+		expect(await run(['picked', '--no-install'], d)).toBe(0);
+		expect(asked[0]).toContain('blank | website');
+		expect(fs.existsSync(path.join(tmp, 'picked', 'src/kitcms.seed.ts'))).toBe(true);
+	});
+
+	it('scaffolds the website template', async () => {
+		const logs: string[] = [];
+		expect(await run(['studio', '--template', 'website', '--yes', '--no-install'], deps(logs))).toBe(0);
+		const dir = path.join(tmp, 'studio');
+		for (const f of [
+			'package.json',
+			'wrangler.jsonc',
+			'README.md',
+			'.gitignore',
+			'.dev.vars',
+			'src/app.css',
+			'src/app.d.ts',
+			'src/kitcms.config.ts',
+			'src/kitcms.admin.ts',
+			'src/kitcms.seed.ts',
+			'src/kitcms.rpc.ts',
+			'src/lib/image.ts',
+			'src/lib/blocks/RenderBlocks.svelte',
+			'src/lib/blocks/AdminPreview.svelte',
+			'src/lib/blocks/Hero.svelte',
+			'src/lib/blocks/TeamGrid.svelte',
+			'src/routes/(site)/+layout.svelte',
+			'src/routes/(site)/+page.server.ts',
+			'src/routes/(site)/[slug]/+page.svelte',
+			'src/routes/(site)/blog/+page.svelte',
+			'src/routes/(site)/blog/[slug]/+page.svelte',
+			'src/routes/(site)/legal/[slug]/+page.svelte',
+			'src/routes/(kitcms)/admin/[...path]/+page.svelte',
+			'src/routes/(kitcms)/api/[...path]/+server.ts',
+		]) {
+			expect(fs.existsSync(path.join(dir, f)), f).toBe(true);
+		}
+		expect(findPlaceholders(dir)).toEqual([]);
+		expect(fs.readFileSync(path.join(dir, 'wrangler.jsonc'), 'utf8')).toContain('"placement": { "mode": "smart" }');
+		expect(fs.readFileSync(path.join(dir, 'src/kitcms.config.ts'), 'utf8')).toContain("title: 'studio'");
+		expect(fs.readFileSync(path.join(dir, 'src/routes/(kitcms)/admin/[...path]/+page.svelte'), 'utf8')).toContain('admin={adminConfig}');
+		expect(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts['db:seed']).toBe('kitcms seed');
+		const out = logs.join('\n');
+		expect(out).toContain('pnpm kitcms seed');
+		expect(out).toContain('Workers Paid');
+	});
+
+	it('does not suggest seeding for the blank template', async () => {
+		const logs: string[] = [];
+		await run(['plain', '--yes', '--no-install'], deps(logs));
+		expect(logs.join('\n')).not.toContain('kitcms seed');
 	});
 
 	it('scaffolds the blank template', async () => {

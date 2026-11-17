@@ -21,7 +21,7 @@ create-kitcms: scaffold a kitcms app
 Usage: pnpm create kitcms@latest [dir] [options]
 
 Options:
-  --template <name>     Template to use (blank). "website" is coming soon.
+  --template <name>     Template to use: blank | website (default: blank)
   --create-resources    Create the D1 database and R2 bucket with wrangler (needs "wrangler login")
   --yes, -y             Accept defaults, never prompt
   --no-install          Skip "pnpm install" and the local migration
@@ -29,6 +29,9 @@ Options:
   --help, -h            Show this help
 ```
 
-Only the `blank` template ships in v1.
+Templates:
+
+- `blank`: the admin plus one minimal `pages` collection.
+- `website`: a small business/studio site: pages built from blocks (with live preview), blog with tags, team, locked legal pages, site settings, seed content and Cloudflare image transformations. Run `pnpm kitcms seed` after scaffolding to fill it with example content.
 
 Status: pre-release (0.x), Cloudflare Workers + D1 + R2 only.

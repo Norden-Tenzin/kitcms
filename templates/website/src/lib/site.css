@@ -1,0 +1,90 @@
+/* Design tokens and base classes for the public site AND the admin live preview.
+   Scoped to `.site` (the public layout) and `.kitcms-preview` (the admin's preview pane), so nothing
+   leaks into the admin UI. Light/dark follows the visitor's system setting. */
+.site,
+.kitcms-preview {
+	--site-bg: #fbfaf8;
+	--site-surface: #ffffff;
+	--site-fg: #1c1b19;
+	--site-muted: #6b675f;
+	--site-border: #e4e0d8;
+	--site-accent: #1f5f4a;
+	--site-accent-fg: #ffffff;
+	--site-radius: 0.75rem;
+	--site-max: 68rem;
+	background: var(--site-bg);
+	color: var(--site-fg);
+	font-family:
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		Roboto,
+		sans-serif;
+	line-height: 1.6;
+}
+@media (prefers-color-scheme: dark) {
+	.site,
+	.kitcms-preview {
+		--site-bg: #141412;
+		--site-surface: #1d1c1a;
+		--site-fg: #f1efea;
+		--site-muted: #a5a097;
+		--site-border: #34322e;
+		--site-accent: #6fcfa8;
+		--site-accent-fg: #0d1f18;
+	}
+}
+
+:where(.site, .kitcms-preview) :where(.container) {
+	width: 100%;
+	max-width: var(--site-max);
+	margin-inline: auto;
+	padding-inline: 1.25rem;
+	box-sizing: border-box;
+}
+:where(.site, .kitcms-preview) :where(h1, h2, h3) {
+	line-height: 1.15;
+	letter-spacing: -0.015em;
+	margin: 0 0 0.6em;
+}
+:where(.site, .kitcms-preview) :where(.btn) {
+	display: inline-block;
+	padding: 0.7em 1.3em;
+	border-radius: 999px;
+	background: var(--site-accent);
+	color: var(--site-accent-fg);
+	font-weight: 600;
+	text-decoration: none;
+}
+:where(.site, .kitcms-preview) :where(.btn:hover) {
+	filter: brightness(1.08);
+}
+:where(.site, .kitcms-preview) :where(.prose) {
+	max-width: 42rem;
+}
+:where(.site, .kitcms-preview) :where(.prose a) {
+	color: var(--site-accent);
+}
+:where(.site, .kitcms-preview) :where(.prose blockquote) {
+	margin-inline: 0;
+	padding-left: 1rem;
+	border-left: 3px solid var(--site-border);
+	color: var(--site-muted);
+}
+:where(.site, .kitcms-preview) :where(.prose pre) {
+	overflow-x: auto;
+	padding: 1rem;
+	background: var(--site-surface);
+	border: 1px solid var(--site-border);
+	border-radius: 0.5rem;
+}
+:where(.site, .kitcms-preview) :where(.muted) {
+	color: var(--site-muted);
+}
+:where(.site, .kitcms-preview) :where(.placeholder) {
+	padding: 2rem 1rem;
+	border: 1px dashed var(--site-border);
+	border-radius: var(--site-radius);
+	color: var(--site-muted);
+	text-align: center;
+}

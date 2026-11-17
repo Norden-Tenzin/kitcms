@@ -87,10 +87,8 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 	}
 	const ask = async (q: string, d: string) => (args.yes || !deps.interactive ? d : deps.ask(q, d));
 
-	if (args.template === 'website') {
-		log('The "website" template is coming soon. Use --template blank for now.');
-		return 1;
-	}
+	// Offer the templates when none was given (interactive runs only).
+	if (!args.templateGiven) args.template = (await ask(`Template? (${TEMPLATES.join(' | ')})`, args.template)).toLowerCase();
 	if (!(TEMPLATES as readonly string[]).includes(args.template)) {
 		log(`create-kitcms: unknown template "${args.template}" (available: ${TEMPLATES.join(', ')})`);
 		return 1;
@@ -162,6 +160,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 	const steps = [`cd ${rel}`];
 	if (!installed) steps.push('pnpm install');
 	if (!migrated) steps.push('pnpm db:generate init', 'pnpm db:migrate');
+	if (args.template === 'website') steps.push('pnpm kitcms seed   # example pages, posts, team, legal pages and site settings');
 	steps.push('pnpm dev', '(open http://localhost:5173/admin to create the first admin user)');
 	log(`\nNext steps:\n  ${steps.join('\n  ')}`);
 	if (!resourcesCreated) {

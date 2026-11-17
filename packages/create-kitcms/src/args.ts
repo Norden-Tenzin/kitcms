@@ -11,14 +11,14 @@ export interface Args {
 	unknown: string[];
 }
 
-export const TEMPLATES = ['blank'] as const;
+export const TEMPLATES = ['blank', 'website'] as const;
 
 export const USAGE = `create-kitcms: scaffold a kitcms app
 
 Usage: pnpm create kitcms@latest [dir] [options]
 
 Options:
-  --template <name>     Template to use (blank). "website" is coming soon.
+  --template <name>     Template to use: blank | website (default: blank)
   --create-resources    Create the D1 database and R2 bucket with wrangler (needs "wrangler login")
   --yes, -y             Accept defaults, never prompt
   --no-install          Skip "pnpm install" and the local migration
