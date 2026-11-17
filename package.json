@@ -14,6 +14,7 @@
 		"lint": "eslint .",
 		"format": "prettier --write .",
 		"test": "vitest run",
+		"test:e2e": "pnpm --filter e2e test",
 		"changeset": "changeset",
 		"bench:parse": "node scripts/bench/parse.ts",
 		"bench:bundle": "node scripts/bench/bundle-size.ts",

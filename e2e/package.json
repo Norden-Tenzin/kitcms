@@ -1,0 +1,16 @@
+{
+	"name": "e2e",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "playwright test",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@kitcms/client": "workspace:*",
+		"@playwright/test": "^1.56.0",
+		"@types/node": "^26.6.6",
+		"typescript": "^6.0.3"
+	}
+}
