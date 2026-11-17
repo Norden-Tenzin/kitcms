@@ -36,6 +36,13 @@
       "when": 1794899318561,
       "tag": "0004_phase2_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794904080743,
+      "tag": "0005_tenancy",
+      "breakpoints": true
     }
   ]
 }

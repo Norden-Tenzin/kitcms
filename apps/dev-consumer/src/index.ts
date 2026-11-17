@@ -5,12 +5,31 @@ import type { KitcmsTypes } from './kitcms-types';
 interface Env {
 	CMS: Service & KitcmsBinding;
 	SITE: Fetcher;
+	/** Set (`--var E2E:1`) by the e2e run only: enables the generic `/e2e/call` proxy below. */
+	E2E?: string;
 }
 
 export default {
 	async fetch(req, env): Promise<Response> {
 		const url = new URL(req.url);
 		const cms = kitcms<KitcmsTypes>(env.CMS);
+
+		// e2e contract tests (e2e/tests/rpc.spec.ts): POST { method, args } calls the typed client and
+		// returns the result, or the parsed error. Off unless the `E2E` var is set.
+		if (url.pathname === '/e2e/call' && req.method === 'POST' && env.E2E === '1') {
+			const { method, args } = (await req.json()) as { method: string; args: unknown[] };
+			const fn = (cms as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method];
+			if (typeof fn !== 'function') return Response.json({ ok: false, error: 'unknown method' }, { status: 400 });
+			try {
+				return Response.json({ ok: true, result: (await fn.apply(cms, args)) ?? null });
+			} catch (err) {
+				return Response.json(
+					isKitcmsClientError(err)
+						? { ok: false, clientError: true, code: err.code, status: err.status, message: err.message, name: err.name }
+						: { ok: false, clientError: false, message: String(err) },
+				);
+			}
+		}
 
 		if (url.pathname === '/phase2') return Response.json(await phase2(cms));
 		if (url.pathname === '/system') {

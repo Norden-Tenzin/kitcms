@@ -1,5 +1,7 @@
 // The playground config: exercises every v1 field type.
 import { block, collection, defineConfig, fields as f, global } from '@kitcms/core';
+import { multiTenant, tenantByHost } from '@kitcms/plugin-multi-tenant';
+import { seo } from '@kitcms/plugin-seo';
 import { benchBlocks } from '#lib/bench/blocks.ts';
 
 const Hero = block({
@@ -27,7 +29,38 @@ const Features = block({
 
 export default defineConfig({
 	admin: { title: 'kitcms dev' },
+	plugins: [
+		// Tenancy playground: `a.localhost:5173` resolves to the vendor with slug `a`. `media` and
+		// `pages` stay unscoped (shared content).
+		multiTenant({
+			tenantsCollection: 'vendors',
+			collections: ['rooms'],
+			resolveTenant: tenantByHost({
+				collection: 'vendors',
+				domainField: 'domain',
+				subdomain: { field: 'slug', rootDomain: 'localhost' },
+			}),
+		}),
+		seo({ collections: ['pages'], uploadsCollection: 'media' }),
+	],
 	collections: [
+		collection({
+			slug: 'vendors',
+			access: { read: () => true },
+			admin: { useAsTitle: 'name', group: 'Tenancy' },
+			fields: { name: f.text({ required: true }), slug: f.text({ unique: true }), domain: f.text() },
+		}),
+		collection({
+			slug: 'rooms',
+			access: { read: () => true },
+			admin: { group: 'Tenancy' },
+			fields: {
+				name: f.text({ required: true }),
+				slug: f.slug({ from: 'name', unique: true }),
+				photo: f.upload({ relationTo: 'media' }),
+				price: f.number(),
+			},
+		}),
 		collection({
 			slug: 'media',
 			upload: { mimeTypes: ['image/*', 'application/pdf'] },

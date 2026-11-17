@@ -14,5 +14,19 @@ export default defineSeed(async ({ ensure, ensureGlobal }) => {
 		await ensure('team', { where: { name: { equals: name } }, data: { name, role } });
 	}
 
+	// Tenancy playground: two vendors (`a.localhost:5173`, `b.localhost:5173`) with one room each.
+	// The seed is trusted code without a tenant, so the tenant is passed explicitly.
+	for (const [slug, name, room] of [
+		['a', 'Vendor A', 'Room A1'],
+		['b', 'Vendor B', 'Room B1'],
+	] as const) {
+		const vendor = await ensure('vendors', { where: { slug: { equals: slug } }, data: { name, slug } });
+		// `tenant` is added by the plugin, so it isn't in the config's inferred types.
+		await ensure('rooms', {
+			where: { and: [{ name: { equals: room } }, { tenant: { equals: vendor.id } }] } as never,
+			data: { name: room, tenant: vendor.id, price: 100 } as never,
+		});
+	}
+
 	await ensureGlobal('site', { siteName: 'kitcms dev' });
 });
