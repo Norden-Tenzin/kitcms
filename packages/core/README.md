@@ -161,6 +161,16 @@ Every write (from any caller) replaces a generation token, so the data centre th
 
 The Cache API does nothing on `*.workers.dev`; use a custom domain. If the cache is unavailable, reads fall back to D1.
 
+## D1 read replication (optional)
+
+kitcms already uses the D1 Sessions API on every request, so read replication works without code changes. Turn it on for your database in the Cloudflare dashboard (**D1 → your database → Settings → Read replication**).
+
+- Anonymous requests (public pages, anonymous REST and RPC reads) read from the nearest replica.
+- Signed-in users carry a bookmark in an `HttpOnly` cookie (`kitcms-d1`), so editors always see their own saves.
+- RPC calls with `as: 'system'` start on the primary, since they may write and then read.
+
+With replication off, every session reads from the primary, the same as before. Replication mainly helps visitors far from the primary when the edge cache misses. The templates also enable Smart Placement (`"placement": { "mode": "smart" }` in `wrangler.jsonc`), which can run the Worker near the database when that is faster.
+
 ## CLI
 
 The `kitcms` bin (from `@kitcms/core`) runs these commands. Each one reads the config from `src/kitcms.config.ts` or `kitcms.config.ts`, or from `--config <path>`:
@@ -187,6 +197,5 @@ Options:
 
 - Workers Paid is required. Password hashing (scrypt) uses more CPU than the free plan allows.
 - Don't set `declaration` in the app's tsconfig. With large configs `declaration: true` fails with TS7056.
-- The admin has no editor yet for `richText` (Phase 2). Such fields can be defined and stored, but the admin shows "No admin component" for them.
 
 Status: pre-release (0.x), Cloudflare Workers + D1 + R2 only.

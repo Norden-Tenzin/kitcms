@@ -31,6 +31,8 @@ The schema is code: edit `src/kitcms.config.ts`, then `pnpm db:generate <name>` 
 3. `pnpm exec wrangler secret put BETTER_AUTH_SECRET`
 4. `pnpm run deploy`
 
+`wrangler.jsonc` enables Smart Placement (the Worker runs near the D1 primary when that is faster). D1 read replication is optional and needs no code changes: turn it on in the Cloudflare dashboard (D1 → your database → Settings → Read replication). Visitors then read from the nearest replica, and signed-in editors still see their own saves. See the `@kitcms/core` README.
+
 ## Headless / RPC
 
 `src/kitcms.rpc.ts` exports the `KitcmsRPC` entrypoint. Other Workers can bind to it with a Service Binding

@@ -76,6 +76,8 @@ Two features need your own domain on Cloudflare and do nothing on `*.workers.dev
 
 `wrangler.jsonc` enables Smart Placement (the Worker runs near the D1 primary when that is faster; kitcms makes a few D1 round trips per request).
 
+D1 read replication is optional and needs no code changes: turn it on in the Cloudflare dashboard (D1 → your database → Settings → Read replication). Visitors then read from the nearest replica, and signed-in editors still see their own saves. See the `@kitcms/core` README.
+
 ## Headless / RPC
 
 `src/kitcms.rpc.ts` exports the `KitcmsRPC` entrypoint. Other Workers can bind to it with a Service Binding
