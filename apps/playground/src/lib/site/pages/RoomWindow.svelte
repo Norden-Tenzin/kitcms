@@ -2,7 +2,7 @@
 	// Room, design B "Window": the picture is the first screen, facts sit on it, text and amenities
 	// follow on an earth field, then the pictures large.
 	import Amenities from '../Amenities.svelte';
-	import EnquiryPlaceholder from '../EnquiryPlaceholder.svelte';
+	import RoomEnquiry from '../RoomEnquiry.svelte';
 	import Img from '../Img.svelte';
 	import Pic from '../Pic.svelte';
 	import RichText from '../RichText.svelte';
@@ -21,8 +21,8 @@
 	<header class="hero on-dark">
 		<div class="photo"><Img media={asMedia(room.cover)} eager fit="cover" widths={[800, 1400, 2000]} sizes="100vw" alt="" /></div>
 		<div class="container inner">
-			<p>{viewLabel(room.view)} view</p>
 			<h1>{room.name}</h1>
+			<p>{viewLabel(room.view)} view</p>
 			<ul class="chips">
 				{#each roomFacts(room) as f (f)}<li>{f}</li>{/each}
 				{#if room.priceFrom}<li class="price">From {inr(room.priceFrom)}</li>{/if}
@@ -51,7 +51,7 @@
 	{/if}
 
 	<Section>
-		<div class="ask"><h2>Stay in the {room.name}</h2><EnquiryPlaceholder {shell} room={room.name} /></div>
+		<div class="ask"><h2>Stay in the {room.name}</h2><RoomEnquiry {shell} {room} title={false} /></div>
 	</Section>
 
 	{#if others.length}

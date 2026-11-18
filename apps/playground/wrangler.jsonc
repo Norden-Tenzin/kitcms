@@ -21,6 +21,9 @@
 			"migrations_dir": "migrations",
 		},
 	],
+	// Core email adapter (`email` in kitcms.config.ts). Local-safe: `wrangler dev` simulates it and
+	// `vite dev` logs messages instead. Sending from a real domain needs Email Routing set up on it.
+	"send_email": [{ "name": "EMAIL" }],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",

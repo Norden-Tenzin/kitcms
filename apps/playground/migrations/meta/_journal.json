@@ -71,6 +71,13 @@
       "when": 1794994297934,
       "tag": "0009_hotel_demo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794995269461,
+      "tag": "0010_phase5_plugins",
+      "breakpoints": true
     }
   ]
 }

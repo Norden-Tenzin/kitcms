@@ -296,3 +296,8 @@ html:has(.site) body {
 		animation-duration: 0.28s;
 	}
 }
+
+/* A page that ends on a field of colour (tone) sits flush on the footer: no gap of page ground between. */
+.site main:is(:has(> [data-tone]:last-child), :has(> article > [data-tone]:last-child)) + footer[data-tone] {
+	margin-top: 0;
+}

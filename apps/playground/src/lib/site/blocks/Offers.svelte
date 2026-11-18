@@ -22,8 +22,8 @@
 				<li class="reveal" use:reveal style:--i={i}>
 					{#if design !== 'c'}<Pic media={asMedia(o.cover)} ratio={design === 'b' ? 3 / 2 : 4 / 3} sizes="(min-width: 56rem) 40vw, 100vw" />{/if}
 					<div class="body">
-						{#if valid(o)}<p class="small">{valid(o)}</p>{/if}
 						<h3>{o.title}</h3>
+						{#if valid(o)}<p class="small">{valid(o)}</p>{/if}
 						{#if o.summary}<p>{o.summary}</p>{/if}
 						{#if o.terms}<p class="small">{o.terms}</p>{/if}
 						{#if o.ctaLabel && o.ctaHref}<Link href={o.ctaHref} class="btn">{o.ctaLabel}</Link>{/if}

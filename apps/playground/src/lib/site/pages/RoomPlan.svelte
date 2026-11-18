@@ -2,7 +2,7 @@
 	// Room, design C "Plan": a datasheet. Pictures and text on the left, a sticky panel with the
 	// facts and the enquiry on the right.
 	import Amenities from '../Amenities.svelte';
-	import EnquiryPlaceholder from '../EnquiryPlaceholder.svelte';
+	import RoomEnquiry from '../RoomEnquiry.svelte';
 	import Pic from '../Pic.svelte';
 	import RichText from '../RichText.svelte';
 	import Section from '../Section.svelte';
@@ -52,7 +52,7 @@
 				<dl>
 					{#each facts as [k, v] (k)}<div><dt>{k}</dt><dd>{v}</dd></div>{/each}
 				</dl>
-				<EnquiryPlaceholder {shell} room={room.name} />
+				<RoomEnquiry {shell} {room} />
 			</aside>
 		</div>
 	</Section>

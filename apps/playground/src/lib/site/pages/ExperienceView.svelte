@@ -25,7 +25,7 @@
 			['Cost', item.priceNote],
 		].filter((r): r is [string, string] => Boolean(r[1])),
 	);
-	const ask = '/contact';
+	const ask = $derived(item.slug ? `/contact?experience=${encodeURIComponent(item.slug)}` : '/contact');
 	const SHAPES = [4 / 5, 3 / 2, 1] as const;
 </script>
 

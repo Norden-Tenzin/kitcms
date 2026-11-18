@@ -236,36 +236,70 @@ export default defineSeed(async ({ ensure, ensureGlobal, ensureUpload, cms, log 
 		} as never,
 	});
 
-	await ensure('pages', {
-		where: { slug: { equals: 'dining' } },
-		data: {
-			title: 'Dining',
-			slug: 'dining',
-			sections: [
-				sec('split', {
-					heading: 'Ladakhi food, made at home',
-					text: rt(p('Breakfast is included: khambir bread with butter and orchard jam, eggs, porridge and tea. Dinner is on request, told to us by noon, cooked fresh by Stanzin.')),
-					image: m('thukpa'),
-					imageSide: 'right',
-				}),
-			],
-		} as never,
-	});
-	await ensure('pages', {
-		where: { slug: { equals: 'contact' } },
-		data: {
-			title: 'Contact',
-			slug: 'contact',
-			sections: [
-				sec('location', {
-					heading: 'Find us',
-					text: rt('Changspa Road, Leh. Ten minutes from the airport.'),
-					image: m('leh-street'),
-					directions: [{ label: 'By car', text: 'Tell the driver Changspa Road, Dolkar House, behind the green gate.' }],
-				}),
-			],
-		} as never,
-	});
+	// Dining and contact feed their three designs: the first split/location is the intro, the other
+	// blocks fill the page. An older local seed (one block each) is upgraded once.
+	const upgradeSections = async (slug: string, title: string, sections: unknown[], cover: string) => {
+		const doc = await ensure('pages', {
+			where: { slug: { equals: slug } },
+			data: { title, slug, cover, sections } as never,
+		});
+		const have = (doc as unknown as { sections?: unknown[] }).sections ?? [];
+		if (have.length < sections.length) await cms.update('pages', doc.id, { cover, sections } as never);
+	};
+	await upgradeSections(
+		'dining',
+		'Dining',
+		[
+			sec('split', {
+				heading: 'Ladakhi food, made at home',
+				text: rt(
+					p('Breakfast is included: khambir bread with butter and orchard jam, eggs, porridge and tea. Dinner is on request, told to us by noon, cooked fresh by Stanzin.'),
+					p('Most of what we cook is Ladakhi and most of it is vegetarian, because that is how the valley eats. Tell us what you cannot eat and we will cook around it.'),
+				),
+				image: m('thukpa'),
+				imageSide: 'right',
+			}),
+			sec('features', {
+				title: 'How dinner works',
+				items: [
+					{ label: 'Tell us by noon', text: 'Dinner is cooked fresh for the guests who ask.', icon: 'hotwater' },
+					{ label: 'Breakfast is included', text: 'From seven, in the courtyard or on the roof.', icon: 'tea' },
+					{ label: 'Vegetarian and vegan', text: 'Say so when you book. Nearly everything adapts.', icon: 'water' },
+					{ label: 'Packed lunch', text: 'For a day out: bread, boiled eggs, apricots.', icon: 'sun' },
+				],
+			}),
+			sec('gallery', { heading: 'From the kitchen', images: ms(['dried-apricots', 'ladakhi-kitchen', 'momos', 'butter-tea']) }),
+		],
+		m('ladakhi-kitchen'),
+	);
+	await upgradeSections(
+		'contact',
+		'Contact',
+		[
+			sec('location', {
+				heading: 'Find us',
+				text: rt('Changspa Road, Leh. Ten minutes from the airport, a quiet fifteen-minute walk from the main bazaar.'),
+				image: m('leh-street'),
+				directions: [
+					{ label: 'By air', text: 'Fly to Leh (IXL). Ten minutes by car; we send one for ₹600, and a bowl of butter tea waits.' },
+					{ label: 'By road from Manali', text: 'Two long days over Baralacha La and Tanglang La. Rest overnight at Keylong or Sarchu, and arrive in daylight.' },
+					{ label: 'By road from Srinagar', text: 'Two days through Kargil. Shared taxis stop at the bus stand; we are a five-minute drive from there.' },
+					{ label: 'On foot from the bazaar', text: 'Up Changspa Road past the prayer-wheel pavilion. We are on the left, behind the green gate.' },
+				],
+			}),
+			sec('richText', {
+				heading: 'Arriving at 3,500 metres',
+				body: rt(
+					p('Leh is high. Plan nothing on your first day, drink water, and skip alcohol until the second night. A headache on day one is common and passes; a headache that gets worse, or breathlessness at rest, means going lower and telling us.'),
+					ul('Fly in? Rest the whole first day.', 'Driving in? You have acclimatised on the way, but still go slowly.', 'We keep oxygen at the house and know the doctor.'),
+				),
+			}),
+		],
+		m('leh-street'),
+	);
+
+	// One example redirect for the SEO plugin (an old URL guests may still have).
+	await ensure('redirects' as never, { where: { from: { equals: '/accommodation' } }, data: { from: '/accommodation', to: '/rooms', type: '301', enabled: true, note: 'Old menu link' } } as never);
 
 	// ----- Site settings ---------------------------------------------------------------------------
 	const home = await cms.findOne('pages', { where: { slug: { equals: 'home' } } });

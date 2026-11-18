@@ -38,8 +38,8 @@
 		gap: var(--s-4);
 	}
 	p {
-		font: 600 clamp(2rem, 1.2rem + 3vw, 3.6rem) / 1.08 var(--font-display);
-		max-width: 24ch;
+		font: 600 clamp(1.75rem, 1.1rem + 2.2vw, 2.5rem) / 1.15 var(--font-display);
+		max-width: 32ch;
 	}
 	footer {
 		font-size: var(--step-lead);
@@ -84,7 +84,7 @@
 		background: linear-gradient(transparent, rgb(20 12 8 / 0.75));
 	}
 	.c p {
-		max-width: 28ch;
-		font-size: clamp(2.2rem, 1.2rem + 4vw, 5rem);
+		max-width: 34ch;
+		font-size: clamp(1.9rem, 1rem + 2.6vw, 2.6rem);
 	}
 </style>

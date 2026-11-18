@@ -1,9 +1,16 @@
 // Content loading for the public routes (server only). Everything goes through `locals.cms` acting
 // as the visitor: anonymous requests only see published documents.
+import { ForbiddenError } from '@kitcms/core';
 import { resolveDesign, type PageType } from './designs';
 import type { BlockExtras, Page, PageBlock, Room, Site } from './types';
 
 type Cms = App.Locals['cms'];
+
+/** A denied read (an add-on that is off) becomes `null`; any other error still surfaces. */
+const forbiddenAsNull = (err: unknown): null => {
+	if (err instanceof ForbiddenError) return null;
+	throw err;
+};
 
 /** Site settings (depth 1: logo + nav pages) and the legal pages, for every public page. */
 export async function loadShell(cms: Cms) {
@@ -26,7 +33,8 @@ export async function loadBlockExtras(cms: Cms, blocks: PageBlock[]): Promise<Bl
 		has('experiencesList') ? cms.find('experiences', { depth: 1, limit: 24, pagination: false }) : null,
 		has('testimonials') ? cms.find('testimonials', { limit: 24, pagination: false }) : null,
 		has('faq') ? cms.find('faqs', { limit: 60, pagination: false }) : null,
-		has('offers') ? cms.find('offers', { depth: 1, limit: 12, pagination: false }) : null,
+		// `offers` sits behind the `offers` add-on: with it off the read is denied, and the block renders nothing.
+		has('offers') ? cms.find('offers', { depth: 1, limit: 12, pagination: false }).catch(forbiddenAsNull) : null,
 		has('gallery') ? cms.find('albums', { depth: 1, limit: 12, pagination: false }) : null,
 	]);
 	return {

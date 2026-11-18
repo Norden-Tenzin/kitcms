@@ -231,6 +231,35 @@ export const t_media = sqliteTable("media", {
 	uniqueIndex("media_key_unique").on(t["key"]),
 ]);
 
+export const t_redirects = sqliteTable("redirects", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	from: text("from"),
+	to: text("to"),
+	type: text("type"),
+	enabled: integer("enabled", { mode: 'boolean' }).notNull().default(true),
+	note: text("note"),
+}, (t) => [
+	index("redirects_createdAt_idx").on(t["createdAt"]),
+	uniqueIndex("redirects_from_unique").on(t["from"]),
+]);
+
+export const t_submissions = sqliteTable("submissions", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	form: text("form"),
+	name: text("name"),
+	email: text("email"),
+	data: text("data", { mode: 'json' }),
+	page: text("page"),
+	status: text("status"),
+	notified: integer("notified", { mode: 'boolean' }).notNull().default(false),
+}, (t) => [
+	index("submissions_createdAt_idx").on(t["createdAt"]),
+]);
+
 export const t_users = sqliteTable("users", {
 	id: text("id").primaryKey().notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),

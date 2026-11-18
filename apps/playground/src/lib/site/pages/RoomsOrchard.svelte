@@ -41,8 +41,8 @@
 				<Pic media={asMedia(room.cover)} ratio={4 / 3} sizes="(min-width: 64rem) 30vw, (min-width: 40rem) 45vw, 100vw" />
 			</Link>
 			<div class="body">
-				<p class="small">{viewLabel(room.view)} view</p>
 				<h3><Link href={`/rooms/${room.slug}`}>{room.name}</Link></h3>
+				<p class="small">{viewLabel(room.view)} view</p>
 				{#if room.summary}<p class="sum">{room.summary}</p>{/if}
 				<p class="facts small">{roomFacts(room).join(', ')}</p>
 				<p class="foot">

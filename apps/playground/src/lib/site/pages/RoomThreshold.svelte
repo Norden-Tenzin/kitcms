@@ -2,7 +2,7 @@
 	// Room, design A "Threshold": editorial. Big name, a wide picture, text beside the facts, a
 	// scrolling strip of the room's pictures.
 	import Amenities from '../Amenities.svelte';
-	import EnquiryPlaceholder from '../EnquiryPlaceholder.svelte';
+	import RoomEnquiry from '../RoomEnquiry.svelte';
 	import Pic from '../Pic.svelte';
 	import RichText from '../RichText.svelte';
 	import Section from '../Section.svelte';
@@ -18,8 +18,8 @@
 
 <article>
 	<header class="container head pt-hdr">
-		<p class="small">{viewLabel(room.view)} view</p>
 		<h1>{room.name}</h1>
+		<p class="small">{viewLabel(room.view)} view</p>
 		{#if room.summary}<p class="lead">{room.summary}</p>{/if}
 	</header>
 	<div class="container"><Pic media={asMedia(room.cover)} ratio={16 / 8} eager widths={[800, 1400, 2000]} sizes="(min-width: 82rem) 78rem, 100vw" alt="" /></div>
@@ -38,7 +38,7 @@
 					{#if room.count}<li>{room.count} rooms of this type</li>{/if}
 					{#if shell.checkIn}<li>Check-in {shell.checkIn}, check-out {shell.checkOut}</li>{/if}
 				</ul>
-				<EnquiryPlaceholder {shell} room={room.name} />
+				<RoomEnquiry {shell} {room} />
 			</aside>
 		</div>
 	</Section>

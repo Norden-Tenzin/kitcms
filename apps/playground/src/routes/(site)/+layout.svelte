@@ -4,6 +4,7 @@
 	import '@fontsource/barlow/600.css';
 	import '@fontsource/barlow-condensed/700.css';
 	import '#lib/site/site.css';
+	import { dev } from '$app/env';
 	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { designFor } from '#lib/site/content.ts';
@@ -12,8 +13,10 @@
 
 	let { data, children } = $props();
 	const shell = $derived(buildShell(data.site, data.legal));
-	const header = $derived(designFor('header', data.site));
-	const footer = $derived(designFor('footer', data.site));
+	// Dev only: `?header=b` / `?footer=c` preview a header or footer design without saving settings.
+	const devParam = (name: string) => (dev ? page.url.searchParams.get(name) : null);
+	const header = $derived(designFor('header', data.site, devParam('header')));
+	const footer = $derived(designFor('footer', data.site, devParam('footer')));
 	const overHero = $derived(Boolean((page.data as { overHero?: boolean }).overHero));
 
 	// View transitions between pages (skipped for reduced motion and where unsupported).

@@ -33,6 +33,13 @@ export default defineConfig({
 			dependencies: ['auth'],
 			use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
 		},
+		// The public site: needs content, so it creates it as the admin. Runs after `admin`.
+		{
+			name: 'site',
+			testMatch: /site\.spec\.ts/,
+			dependencies: ['admin'],
+			use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
+		},
 		{ name: 'rpc', testMatch: /rpc\.spec\.ts/, dependencies: ['admin'], use: { ...devices['Desktop Chrome'] } },
 	],
 	webServer: [
@@ -40,7 +47,7 @@ export default defineConfig({
 			// Fresh state + build + migrations, then the built app under `wrangler dev` (workerd).
 			command: [
 				'node scripts/prepare.mjs',
-				`pnpm --filter playground exec wrangler dev --port ${CMS_PORT} --inspector-port 9331 --persist-to "${STATE}" --var BETTER_AUTH_SECRET:e2e-secret-0123456789abcdef0123456789abcdef`,
+				`pnpm --filter playground exec wrangler dev --port ${CMS_PORT} --inspector-port 9331 --persist-to "${STATE}" --var BETTER_AUTH_SECRET:e2e-secret-0123456789abcdef0123456789abcdef --var 'KITCMS_ENTITLEMENTS:{"plan":"e2e","addons":["offers"]}'`,
 			].join(' && '),
 			cwd: '.',
 			url: `${CMS_URL}/admin`,

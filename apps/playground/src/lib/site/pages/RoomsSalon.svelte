@@ -18,8 +18,8 @@
 				<Pic media={asMedia(room.cover)} ratio={i % 2 ? 4 / 5 : 3 / 2} sizes="(min-width: 56rem) 58vw, 100vw" />
 			</Link>
 			<div class="text">
-				<p class="small">{viewLabel(room.view)} view{room.count ? `, ${room.count} rooms` : ''}</p>
 				<h3><Link href={`/rooms/${room.slug}`}>{room.name}</Link></h3>
+				<p class="small">{viewLabel(room.view)} view{room.count ? `, ${room.count} rooms` : ''}</p>
 				{#if room.summary}<p class="sum">{room.summary}</p>{/if}
 				<p class="facts small">{roomFacts(room).join(', ')}</p>
 				<p class="price">{#if room.priceFrom}From <strong>{inr(room.priceFrom)}</strong> a night{/if}</p>

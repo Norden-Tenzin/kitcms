@@ -59,8 +59,8 @@
 		padding-top: calc(var(--hdr-over) + var(--s-5));
 	}
 	.a h1 {
-		font-size: clamp(3.4rem, 1rem + 13vw, 11rem);
-		max-width: 14ch;
+		font-size: clamp(2.6rem, 1rem + 9.6vw, 11rem);
+		max-width: 16ch;
 		position: relative;
 		z-index: 1;
 	}
@@ -81,8 +81,8 @@
 	}
 	@media (min-width: 56rem) {
 		.a h1 {
-			font-size: clamp(5rem, 1rem + 10.5vw, 11.5rem);
-			max-width: 12ch;
+			font-size: clamp(4.5rem, 1rem + 8.2vw, 10.5rem);
+			max-width: 18ch;
 		}
 		.grid {
 			grid-template-columns: repeat(12, 1fr);
@@ -147,8 +147,8 @@
 		gap: var(--s-5);
 	}
 	.b h1 {
-		font-size: clamp(3.6rem, 0.5rem + 14vw, 12.5rem);
-		max-width: 11ch;
+		font-size: clamp(2.8rem, 0.8rem + 10.5vw, 10rem);
+		max-width: 20ch;
 	}
 	.under {
 		display: grid;
@@ -182,8 +182,8 @@
 		order: 2;
 	}
 	.c h1 {
-		font-size: clamp(3.2rem, 1rem + 9vw, 7rem);
-		max-width: 10ch;
+		font-size: clamp(2.6rem, 1rem + 4.8vw, 5.5rem);
+		max-width: 16ch;
 	}
 	.c .photo {
 		order: 1;

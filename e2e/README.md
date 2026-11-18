@@ -33,12 +33,20 @@ and nothing touches Cloudflare (no `--remote`). The database starts empty and is
 (`kitcms seed` always uses the default persist dir), so tests create what they need through the
 admin or the API. `BETTER_AUTH_SECRET` is passed with `--var`.
 
+## Turnstile and entitlements
+
+`scripts/prepare.mjs` builds the playground with `VITE_TURNSTILE=off`, which leaves Cloudflare Turnstile out of the
+enquiry forms (the widget and siteverify need network access to Cloudflare). Never set it in a real deployment.
+The add-ons come from `--var KITCMS_ENTITLEMENTS:...` in `playwright.config.ts`, not from `apps/playground/.dev.vars`.
+With `E2E_SKIP_BUILD=1`, build yourself with `VITE_TURNSTILE=off pnpm --filter playground build`.
+
 ## Projects (run in this order, one worker)
 
 | Project | Files | Notes |
 | --- | --- | --- |
 | `auth` | `auth.spec.ts` | First-user setup, logout, wrong/right password; saves the session |
 | `admin` | `admin-*.spec.ts` | Pages, preview, media, orderable team, globals, versions, CSRF smoke |
+| `site` | `site.spec.ts` | The public site: home, a room enquiry (JS and no-JS), sitemap, robots, redirect. Creates its content through the REST API |
 | `rpc` | `rpc.spec.ts` | Access, drafts, system calls, error wire format, unknown options rejected |
 
 Titles are unique per run (`uid()` in `tests/helpers.ts`); there are no sleeps.

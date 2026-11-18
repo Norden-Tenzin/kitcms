@@ -2,9 +2,13 @@
 // collections, blocks and the `site` global's Design tab are all defined here. Page types and their
 // designs come from the registry in `lib/site/designs.ts`.
 import { block, collection, defineConfig, fields as f, global } from '@kitcms/core';
+import { enquiries } from '@kitcms/plugin-enquiries';
+import { entitlements } from '@kitcms/plugin-entitlements';
 import { seo } from '@kitcms/plugin-seo';
 import { designOptions, type PageType } from './lib/site/designs';
+import { ROOM_OPTIONS } from './lib/site/enquiry';
 import { AMENITY_ICONS } from './lib/site/icons';
+import { TURNSTILE_SITE_KEY } from './lib/site/turnstile';
 
 const DESIGN_HINT = 'Leave empty to use the site setting (Site settings, Design tab). Pick one to override it for this page only.';
 /** Per-page override select for a page type. */
@@ -191,7 +195,64 @@ const publicRead = { read: () => true };
 
 export default defineConfig({
 	admin: { title: 'Dolkar House' },
-	plugins: [seo({ collections: ['pages', 'rooms', 'experiences', 'posts'], uploadsCollection: 'media' })],
+	// Core email: in `vite dev` messages are logged to the console; in workerd they go through the
+	// `EMAIL` send_email binding (wrangler.jsonc).
+	email: { from: { address: 'hello@dolkarhouse.example', name: 'Dolkar House' } },
+	plugins: [
+		seo({
+			collections: ['pages', 'rooms', 'experiences', 'posts'],
+			uploadsCollection: 'media',
+			redirects: true,
+			sitemap: {
+				collections: {
+					pages: (doc) => (doc.slug === 'home' ? '/' : `/${String(doc.slug)}`),
+					rooms: '/rooms/:slug',
+					experiences: '/experiences/:slug',
+					posts: '/journal/:slug',
+				},
+				paths: ['/rooms', '/experiences', '/journal', '/gallery', '/dining', '/contact'],
+			},
+			robots: true,
+		}),
+		enquiries({
+			// Test keys (lib/site/turnstile.ts); the secret is `TURNSTILE_SECRET` (see `.dev.vars.example`).
+			...(TURNSTILE_SITE_KEY ? { turnstile: { siteKey: TURNSTILE_SITE_KEY } } : {}),
+			forms: {
+				booking: {
+					label: 'Booking enquiry',
+					notify: ['reservations@dolkarhouse.example'],
+					subject: 'Booking enquiry from {field:name}',
+					replyTo: 'email',
+					fields: {
+						name: { type: 'text', required: true, maxLength: 80 },
+						email: { type: 'email', required: true },
+						phone: { type: 'text', maxLength: 30 },
+						checkIn: { type: 'date', required: true },
+						checkOut: { type: 'date', required: true },
+						guests: { type: 'number', min: 1, max: 12, integer: true, required: true },
+						room: { type: 'select', options: ROOM_OPTIONS },
+						message: { type: 'textarea' },
+						consent: { type: 'checkbox', required: true },
+					},
+				},
+				contact: {
+					label: 'Contact message',
+					notify: ['hello@dolkarhouse.example'],
+					subject: 'Message from {field:name}',
+					replyTo: 'email',
+					fields: {
+						name: { type: 'text', required: true, maxLength: 80 },
+						email: { type: 'email', required: true },
+						message: { type: 'textarea', required: true },
+					},
+				},
+			},
+		}),
+		entitlements({
+			addons: { offers: { label: 'Seasonal offers' }, booking: { label: 'Online booking (coming soon)' } },
+			manageUrl: 'https://platform.example/dolkar-house/plan',
+		}),
+	],
 	collections: [
 		// ----- Content ---------------------------------------------------------------------------
 		collection({
@@ -349,6 +410,8 @@ export default defineConfig({
 		}),
 		collection({
 			slug: 'offers',
+			// Runtime add-on gate (plugin-entitlements): off = denied, hidden in the admin, and the site hides offers.
+			entitlement: 'offers',
 			admin: { group: 'Hotel', useAsTitle: 'title', defaultColumns: ['title', 'validFrom', 'validTo'] },
 			access: publicRead,
 			fields: {
