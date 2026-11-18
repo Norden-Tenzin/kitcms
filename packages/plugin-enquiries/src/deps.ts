@@ -11,7 +11,7 @@ export const deps: Deps = {
 	fetch: (input, init) => fetch(input, init),
 	async getEnv(name) {
 		const { env } = await import('cloudflare:workers');
-		const v = (env as Record<string, unknown>)[name];
+		const v = (env as unknown as Record<string, unknown>)[name];
 		return typeof v === 'string' ? v : undefined;
 	},
 	async waitUntil(p) {
