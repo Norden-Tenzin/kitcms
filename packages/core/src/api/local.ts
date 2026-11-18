@@ -36,7 +36,6 @@ import {
 	mergeWhere,
 	type AccessDecision,
 } from '../access/engine';
-import { documentTenant, forceTenant } from '../access/tenancy';
 import type { KitcmsReq, KitcmsUser, Source, WriteOperation } from '../config/hooks';
 import {
 	ORDER_FIELD,
@@ -85,8 +84,6 @@ export interface CmsContext {
 	event?: RequestEvent;
 	/** Wait for background work (e.g. R2 cleanup) without delaying the response. */
 	waitUntil?: (promise: Promise<unknown>) => void;
-	/** Multi-tenancy (§15.2): the request's tenant. Default `null`. */
-	tenant?: string | null;
 }
 
 type Doc = Record<string, unknown>;
@@ -225,7 +222,6 @@ export function createLocalApi(ctx: CmsContext): Cms {
 			cms: api,
 			source: ctx.source,
 			event: ctx.event,
-			tenant: ctx.tenant ?? null,
 		};
 	}
 
@@ -552,40 +548,6 @@ export function createLocalApi(ctx: CmsContext): Cms {
 			: [db.clearLatest(col.slug, parent), db.insertVersion(col.slug, row), db.pruneVersions(col.slug, parent, col.versions.max)];
 	}
 
-	/**
-	 * Multi-tenancy (§15.2): references ADDED by this write (not in `before`) that point to a
-	 * tenant-scoped collection must exist in the document's tenant. One batched read, only when
-	 * there are new such references. Missing and foreign ids fail alike ("Not found").
-	 */
-	async function assertTenantRefs(col: SanitizedCollection, data: Doc, req: KitcmsReq, before: Row | undefined): Promise<void> {
-		if (!config.tenancy) return;
-		const tenant = documentTenant(col, data, req);
-		if (tenant === null) return;
-		const known = new Set(
-			before ? extractRefs(col.fields, before).map((r) => `${r.toCollection}\u0000${r.toId}`) : [],
-		);
-		const byTarget = new Map<string, Ref[]>();
-		for (const r of extractRefs(col.fields, data)) {
-			if (config.collectionsBySlug[r.toCollection]?.tenancy?.role !== 'scoped') continue;
-			if (known.has(`${r.toCollection}\u0000${r.toId}`)) continue;
-			const list = byTarget.get(r.toCollection) ?? [];
-			list.push(r);
-			byTarget.set(r.toCollection, list);
-		}
-		if (byTarget.size === 0) return;
-		const field = config.tenancy.field;
-		const targets = [...byTarget.entries()];
-		const results = await db.batch(
-			targets.map(([slug, refs]) => db.selectByIds(slug, refs.map((r) => r.toId), { [field]: { equals: tenant } })),
-		);
-		const errors: FieldError[] = [];
-		for (const [i, [, refs]] of targets.entries()) {
-			const found = new Set((results[i] ?? []).map((row) => row.id));
-			for (const r of refs) if (!found.has(r.toId)) errors.push({ path: r.path, message: 'Not found' });
-		}
-		if (errors.length > 0) throw new ValidationError(errors);
-	}
-
 	interface PersistArgs {
 		col: SanitizedCollection;
 		id: string;
@@ -617,10 +579,7 @@ export function createLocalApi(ctx: CmsContext): Cms {
 		const lenient = draft || (drafts && kind !== undefined);
 
 		if (!original) {
-			forceTenant(col, a.incoming, req);
 			const data = await prepareWrite(col, a.incoming, req, 'create', undefined, lenient);
-			forceTenant(col, data, req);
-			await assertTenantRefs(col, data, req, undefined);
 			const now = new Date().toISOString();
 			const row: Row = { ...data, ...internal, id, createdAt: now, updatedAt: now };
 			if (drafts) row[STATUS_FIELD] = draft ? 'draft' : 'published';
@@ -634,10 +593,7 @@ export function createLocalApi(ctx: CmsContext): Cms {
 		}
 
 		const merged = { ...structuredClone(withoutSystem(base ?? original)), ...a.incoming };
-		forceTenant(col, merged, req);
 		const data = await prepareWrite(col, merged, req, 'update', base ?? original, lenient);
-		forceTenant(col, data, req);
-		if (!kind) await assertTenantRefs(col, data, req, base ?? original);
 
 		// Strictly newer than every stored value, so the refs guard and the draft overlay can tell.
 		const prev = Math.max(
@@ -771,7 +727,7 @@ export function createLocalApi(ctx: CmsContext): Cms {
 		const req = makeReq(opts);
 		await access(col, 'update', req, opts, { id, data: {} });
 
-		// The target must be readable (and in the request's tenant): no probing other tenants' ids.
+		// The target must be readable: no probing ids the caller can't read.
 		const readable = await access(col, 'read', req, opts, { id: targetId });
 		const side = hasBefore ? 'before' : 'after';
 		const found = await db.run(db.orderNeighbour(slug, targetId, side, id, readable === true ? undefined : readable));
@@ -1039,7 +995,7 @@ export function createLocalApi(ctx: CmsContext): Cms {
 	// Edge cache (§13.9): anonymous published reads are cached; every write bumps the generation.
 	// Hooks keep using the unwrapped `api` through `req.cms` (calls with `req` are never cached).
 	if (!config.cache) return api;
-	return withEdgeCacheLayer(api, { user: ctx.user, tenant: ctx.tenant ?? null }, {
+	return withEdgeCacheLayer(api, { user: ctx.user }, {
 		ttl: config.cache.ttl,
 		configId: fingerprintOf(config),
 		waitUntil: ctx.waitUntil,

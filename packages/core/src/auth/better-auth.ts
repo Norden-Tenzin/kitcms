@@ -70,10 +70,6 @@ function createAuth(k: KitcmsInternals, secure: boolean) {
 					// Never settable from a client request (sign-up, update-user).
 					input: false,
 				},
-				// Multi-tenancy (§15.2): returned with the session so `user.tenants` needs no extra read.
-				...(config.tenancy
-					? { [config.tenancy.userField]: { type: 'json' as const, required: false, input: false } }
-					: {}),
 			},
 		},
 		session: {

@@ -4,7 +4,6 @@
 import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { InferFields, InferInput, Simplify } from './infer';
-import type { TenancyOptions } from './tenancy';
 import type { Sort } from './where';
 
 // ---------------------------------------------------------------------------------------------
@@ -307,8 +306,6 @@ export interface ConfigOptions {
 	 * config; the result is validated like any config.
 	 */
 	plugins?: readonly KitcmsPlugin[];
-	/** Multi-tenancy (§15.2). Set by `@kitcms/plugin-multi-tenant`. */
-	tenancy?: TenancyOptions;
 }
 
 /** A plugin: a named config transform (Decision 28). */

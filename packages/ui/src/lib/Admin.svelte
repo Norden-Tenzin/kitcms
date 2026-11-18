@@ -32,9 +32,6 @@
 			: (data as Signed),
 	);
 
-	// Multi-tenancy (§15.3): absent on hand-built fixtures and without the plugin.
-	const tenancy = $derived(signed?.tenancy ?? null);
-
 	let navOpen = $state(false);
 
 	// Nav grouped by `group`; ungrouped collections first.
@@ -85,30 +82,6 @@
 					{data.title}
 				</a>
 				<span class="spacer"></span>
-				{#if tenancy}
-					{#if tenancy.tenants.length > 1 || tenancy.canSelectAll}
-						<form method="POST" action="?/setTenant" use:enhance class="tenant" data-testid="tenant-switcher">
-							<label>
-								<span class="kc-muted">Tenant</span>
-								<select
-									class="kc-input"
-									name="tenant"
-									onchange={(e) => e.currentTarget.form?.requestSubmit()}
-								>
-									{#if tenancy.canSelectAll}
-										<option value="" selected={tenancy.current === null}>All tenants</option>
-									{/if}
-									{#each tenancy.tenants as t (t.id)}
-										<option value={t.id} selected={t.id === tenancy.current}>{t.title}</option>
-									{/each}
-								</select>
-							</label>
-							<noscript><button class="kc-btn">Switch</button></noscript>
-						</form>
-					{:else if tenancy.tenants[0]}
-						<span class="tenant-name" data-testid="tenant-name">{tenancy.tenants[0].title}</span>
-					{/if}
-				{/if}
 				<span class="who" data-testid="whoami">{signed.user.email}</span>
 				<form method="POST" action="?/logout" use:enhance>
 					<button class="kc-btn kc-btn--ghost">Log out</button>
@@ -195,23 +168,6 @@
 	}
 	.menu {
 		display: none;
-	}
-	.tenant {
-		display: flex;
-		align-items: center;
-	}
-	.tenant label {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.875rem;
-	}
-	.tenant select {
-		width: auto;
-	}
-	.tenant-name {
-		font-size: 0.875rem;
-		font-weight: 600;
 	}
 	.nav {
 		grid-area: nav;

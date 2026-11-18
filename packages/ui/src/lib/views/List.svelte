@@ -12,19 +12,7 @@
 
 	const collection = $derived(data.collection);
 	const query = $derived(data.query);
-	// "All tenants" selected on a tenant-scoped collection: show which tenant each document belongs to.
-	const tenantCol = $derived(
-		data.tenancy && data.tenancy.current === null && data.tenancy.scoped.includes(collection.slug)
-			? data.tenancy
-			: null,
-	);
-	const tenantTitle = (id: unknown) =>
-		typeof id === 'string' ? (tenantCol?.tenants.find((t) => t.id === id)?.title ?? id) : '';
-	const columns = $derived(
-		tenantCol && !collection.admin.defaultColumns.includes(tenantCol.field)
-			? [...collection.admin.defaultColumns, tenantCol.field]
-			: collection.admin.defaultColumns,
-	);
+	const columns = $derived(collection.admin.defaultColumns);
 	const titleColumn = $derived(
 		columns.includes(collection.admin.useAsTitle) ? collection.admin.useAsTitle : columns[0],
 	);
@@ -321,8 +309,6 @@
 									<span class="kc-badge" class:kc-badge--published={doc._status === 'published'} data-testid="status"
 										>{formatCell(collection, name, doc[name])}</span
 									>
-								{:else if tenantCol && name === tenantCol.field}
-									<span data-testid="tenant-cell">{tenantTitle(doc[name])}</span>
 								{:else}
 									{formatCell(collection, name, doc[name])}
 								{/if}

@@ -40,14 +40,9 @@
 	);
 	const collection = untrack(() => data.collection);
 	const doc = $derived(data.route.view === 'create' ? null : data.doc);
-	// Hidden: server-side `admin.condition` fields, plus the tenant field of a tenant-scoped collection
-	// while a tenant is selected (the server forces it; absent fields are left out of the saved data).
-	const hidden = untrack(() => {
-		const names = data.route.view === 'create' ? [] : [...(data as AdminDataOf<'edit'>).hiddenFields];
-		const t = data.tenancy;
-		if (t && t.current !== null && t.scoped.includes(data.collection.slug)) names.push(t.field);
-		return new Set(names);
-	});
+	const hidden = untrack(
+		() => new Set(data.route.view === 'create' ? [] : (data as AdminDataOf<'edit'>).hiddenFields),
+	);
 	// Reference labels: `_global_<slug>` refs show the global's label.
 	const globalLabels = untrack(() => new Map(data.globals.map((g) => [g.slug, g.label])));
 	const refLabel = (c: string) =>

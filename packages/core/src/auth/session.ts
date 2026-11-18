@@ -8,34 +8,14 @@ export interface AuthSession {
 }
 
 /** A Better Auth `user` row (or API result) -> `KitcmsUser`. Only these fields ever leave the auth module. */
-export function toKitcmsUser(
-	row: Record<string, unknown>,
-	authCollection: string,
-	/** Multi-tenancy: the auth collection's tenants field (§15.2). */
-	tenantsField?: string,
-): KitcmsUser {
-	const user: KitcmsUser = {
+export function toKitcmsUser(row: Record<string, unknown>, authCollection: string): KitcmsUser {
+	return {
 		id: String(row.id),
 		email: String(row.email ?? ''),
 		name: String(row.name ?? ''),
 		role: typeof row.role === 'string' ? row.role : '',
 		collection: authCollection,
 	};
-	if (tenantsField !== undefined) user.tenants = parseTenants(row[tenantsField]);
-	return user;
-}
-
-/** Tenant ids from a stored hasMany value (array, or its JSON text). Anything malformed → none. */
-function parseTenants(value: unknown): string[] {
-	let v = value;
-	if (typeof v === 'string') {
-		try {
-			v = JSON.parse(v);
-		} catch {
-			return [];
-		}
-	}
-	return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== '') : [];
 }
 
 /** A Better Auth `session` row -> `AuthSession`. Drops the token, IP and user agent. */

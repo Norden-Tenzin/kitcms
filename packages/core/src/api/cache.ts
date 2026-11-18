@@ -205,7 +205,7 @@ export function withWriteNotifier(cms: Cms, options: CacheOptions): Cms {
  */
 export function withEdgeCache(
 	cms: Cms,
-	ctx: { user: KitcmsUser | null; tenant?: string | null },
+	ctx: { user: KitcmsUser | null },
 	options: CacheOptions,
 ): Cms {
 	if (ctx.user !== null) return cms;
@@ -221,8 +221,7 @@ export function withEdgeCache(
 		try {
 			const token = await gen();
 			if (!token) return call();
-			// The tenant (§15.2) is part of the key: the same call for two tenants returns different data.
-			const hash = await sha256Hex(canonicalize({ tenant: ctx.tenant ?? null, args }));
+			const hash = await sha256Hex(canonicalize(args));
 			url = `${ORIGIN}/${encodeURIComponent(options.configId)}/${token}/${method}/${hash}`;
 		} catch {
 			return call(); // args that cannot be canonicalized are simply not cached
@@ -260,7 +259,7 @@ export function withEdgeCache(
 /** Single wiring point: the right wrapper for the caller. */
 export function withEdgeCacheLayer(
 	cms: Cms,
-	ctx: { user: KitcmsUser | null; tenant?: string | null },
+	ctx: { user: KitcmsUser | null },
 	options: CacheOptions,
 ): Cms {
 	return ctx.user === null ? withEdgeCache(cms, ctx, options) : withWriteNotifier(cms, options);

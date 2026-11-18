@@ -160,7 +160,7 @@ export async function signIn(
 		}
 		throw err;
 	}
-	return toKitcmsUser(result.user, k.config.authCollection, k.config.tenancy ? k.config.tenancy.userField : undefined);
+	return toKitcmsUser(result.user, k.config.authCollection);
 }
 
 export async function signOut(k: KitcmsInternals, headers: Headers): Promise<void> {

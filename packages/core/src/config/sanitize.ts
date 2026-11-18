@@ -17,7 +17,7 @@ import type {
 	SanitizedConfig,
 	SanitizedField,
 } from './sanitized';
-import type { SanitizedBranding, SanitizedTenancy, SanitizedVersions } from './sanitized';
+import type { SanitizedBranding, SanitizedVersions } from './sanitized';
 import {
 	COLUMN_TYPES,
 	DEFAULT_AUTOSAVE_INTERVAL,
@@ -859,7 +859,6 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 	}
 
 	const collectionsBySlug = lookup(collections.map((c) => [c.slug, c]));
-	const tenancy = sanitizeTenancy(config.tenancy, collectionsBySlug, authCollection);
 
 	return {
 		collections,
@@ -872,70 +871,7 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 		bindings: { db: config.bindings?.db ?? 'DB', bucket: config.bindings?.bucket ?? 'BUCKET' },
 		admin: { title: config.admin?.title ?? 'kitcms', branding: sanitizeBranding(config.admin?.branding) },
 		media,
-		tenancy,
 	};
-}
-
-// ---------------------------------------------------------------------------------------------
-// Tenancy (§15.2): security-critical shape checks
-// ---------------------------------------------------------------------------------------------
-
-function sanitizeTenancy(
-	raw: unknown,
-	bySlug: Record<string, SanitizedCollection>,
-	authCollection: string,
-): false | SanitizedTenancy {
-	if (raw === undefined || raw === false) return false;
-	if (!isObject(raw)) throw new ConfigError('tenancy', 'must be an object (use `@kitcms/plugin-multi-tenant`).');
-	const t = raw as Raw;
-	for (const k of ['field', 'tenantsCollection', 'userField'] as const) {
-		if (typeof t[k] !== 'string' || t[k] === '') throw new ConfigError(`tenancy.${k}`, 'must be a non-empty string.');
-	}
-	if (typeof t.userTenants !== 'function') throw new ConfigError('tenancy.userTenants', 'must be a function.');
-	for (const k of ['resolveTenant', 'storagePrefix'] as const) {
-		if (t[k] !== undefined && typeof t[k] !== 'function') throw new ConfigError(`tenancy.${k}`, 'must be a function.');
-	}
-	const tenants = bySlug[t.tenantsCollection];
-	if (!tenants) throw new ConfigError('tenancy.tenantsCollection', `unknown collection "${t.tenantsCollection}".`);
-	if (tenants.auth) throw new ConfigError('tenancy.tenantsCollection', 'cannot be the auth collection.');
-
-	const isRelToTenants = (f: SanitizedField | undefined, hasMany: boolean) =>
-		f !== undefined && f.type === 'relationship' && f.relationTo === t.tenantsCollection && f.hasMany === hasMany;
-
-	const auth = bySlug[authCollection]!;
-	if (!isRelToTenants(auth.fields.find((f) => f.name === t.userField), true)) {
-		throw new ConfigError(`collections.${authCollection}.fields.${t.userField}`, `must be a hasMany relationship to "${t.tenantsCollection}".`);
-	}
-	if (!Array.isArray(t.collections) || t.collections.length === 0) {
-		throw new ConfigError('tenancy.collections', 'must list at least one collection.');
-	}
-	const scoped = new Set<string>();
-	for (const slug of t.collections as unknown[]) {
-		if (typeof slug !== 'string' || !bySlug[slug]) {
-			throw new ConfigError('tenancy.collections', `unknown collection "${String(slug)}" (globals can't be tenant-scoped).`);
-		}
-		if (slug === authCollection || slug === t.tenantsCollection) {
-			throw new ConfigError('tenancy.collections', `"${slug}" cannot be tenant-scoped.`);
-		}
-		const field = bySlug[slug].fields.find((f) => f.name === t.field);
-		if (!isRelToTenants(field, false) || !field!.required) {
-			throw new ConfigError(`collections.${slug}.fields.${t.field}`, `must be a required relationship to "${t.tenantsCollection}".`);
-		}
-		scoped.add(slug);
-	}
-	const out: SanitizedTenancy = {
-		collections: scoped,
-		field: t.field,
-		tenantsCollection: t.tenantsCollection,
-		userField: t.userField,
-		userTenants: t.userTenants,
-		...(t.resolveTenant ? { resolveTenant: t.resolveTenant } : {}),
-		...(t.storagePrefix ? { storagePrefix: t.storagePrefix } : {}),
-	};
-	for (const slug of scoped) bySlug[slug]!.tenancy = { role: 'scoped', config: out };
-	tenants.tenancy = { role: 'tenants', config: out };
-	auth.tenancy = { role: 'auth', config: out };
-	return out;
 }
 
 // ---------------------------------------------------------------------------------------------

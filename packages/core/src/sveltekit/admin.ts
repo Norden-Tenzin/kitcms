@@ -12,7 +12,6 @@
 import { resolve } from '$app/paths';
 import { error, fail, redirect, type Actions, type RequestEvent } from '@sveltejs/kit';
 import { adminAccess, collectionAccess } from '../access/engine';
-import { mayActOn, userTenantsOf } from '../access/tenancy';
 import { FORM, formString, parseFormData } from '../admin/form';
 import type {
 	AdminActionData,
@@ -21,7 +20,6 @@ import type {
 	AdminDocStatus,
 	AdminPermissions,
 	AdminRoute,
-	AdminTenancy,
 	ListQuery,
 } from '../admin/types';
 import type { Cms } from '../api/types';
@@ -29,12 +27,8 @@ import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import type { ClientCollection, ClientConfig, SanitizedCollection, SanitizedConfig } from '../config/sanitized';
 import { toClientConfig } from '../config/sanitize';
 import type { WhereInput } from '../config/where';
-import { TENANT_COOKIE } from '../config/tenancy';
 import { isKitcmsError, ReferencedError, ValidationError } from '../errors';
-import { parseBaseOrigin, useSecureCookies } from '../auth/cookies';
-import { dev } from '$app/env';
 import { getKitcms, type KitcmsInternals } from './index';
-import { basePath } from './base';
 
 export type * from '../admin/types';
 
@@ -71,7 +65,7 @@ function clientConfig(config: SanitizedConfig): ClientConfig {
 }
 
 function sysReq(k: KitcmsInternals, user: KitcmsUser | null): KitcmsReq {
-	return { user, context: {}, cms: k.cms, source: 'admin', tenant: k.tenant };
+	return { user, context: {}, cms: k.cms, source: 'admin' };
 }
 
 const auth = () => import('../auth/module-admin');
@@ -139,31 +133,6 @@ function me(user: KitcmsUser) {
 	return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
-/** The tenant switcher state (§15.3). The tenants are read as the user (access already scopes them). */
-async function tenancyBlock(k: KitcmsInternals, user: KitcmsUser, cms: Cms): Promise<AdminTenancy | null> {
-	const t = k.config.tenancy;
-	if (!t) return null;
-	const col = k.config.collectionsBySlug[t.tenantsCollection];
-	let tenants: AdminTenancy['tenants'] = [];
-	try {
-		const res = await cms.find(t.tenantsCollection, { limit: 100, pagination: false });
-		const titleField = col?.admin.useAsTitle;
-		tenants = res.docs.map((d) => {
-			const v = titleField ? (d as Record<string, unknown>)[titleField] : undefined;
-			return { id: d.id, title: typeof v === 'string' && v ? v : d.id };
-		});
-	} catch (err) {
-		if (!isKitcmsError(err)) throw err;
-	}
-	return {
-		current: k.tenant,
-		field: t.field,
-		scoped: [...t.collections],
-		tenants,
-		canSelectAll: userTenantsOf(t, user) === 'all',
-	};
-}
-
 function listQuery(url: URL, col: SanitizedCollection): ListQuery {
 	const int = (v: string | null, d: number) => {
 		const n = Number(v);
@@ -225,18 +194,6 @@ function hiddenFields(col: SanitizedCollection, doc: Record<string, unknown>): s
 // Explicit param/return types (not `ServerLoad`): SvelteKit infers the generated route's
 // `PageData` from the re-exported `load`'s return type.
 export const load = async (event: RequestEvent): Promise<AdminData> => {
-	const started: { tenancy?: Promise<AdminTenancy | null> } = {};
-	const data = await loadView(event, started);
-	if (!started.tenancy) return data as AdminData; // login / first user: no switcher
-	return { ...data, tenancy: await started.tenancy } as AdminData;
-};
-
-type WithoutTenancy = AdminData extends infer D ? (D extends unknown ? Omit<D, 'tenancy'> : never) : never;
-
-async function loadView(
-	event: RequestEvent,
-	started: { tenancy?: Promise<AdminTenancy | null> },
-): Promise<WithoutTenancy> {
 	const route = matchAdminRoute(event.params.path ?? '');
 	if (!route) error(404, 'Not found');
 	const { k, user, cms } = await requireAdmin(event, route.view);
@@ -247,9 +204,6 @@ async function loadView(
 	if (!user) error(401, 'Unauthorized'); // unreachable: requireAdmin redirects
 	const base = { title, branding, user: me(user), nav: nav(k), globals: globalsNav(k) };
 	const req = sysReq(k, user);
-	// Runs in parallel with the view's own queries; awaited by `load`.
-	started.tenancy = tenancyBlock(k, user, cms);
-	started.tenancy.catch(() => {}); // a failing view must not leave an unhandled rejection
 
 	if (route.view === 'dashboard') {
 		const visible = k.config.collections.filter((c) => !c.admin.hidden);
@@ -414,7 +368,7 @@ async function loadView(
 		...(status ? { status } : {}),
 		...(count !== undefined ? { versionCount: count } : {}),
 	};
-}
+};
 
 /** The paged versions list shaped for the versions view. */
 function versionsPage(
@@ -660,27 +614,6 @@ export const actions: Actions = {
 			return failWith(err);
 		}
 		return { saved: true } satisfies AdminActionData;
-	},
-
-	setTenant: async (event) => {
-		checkOrigin(event);
-		const { k, user } = await requireAdmin(event, 'dashboard');
-		const t = k.config.tenancy;
-		if (!t || !user) error(404, 'Not found');
-		const tenant = formString(await event.request.formData(), 'tenant');
-		const allowed = tenant === '' ? userTenantsOf(t, user) === 'all' : mayActOn(t, user, tenant);
-		if (!allowed || !/^[A-Za-z0-9_-]{0,128}$/.test(tenant)) {
-			return fail(403, { message: 'You cannot work on that tenant.' } satisfies AdminActionData);
-		}
-		// Same attributes as `serializeTenantCookie` (the value is re-validated on every request).
-		event.cookies.set(TENANT_COOKIE, tenant, {
-			path: `${basePath(event.url)}/`,
-			httpOnly: true,
-			sameSite: 'lax',
-			secure: useSecureCookies({ dev, origin: parseBaseOrigin(k.env.BETTER_AUTH_URL) ?? event.url }),
-			maxAge: 31536000,
-		});
-		redirect(303, adminUrl(''));
 	},
 
 	setPassword: async (event) => {

@@ -55,7 +55,7 @@ export async function resolveSession(
 	const result = await auth.api.getSession({ headers: event.request.headers });
 	if (!result) return null;
 	return {
-		user: toKitcmsUser(result.user as Record<string, unknown>, k.config.authCollection, k.config.tenancy ? k.config.tenancy.userField : undefined),
+		user: toKitcmsUser(result.user as Record<string, unknown>, k.config.authCollection),
 		session: toAuthSession(result.session as Record<string, unknown>),
 	};
 }

@@ -9,15 +9,14 @@ const ALL = ['where', 'sort', 'limit', 'page', 'depth', 'pagination', 'as'] as c
 
 describe('readRpcOptions', () => {
 	it('defaults to anonymous with no options', () => {
-		expect(readRpcOptions(undefined, ALL)).toEqual({ system: false, tenant: null, args: {} });
-		expect(readRpcOptions(null, ALL)).toEqual({ system: false, tenant: null, args: {} });
+		expect(readRpcOptions(undefined, ALL)).toEqual({ system: false, args: {} });
+		expect(readRpcOptions(null, ALL)).toEqual({ system: false, args: {} });
 	});
 
 	it('copies whitelisted keys only', () => {
 		const r = readRpcOptions({ where: { a: { equals: 1 } }, sort: '-x', limit: 5, page: 2, depth: 1 }, ALL);
 		expect(r).toEqual({
 			system: false,
-			tenant: null,
 			args: { where: { a: { equals: 1 } }, sort: '-x', limit: 5, page: 2, depth: 1 },
 		});
 	});

@@ -19,7 +19,7 @@ const editor: KitcmsUser = { id: 'e1', email: 'e@x.io', name: 'E', role: 'editor
 const stranger: KitcmsUser = { id: 's1', email: 's@x.io', name: 'S', role: 'hacker', collection: 'users' };
 
 const req = (user: KitcmsUser | null): KitcmsReq =>
-	({ user, context: {}, cms: {} as never, source: 'local', tenant: null }) as KitcmsReq;
+	({ user, context: {}, cms: {} as never, source: 'local' }) as KitcmsReq;
 
 const config = sanitizeConfig(
 	defineConfig({
@@ -249,7 +249,7 @@ describe('field write access', () => {
 	});
 
 	it('upload built-ins are writable only by the upload endpoint', async () => {
-		const forged: Record<string, unknown> = { key: 'other-tenant/file.png', filename: 'x', alt: 'a' };
+		const forged: Record<string, unknown> = { key: 'other/file.png', filename: 'x', alt: 'a' };
 		await applyWriteFieldAccess(media, media.fields, forged, 'create', ctx(admin, forged), undefined);
 		expect(forged).toEqual({ alt: 'a' });
 

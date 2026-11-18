@@ -95,8 +95,8 @@ export function createD1Adapter(config: SanitizedConfig, d1: D1Database | D1Data
 			const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
 			const m = /UNIQUE constraint failed: ([^:]+)/.exec(msg);
 			if (m) {
-				// Composite unique indexes report every column; the error goes on the LAST one (the
-				// multi-tenant plugin's `(tenant, slug)` → `slug`).
+				// Composite unique indexes report every column; the error goes on the LAST one
+				// (e.g. `(category, slug)` → `slug`).
 				const last = m[1]!.split(',').at(-1)!.trim();
 				const column = last.slice(last.lastIndexOf('.') + 1);
 				return new ValidationError([{ path: column, message: 'Must be unique' }]);

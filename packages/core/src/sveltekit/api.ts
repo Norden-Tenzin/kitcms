@@ -46,7 +46,7 @@ function errorResponse(status: number, message: string): Response {
 async function requireAdminApi(event: RequestEvent): Promise<KitcmsInternals | Response> {
 	const k = getKitcms(event.locals);
 	if (!k.user) return errorResponse(401, 'Sign in to continue.');
-	const ok = await adminAccess(k.config, { user: k.user, context: {}, cms: k.cms, source: 'admin', tenant: k.tenant });
+	const ok = await adminAccess(k.config, { user: k.user, context: {}, cms: k.cms, source: 'admin' });
 	if (!ok) return errorResponse(403, 'You do not have access to the admin.');
 	return k;
 }
