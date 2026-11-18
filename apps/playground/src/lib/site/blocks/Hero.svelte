@@ -100,7 +100,7 @@
 			grid-row: 1;
 		}
 		.a :global(.small-pic) {
-			grid-column: 4 / 7;
+			grid-column: 5 / 8;
 			grid-row: 2;
 			width: 100%;
 			margin: calc(var(--s-7) * -1.4) 0 0;
@@ -170,14 +170,16 @@
 	}
 
 	/* ----- C: Ledger ----- */
+	/* A floating header (design C) sits above the whole section, so neither column runs under it. */
 	.c {
 		display: grid;
+		padding-top: var(--hdr-over);
 	}
 	.c .text {
 		display: grid;
 		gap: var(--s-5);
 		align-content: center;
-		padding: calc(var(--hdr-over) + var(--s-6)) var(--gutter) var(--s-6);
+		padding: var(--s-6) var(--gutter);
 		background: var(--surface);
 		order: 2;
 	}
@@ -219,12 +221,11 @@
 		}
 		.c .photo {
 			order: 2;
-			height: auto;
-			min-height: 100svh;
+			min-height: calc(100svh - var(--hdr-over));
 			position: sticky;
 			top: 0;
 			align-self: start;
-			height: 100svh;
+			height: calc(100svh - var(--hdr-over));
 		}
 	}
 </style>

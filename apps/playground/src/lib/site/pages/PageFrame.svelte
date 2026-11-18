@@ -52,7 +52,12 @@
 		</div>
 	</Section>
 {:else if design === 'c'}
-	{#if !opensWithHero}<PageHead title={page.title} />{/if}
+	<!-- The strip goes after the page's opening (title or hero), so it never sits under a floating header. -->
+	{#if opensWithHero}
+		<div id={`s-${blocks[0]!.id}`} class="anchor"><RenderBlocks blocks={[blocks[0]!]} {design} {extras} /></div>
+	{:else}
+		<PageHead title={page.title} />
+	{/if}
 	{#if sections.length > 1}
 		<div class="c-index">
 			<nav class="container" aria-label="On this page">
@@ -62,7 +67,7 @@
 			</nav>
 		</div>
 	{/if}
-	{#each blocks as b (b.id)}
+	{#each opensWithHero ? blocks.slice(1) : blocks as b (b.id)}
 		<div id={`s-${b.id}`} class="anchor"><RenderBlocks blocks={[b]} {design} {extras} /></div>
 	{/each}
 {:else}
