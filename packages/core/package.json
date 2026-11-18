@@ -2,6 +2,15 @@
 	"name": "@kitcms/core",
 	"version": "0.0.0",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Norden-Tenzin/kitcms.git",
+		"directory": "packages/core"
+	},
+	"homepage": "https://kitcms.dev",
+	"bugs": {
+		"url": "https://github.com/Norden-Tenzin/kitcms/issues"
+	},
 	"type": "module",
 	"sideEffects": false,
 	"exports": {
@@ -46,7 +55,8 @@
 	},
 	"files": [
 		"src",
-		"bin"
+		"bin",
+		"!src/**/*.test.ts"
 	],
 	"peerDependencies": {
 		"@sveltejs/adapter-cloudflare": "^8",

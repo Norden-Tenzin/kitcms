@@ -2,6 +2,15 @@
 	"name": "@kitcms/plugin-enquiries",
 	"version": "0.0.0",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Norden-Tenzin/kitcms.git",
+		"directory": "packages/plugin-enquiries"
+	},
+	"homepage": "https://kitcms.dev",
+	"bugs": {
+		"url": "https://github.com/Norden-Tenzin/kitcms/issues"
+	},
 	"type": "module",
 	"sideEffects": false,
 	"exports": {
@@ -31,6 +40,7 @@
 		"svelte-check": "^4.7.8"
 	},
 	"files": [
-		"src"
+		"src",
+		"!src/**/*.test.ts"
 	]
 }

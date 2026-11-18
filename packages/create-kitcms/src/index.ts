@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { TEMPLATES, USAGE, parseArgs } from './args.js';
@@ -13,7 +14,8 @@ import {
 } from './scaffold.js';
 import { parseDatabaseId } from './wrangler.js';
 
-export const VERSION = '0.0.0';
+// `src/` and `dist/` both sit one level below package.json.
+export const VERSION: string = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 export { parseArgs, USAGE, type Args } from './args.js';
 export * from './scaffold.js';
 export { parseDatabaseId } from './wrangler.js';

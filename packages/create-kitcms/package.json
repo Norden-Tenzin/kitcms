@@ -3,6 +3,15 @@
 	"version": "0.0.0",
 	"description": "Scaffold a kitcms app: pnpm create kitcms",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Norden-Tenzin/kitcms.git",
+		"directory": "packages/create-kitcms"
+	},
+	"homepage": "https://kitcms.dev",
+	"bugs": {
+		"url": "https://github.com/Norden-Tenzin/kitcms/issues"
+	},
 	"type": "module",
 	"exports": {
 		".": {
