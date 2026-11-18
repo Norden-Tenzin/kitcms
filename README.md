@@ -24,12 +24,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 pnpm install
 cp apps/playground/.dev.vars.example apps/playground/.dev.vars   # then set BETTER_AUTH_SECRET
 pnpm --filter playground db:migrate
-pnpm dev              # the playground at http://localhost:5173/admin (local D1/R2, no Cloudflare account needed)
+pnpm --filter playground db:seed   # demo content and photos
+pnpm dev              # the playground at http://localhost:5173 (local D1/R2, no Cloudflare account needed)
 pnpm typecheck
 pnpm lint
 pnpm test
 pnpm test:e2e
 ```
+
+The playground is **Halden Studio**, a fictional design studio site built with kitcms. Open `/` for the site, `/admin` for the admin (create the first user there), and `/lab` for plain pages that show field types, access rules and drafts working. Try switching page designs in the admin under Site settings → Design.
 
 ## License
 
