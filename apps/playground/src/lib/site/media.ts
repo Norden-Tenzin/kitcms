@@ -1,15 +1,15 @@
 // Upload fields hold a media document when the read used `depth: 1`, and an id string otherwise
-// (or when the target is not readable). These helpers narrow `unknown` to what the site needs.
+// (or when the target is not readable). These helpers narrow `unknown` to what the UI needs.
 
 export interface Media {
 	id: string;
 	url: string;
 	alt?: string | null;
-	caption?: string | null;
-	credit?: string | null;
 	width?: number | null;
 	height?: number | null;
 	mimeType?: string;
+	caption?: string | null;
+	credit?: string | null;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -18,7 +18,8 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** The media document, or null for ids, empty values and anything without a `url`. */
 export function asMedia(value: unknown): Media | null {
-	if (!isRecord(value) || typeof value.url !== 'string' || typeof value.id !== 'string') return null;
+	if (!isRecord(value) || typeof value.url !== 'string' || typeof value.id !== 'string')
+		return null;
 	return value as unknown as Media;
 }
 

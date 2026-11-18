@@ -1,94 +1,79 @@
 <script lang="ts">
-	// Features: A a heading beside quiet rows. B a band on slate. C tiles on the surface tone.
+	// A: a two-column grid, small icon beside each title. B: a row of columns on a tint. C: rows,
+	// title left and text right.
+	import type { DesignId } from '../designs';
 	import Icon from '../Icon.svelte';
-	import Section from '../Section.svelte';
 	import { reveal } from '../reveal';
-	import type { BlockProps } from './props';
+	import SectionHead from './SectionHead.svelte';
+	import type { BlockOf } from '../types';
 
-	let { block, design = 'a' }: BlockProps<'features'> = $props();
+	let { block, design = 'a' }: { block: BlockOf<'features'>; design?: DesignId } = $props();
 	const items = $derived(block.items ?? []);
 </script>
 
-<Section tone={design === 'b' ? 'slate' : design === 'c' ? 'surface' : 'bg'} id={undefined}>
-	<div class="wrap {design}">
-		{#if block.title}<h2>{block.title}</h2>{/if}
+<section class={['blk section', design === 'b' && 'surface']} data-design={design}>
+	<div class="container">
+		<SectionHead heading={block.heading} />
 		<ul>
 			{#each items as item, i (item.id ?? i)}
-				<li class="reveal" use:reveal style:--i={i % 4}>
-					{#if item.icon}<Icon name={item.icon} size={design === 'b' ? 40 : 28} />{/if}
-					<div>
-						<strong>{item.label}</strong>
-						{#if item.text}<p class="small">{item.text}</p>{/if}
-					</div>
+				<li class="reveal" use:reveal style:--i={i}>
+					<h3>
+						{#if item.icon && design === 'a'}<Icon name={item.icon} size={26} />{/if}
+						<span>{item.title}</span>
+					</h3>
+					{#if item.text}<p class="muted">{item.text}</p>{/if}
 				</li>
 			{/each}
 		</ul>
 	</div>
-</Section>
+</section>
 
 <style>
 	ul {
 		list-style: none;
-		margin: 0;
-		padding: 0;
 		display: grid;
 		gap: var(--s-5);
 	}
-	li {
+	h3 {
 		display: flex;
-		gap: var(--s-4);
 		align-items: flex-start;
-		line-height: 1.3;
+		gap: 0.75rem;
+		margin-bottom: var(--s-2);
+		font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
 	}
-	li strong {
-		font-size: 1.15em;
-	}
-	li p {
-		margin-top: var(--s-1);
-	}
-	.wrap {
-		display: grid;
-		gap: var(--s-6);
-	}
-	/* B: icons stand on top of their label in a wide band. */
-	.b li {
-		flex-direction: column;
-		gap: var(--s-3);
-	}
-	.b li :global(svg) {
-		color: var(--apricot);
-	}
-	/* C: tiles */
-	.c li {
-		background: var(--bg);
-		padding: var(--s-5);
-		border-radius: var(--radius);
-		align-items: center;
-	}
-	.c li :global(svg) {
-		color: var(--accent);
+	h3 :global(svg) {
 		flex: none;
+		margin-top: 0.15em;
+		color: var(--accent);
 	}
 	@media (min-width: 40rem) {
-		.b ul,
-		.c ul {
-			grid-template-columns: repeat(2, 1fr);
+		[data-design='a'] ul {
+			grid-template-columns: 1fr 1fr;
+			gap: var(--s-6) var(--s-7);
+		}
+		[data-design='b'] ul {
+			grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+			gap: var(--s-5);
 		}
 	}
-	@media (min-width: 64rem) {
-		.a {
-			grid-template-columns: 4fr 8fr;
-			align-items: start;
+	@media (min-width: 56rem) {
+		[data-design='c'] li {
+			display: grid;
+			grid-template-columns: 5fr 7fr;
+			gap: var(--s-5);
+			align-items: baseline;
+			padding-block: var(--s-4);
 		}
-		.a ul {
-			grid-template-columns: repeat(2, 1fr);
-			gap: var(--s-6) var(--s-6);
+		[data-design='c'] ul {
+			gap: 0;
 		}
-		.b ul {
-			grid-template-columns: repeat(4, 1fr);
+		[data-design='c'] li:nth-child(odd) {
+			background: var(--surface);
+			margin-inline: calc(var(--gutter) * -1);
+			padding-inline: var(--gutter);
 		}
-		.c ul {
-			grid-template-columns: repeat(3, 1fr);
+		[data-design='c'] h3 {
+			margin-bottom: 0;
 		}
 	}
 </style>

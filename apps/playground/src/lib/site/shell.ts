@@ -1,6 +1,7 @@
-// The site "shell": everything the header, footer and sticky bar need, derived once from the `site`
-// global. Pure (no server code), so the admin's site preview can use it too.
+// The site "shell": what the header, footer and menus need, derived once from the `site` global and
+// the legal pages. Pure (no server code), so the admin's site preview can use it too.
 import { asDoc, asMedia, type Media } from './media';
+import { isHex } from './designs';
 import type { Site } from './types';
 
 export interface NavItem {
@@ -14,16 +15,7 @@ export interface Shell {
 	logo: Media | null;
 	nav: NavItem[];
 	cta: { label: string; href: string };
-	contact: {
-		address: string;
-		phone: string;
-		whatsapp: string;
-		email: string;
-		mapUrl: string;
-	};
-	season: string;
-	checkIn: string;
-	checkOut: string;
+	contact: { email: string; phone: string; address: string; hours: string; mapUrl: string };
 	footerText: string;
 	social: { id: string; label: string; url: string }[];
 	announcement: { text: string; link: string } | null;
@@ -31,6 +23,7 @@ export interface Shell {
 }
 
 export function buildShell(site: Site, legal: { title: string; slug: string }[]): Shell {
+	// A nav item points to a page (populated at depth 1) or, without one, to a path like `/work`.
 	const nav = (site.nav ?? []).flatMap((item): NavItem[] => {
 		const target = asDoc<{ id: string; slug: string }>(item.page);
 		const href = target ? (target.slug === 'home' ? '/' : `/${target.slug}`) : item.href;
@@ -39,21 +32,18 @@ export function buildShell(site: Site, legal: { title: string; slug: string }[])
 	const c = site.contact ?? {};
 	const a = site.announcement;
 	return {
-		siteName: site.siteName ?? 'Dolkar House',
+		siteName: site.siteName ?? 'Halden Studio',
 		tagline: site.tagline ?? '',
 		logo: asMedia(site.logo),
 		nav,
-		cta: { label: site.bookingCta?.label || 'Enquire', href: site.bookingCta?.href || '/contact' },
+		cta: { label: site.cta?.label || 'Start a project', href: site.cta?.href || '/contact' },
 		contact: {
-			address: c.address ?? '',
-			phone: c.phone ?? '',
-			whatsapp: c.whatsapp ?? '',
 			email: c.email ?? '',
+			phone: c.phone ?? '',
+			address: c.address ?? '',
+			hours: c.hours ?? '',
 			mapUrl: c.mapUrl ?? '',
 		},
-		season: site.season ?? '',
-		checkIn: site.checkIn ?? '',
-		checkOut: site.checkOut ?? '',
 		footerText: site.footerText ?? '',
 		social: (site.social ?? []).map((s) => ({ id: s.id, label: s.label, url: s.url })),
 		announcement: a?.enabled && a.text ? { text: a.text, link: a.link ?? '' } : null,
@@ -63,25 +53,33 @@ export function buildShell(site: Site, legal: { title: string; slug: string }[])
 
 /** `tel:` href from a human phone number. */
 export const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`;
-export const waHref = (n: string) => `https://wa.me/${n.replace(/\D/g, '')}`;
 
-/** Open April to October (Leh's tourist season). A small live fact: shown in the footer and hero. */
-export function seasonStatus(now = new Date()): { open: boolean; text: string } {
-	const m = now.getMonth(); // 0 = January
-	if (m >= 3 && m <= 9) return { open: true, text: 'Open now for the season' };
-	const days = Math.ceil((new Date(now.getFullYear() + (m >= 10 ? 1 : 0), 3, 1).getTime() - now.getTime()) / 864e5);
-	return { open: false, text: `Closed for winter, opens in ${days} days` };
+/** Is `href` the current page (or a section of it)? Used for `aria-current`. */
+export const isActive = (href: string, pathname: string) =>
+	href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
+
+const expand = (hex: string) =>
+	hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+/** Relative luminance of a validated hex colour (0 = black, 1 = white). */
+function luminance(hex: string): number {
+	const h = expand(hex);
+	const ch = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+	const [r = 0, g = 0, b = 0] = ch.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** Allowed brand overrides become CSS variables. Anything that is not a hex colour is dropped. */
+/**
+ * The editor's colour overrides as CSS variables. Anything that is not a hex colour is dropped
+ * (it would end up in a `style` attribute). Surface, muted and line colours are derived in CSS.
+ */
 export function themeStyle(theme: Site['theme']): string {
-	const hex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 	const out: string[] = [];
-	const map: [string | null | undefined, string][] = [
-		[theme?.accent, '--accent'],
-		[theme?.ground, '--bg'],
-		[theme?.ink, '--ink'],
-	];
-	for (const [v, name] of map) if (v && hex.test(v)) out.push(`${name}:${v}`);
+	if (isHex(theme?.accent)) {
+		out.push(`--accent:${theme.accent}`);
+		// Text on the accent: white or near-black, whichever contrasts more.
+		out.push(`--accent-ink:${luminance(theme.accent) > 0.4 ? '#161716' : '#ffffff'}`);
+	}
+	if (isHex(theme?.background)) out.push(`--bg:${theme.background}`);
+	if (isHex(theme?.text)) out.push(`--ink:${theme.text}`);
 	return out.join(';');
 }

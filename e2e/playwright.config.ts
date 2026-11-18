@@ -36,7 +36,7 @@ export default defineConfig({
 		// The public site: needs content, so it creates it as the admin. Runs after `admin`.
 		{
 			name: 'site',
-			testMatch: /site\.spec\.ts/,
+			testMatch: /(site|lab)\.spec\.ts/,
 			dependencies: ['admin'],
 			use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
 		},

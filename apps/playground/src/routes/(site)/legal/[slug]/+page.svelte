@@ -1,5 +1,4 @@
 <script lang="ts">
-	import PageHead from '#lib/site/PageHead.svelte';
 	import RichText from '#lib/site/RichText.svelte';
 	import Seo from '#lib/site/Seo.svelte';
 
@@ -7,11 +6,19 @@
 </script>
 
 <Seo title={data.doc.title} siteName={data.site.siteName} />
-<PageHead title={data.doc.title} />
-<div class="container body"><RichText doc={data.doc.body} /></div>
+
+<article class="container wrap">
+	<h1>{data.doc.title}</h1>
+	<RichText doc={data.doc.body} />
+</article>
 
 <style>
-	.body {
-		padding-top: var(--s-5);
+	.wrap {
+		display: grid;
+		gap: var(--s-5);
+		padding-block: var(--s-5) var(--section);
+	}
+	h1 {
+		font-size: var(--step-h2);
 	}
 </style>

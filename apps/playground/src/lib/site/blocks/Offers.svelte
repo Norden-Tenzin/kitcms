@@ -1,80 +1,80 @@
 <script lang="ts">
-	// Offers. A editorial stacks. B picture-led pairs. C ticket-style rows on the surface tone.
+	// Offers from the `offers` collection, which sits behind the `offers` add-on. `offers` is `null`
+	// while the add-on is off (the Local API denied the read, see `content.ts`), so the block renders
+	// nothing, and an empty list renders nothing too. In the admin preview (`undefined`) a note shows.
+	import type { DesignId } from '../designs';
+	import { formatDate } from '../format';
 	import Link from '../Link.svelte';
-	import Pic from '../Pic.svelte';
-	import Section from '../Section.svelte';
-	import { asMedia } from '../media';
-	import { fmtDate } from '../format';
 	import { reveal } from '../reveal';
-	import type { BlockProps } from './props';
+	import Placeholder from './Placeholder.svelte';
+	import SectionHead from './SectionHead.svelte';
+	import type { BlockOf, Offer } from '../types';
 
-	let { block, design = 'a', extras }: BlockProps<'offers'> = $props();
-	const offers = $derived(extras?.offers ?? []);
-	const valid = (o: (typeof offers)[number]) =>
-		o.validFrom || o.validTo ? `${fmtDate(o.validFrom, { day: 'numeric', month: 'short' })} to ${fmtDate(o.validTo, { day: 'numeric', month: 'short', year: 'numeric' })}` : '';
+	let { block, offers, design = 'a' }: { block: BlockOf<'offers'>; offers?: Offer[] | null; design?: DesignId } = $props();
 </script>
 
-{#if offers.length}
-	<Section tone={design === 'c' ? 'surface' : 'bg'}>
-		{#if block.heading}<h2 class="h">{block.heading}</h2>{/if}
-		<ul class={design}>
-			{#each offers as o, i (o.id)}
-				<li class="reveal" use:reveal style:--i={i}>
-					{#if design !== 'c'}<Pic media={asMedia(o.cover)} ratio={design === 'b' ? 3 / 2 : 4 / 3} sizes="(min-width: 56rem) 40vw, 100vw" />{/if}
-					<div class="body">
+{#if offers === undefined}
+	<Placeholder title={block.heading || 'Offers'} text="Shows the Offers collection. Hidden on the site while the Offers add-on is off." />
+{:else if offers && offers.length}
+	<section class={['blk section', design !== 'c' && 'surface']} data-design={design}>
+		<div class="container">
+			<SectionHead heading={block.heading} />
+			<ul>
+				{#each offers as o, i (o.id)}
+					<li class="reveal" use:reveal style:--i={i}>
 						<h3>{o.title}</h3>
-						{#if valid(o)}<p class="small">{valid(o)}</p>{/if}
-						{#if o.summary}<p>{o.summary}</p>{/if}
-						{#if o.terms}<p class="small">{o.terms}</p>{/if}
-						{#if o.ctaLabel && o.ctaHref}<Link href={o.ctaHref} class="btn">{o.ctaLabel}</Link>{/if}
-					</div>
-				</li>
-			{/each}
-		</ul>
-	</Section>
+						{#if o.price}<p class="price">{o.price}</p>{/if}
+						{#if o.summary}<p class="muted">{o.summary}</p>{/if}
+						{#if o.includes?.length}
+							<ul class="inc">
+								{#each o.includes as inc, j (inc.id ?? j)}<li>{inc.label}</li>{/each}
+							</ul>
+						{/if}
+						{#if o.validTo}<p class="small muted">Until {formatDate(o.validTo)}</p>{/if}
+						{#if o.ctaLabel && o.ctaHref}<Link href={o.ctaHref} class="btn ghost">{o.ctaLabel}</Link>{/if}
+					</li>
+				{/each}
+			</ul>
+		</div>
+	</section>
 {/if}
 
 <style>
 	ul {
 		list-style: none;
-		margin: 0;
-		padding: 0;
 		display: grid;
-		gap: var(--s-7);
-	}
-	.h {
-		margin-bottom: var(--s-6);
+		gap: var(--s-3);
 	}
 	li {
 		display: grid;
-		gap: var(--s-4);
-	}
-	.body {
-		display: grid;
-		gap: var(--s-3);
+		gap: var(--s-2);
+		align-content: start;
 		justify-items: start;
-		align-content: center;
-	}
-	.c li {
+		padding: var(--s-4);
 		background: var(--bg);
-		padding: var(--s-5);
-		border-radius: var(--radius);
+	}
+	[data-design='c'] li {
+		background: var(--surface);
+	}
+	.price {
+		font: var(--step-h3) / 1 var(--font-display);
+		color: var(--accent);
+	}
+	.inc {
+		gap: 0.25rem;
+		margin-block: var(--s-2);
+	}
+	.inc li {
+		display: list-item;
+		list-style: '+ ';
+		padding: 0;
+		background: none;
+		margin-left: 1.2em;
 	}
 	@media (min-width: 56rem) {
-		.a li {
-			grid-template-columns: 7fr 5fr;
-			gap: var(--s-7);
-			align-items: end;
-		}
-		.a li:nth-child(even) :global(.pic) {
-			order: 2;
-		}
-		.b {
-			grid-template-columns: 1fr 1fr;
-			gap: var(--s-6);
-		}
-		.c li {
-			padding: var(--s-6);
+		ul:not(.inc) {
+			grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+			gap: var(--s-4);
 		}
 	}
 </style>

@@ -1,16 +1,27 @@
-// Idempotent seed: `pnpm db:seed` (local) or `kitcms seed --remote`. Existing documents are never
-// overwritten, so it is safe to run again after editors changed things. It builds the whole Dolkar
-// House demo: photographs (seed/images, credits in seed/CREDITS.md), rooms, experiences, journal,
-// testimonials, FAQs, dishes, offers, albums, the pages and the site settings.
+// Idempotent seed: `pnpm db:seed` (local). Existing documents are never overwritten, so it is safe to
+// run again after editors changed things. It builds the whole Halden Studio demo: photographs
+// (seed/images, credits in seed/CREDITS.md), services, work, people, journal, offers, legal pages,
+// the pages and the site settings, plus a few documents for the Lab collections.
 import { defineSeed } from '@kitcms/core';
 import images from '../seed/images.json';
-import { ALBUMS, DISHES, EXPERIENCES, FAQS, LEGAL, OFFERS, POSTS, ROOMS, TAGS, TEAM, TESTIMONIALS } from '../seed/data';
-import { h2, p, rt, ul } from '../seed/rt';
+import {
+	KITCHEN_SINK,
+	LEGAL,
+	NOTES,
+	OFFERS,
+	POSTS,
+	PROJECTS,
+	SERVICES,
+	TAGS,
+	TEAM,
+	TESTIMONIALS,
+} from '../seed/data';
+import { h2, rt, ul } from '../seed/rt';
 
 type ImageKey = keyof typeof images;
 
 export default defineSeed(async ({ ensure, ensureGlobal, ensureUpload, cms, log }) => {
-	// ----- Pictures --------------------------------------------------------------------------------
+	// ----- Pictures ----------------------------------------------------------------------------------
 	const media = {} as Record<ImageKey, string>;
 	for (const [key, img] of Object.entries(images) as [ImageKey, (typeof images)[ImageKey]][]) {
 		const doc = await ensureUpload('media', {
@@ -20,57 +31,78 @@ export default defineSeed(async ({ ensure, ensureGlobal, ensureUpload, cms, log 
 		});
 		media[key] = doc.id;
 	}
-	const m = (key: string) => media[key as ImageKey]!;
-	const ms = (keys: readonly string[]) => keys.map(m);
+	const m = (key: string) => {
+		const id = media[key as ImageKey];
+		if (!id) throw new Error(`seed: unknown image "${key}"`);
+		return id;
+	};
 
-	// ----- Legal (locked) and team -----------------------------------------------------------------
+	// ----- Legal (locked) ------------------------------------------------------------------------------
 	for (const [slug, title, body] of [
 		['privacy-policy', 'Privacy policy', LEGAL.privacy],
 		['terms', 'Terms', LEGAL.terms],
 	] as const) {
-		const doc = await ensure('legal', { where: { slug: { equals: slug } }, data: { title, body } });
-		if (!doc.body) await cms.update('legal', doc.id, { body });
+		await ensure('legal', { where: { slug: { equals: slug } }, data: { title, body } });
 	}
 
+	// ----- People, tags, testimonials -----------------------------------------------------------------
 	const team: Record<string, string> = {};
-	for (const t of TEAM) {
+	for (const t of TEAM)
 		team[t.name] = (await ensure('team', { where: { name: { equals: t.name } }, data: t })).id;
-	}
-
-	// ----- Hotel -----------------------------------------------------------------------------------
-	const roomIds: string[] = [];
-	for (const r of ROOMS) {
-		const doc = await ensure('rooms', {
-			where: { name: { equals: r.name } },
-			data: {
-				name: r.name,
-				view: r.view,
-				featured: r.featured,
-				count: r.count,
-				sizeSqm: r.sizeSqm,
-				maxGuests: r.maxGuests,
-				beds: r.beds,
-				priceFrom: r.priceFrom,
-				summary: r.summary,
-				description: r.description,
-				cover: m(r.cover),
-				gallery: ms(r.gallery),
-				amenities: r.amenities.map(([label, icon]) => ({ label, icon })) as never,
-				meta: { title: `${r.name} in Changspa, Leh`, description: r.summary },
-			} as never,
-		});
-		roomIds.push(doc.id);
-	}
-
-	for (const e of EXPERIENCES) {
-		await ensure('experiences', {
-			where: { title: { equals: e.title } },
-			data: { ...e, cover: m(e.cover), gallery: ms(e.gallery), meta: { description: e.summary } } as never,
-		});
-	}
 
 	const tags: Record<string, string> = {};
-	for (const name of TAGS) tags[name] = (await ensure('tags', { where: { name: { equals: name } }, data: { name } })).id;
+	for (const name of TAGS)
+		tags[name] = (await ensure('tags', { where: { name: { equals: name } }, data: { name } })).id;
+
+	const testimonials: Record<string, string> = {};
+	for (const { key, ...t } of TESTIMONIALS) {
+		testimonials[key] = (
+			await ensure('testimonials', { where: { name: { equals: t.name } }, data: t })
+		).id;
+	}
+
+	// ----- Services and work -----------------------------------------------------------------------
+	const services: Record<string, string> = {};
+	for (const s of SERVICES) {
+		const doc = await ensure('services', {
+			where: { slug: { equals: s.slug } },
+			data: {
+				title: s.title,
+				slug: s.slug,
+				icon: s.icon,
+				priceFrom: s.priceFrom,
+				summary: s.summary,
+				cover: m(s.cover),
+				body: s.body,
+				deliverables: s.deliverables.map((label) => ({ label })),
+				process: s.process,
+				meta: { title: `${s.title} in Bengaluru`, description: s.summary },
+			} as never,
+		});
+		services[s.slug] = doc.id;
+	}
+
+	for (const proj of PROJECTS) {
+		await ensure('projects', {
+			where: { title: { equals: proj.title } },
+			data: {
+				title: proj.title,
+				client: proj.client,
+				year: proj.year,
+				featured: proj.featured,
+				services: proj.services.map((s) => services[s]!),
+				summary: proj.summary,
+				cover: m(proj.cover),
+				gallery: proj.gallery.map(m),
+				facts: proj.facts,
+				body: proj.body,
+				...(proj.testimonial ? { testimonial: testimonials[proj.testimonial] } : {}),
+				meta: { description: proj.summary },
+			} as never,
+		});
+	}
+
+	// ----- Journal ------------------------------------------------------------------------------------
 	for (const post of POSTS) {
 		await ensure('posts', {
 			where: { title: { equals: post.title } },
@@ -87,274 +119,274 @@ export default defineSeed(async ({ ensure, ensureGlobal, ensureUpload, cms, log 
 		});
 	}
 
-	for (const [quote, name, from, rating, stayedIn] of TESTIMONIALS) {
-		await ensure('testimonials', { where: { name: { equals: name } }, data: { quote, name, from, rating, stayedIn } });
-	}
-	for (const [question, answer, category] of FAQS) {
-		await ensure('faqs', { where: { question: { equals: question } }, data: { question, answer, category } });
-	}
-	for (const [name, description, course, ladakhi, vegetarian] of DISHES) {
-		await ensure('dishes', { where: { name: { equals: name } }, data: { name, description, course, ladakhi, vegetarian } });
-	}
-	for (const o of OFFERS) {
-		await ensure('offers', {
-			where: { title: { equals: o.title } },
-			data: { ...o, cover: m(o.cover), validFrom: `${o.validFrom}T00:00:00.000Z`, validTo: `${o.validTo}T00:00:00.000Z` },
-		});
-	}
-	const albums: Record<string, string> = {};
-	for (const a of ALBUMS) {
-		albums[a.title] = (await ensure('albums', { where: { title: { equals: a.title } }, data: { title: a.title, images: ms(a.images) } })).id;
+	// ----- Offers (behind the `offers` add-on: a denied create is fine) ---------------------------------
+	try {
+		for (const o of OFFERS) {
+			await ensure('offers', {
+				where: { title: { equals: o.title } },
+				data: {
+					...o,
+					includes: o.includes.map((label) => ({ label })),
+					validTo: `${o.validTo}T00:00:00.000Z`,
+				} as never,
+			});
+		}
+	} catch (err) {
+		log(`Offers skipped: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	// ----- Pages -----------------------------------------------------------------------------------
+	// ----- Lab ------------------------------------------------------------------------------------------
+	for (const k of KITCHEN_SINK) {
+		await ensure('kitchen-sink', { where: { title: { equals: k.title } }, data: k as never });
+	}
+	for (const n of NOTES) {
+		await ensure('notes', { where: { title: { equals: n.title } }, data: n as never });
+	}
+
+	// ----- Pages ----------------------------------------------------------------------------------------
 	const sec = (blockType: string, data: Record<string, unknown>) => ({ blockType, ...data });
-	const faqImage = m('likir-courtyard');
 
 	await ensure('pages', {
 		where: { slug: { equals: 'home' } },
 		data: {
 			title: 'Home',
 			slug: 'home',
-			cover: m('changspa-valley'),
+			cover: m('type-tray'),
 			meta: {
-				title: 'Dolkar House, a mud-brick guesthouse in Leh, Ladakh',
-				description: 'Twelve rooms, an apricot orchard and a rooftop with views of Shanti Stupa, in Changspa, Leh at 3,500 metres.',
-				image: m('changspa-valley'),
+				title: 'Halden Studio, a design studio in Bengaluru',
+				description:
+					'Brand identity, websites, product design and photography for small businesses, from a studio in Shivajinagar, Bengaluru.',
+				image: m('type-tray'),
 			},
 			sections: [
 				sec('hero', {
-					heading: 'Slow mornings at 3,500 m',
-					subheading: 'A family-run mud-brick house with twelve rooms, an apricot orchard and a roof with a view of Shanti Stupa.',
-					image: m('changspa-valley'),
-					secondImage: m('apricot-tree'),
-					ctaLabel: 'Ask about a room',
-					ctaHref: '/rooms',
+					heading: 'Design for businesses that make things',
+					subheading:
+						'We are a studio of four in Bengaluru. We make brand identities, websites, products and photographs for small companies that care how their work looks.',
+					image: m('type-tray'),
+					ctaLabel: 'See our work',
+					ctaHref: '/work',
 				}),
-				sec('split', {
-					heading: 'A house built the old way',
-					text: rt(
-						'Dolkar House is made of sun-dried mud brick, whitewashed walls and poplar beams, with willow-twig ceilings. The walls are thick, which keeps the rooms cool in July and warm at night.',
-						'We are in Changspa, a green ten-minute walk from the main bazaar. The courtyard orchard has fourteen apricot trees, and the jam on the breakfast table comes from them.',
-					),
-					image: m('likir-courtyard'),
-					imageSide: 'right',
-					ctaLabel: 'Read about the house',
-					ctaHref: '/about',
+				sec('servicesList', {
+					heading: 'What we make',
+					intro: 'Four kinds of work, each done by the people whose names are on the team page.',
 				}),
+				sec('projectsList', { heading: 'Selected work', count: 4, onlyFeatured: true }),
 				sec('stats', {
-					heading: 'The house in numbers',
-					image: m('stok-kangri'),
+					heading: 'The studio in numbers',
 					items: [
-						{ value: '3,500 m', label: 'above the sea', note: 'Take the first day slowly.' },
-						{ value: '12', label: 'rooms in four kinds' },
-						{ value: '14', label: 'apricot trees in the courtyard' },
-						{ value: '0', label: 'plastic bottles: filtered water is free' },
+						{ value: '2017', label: 'the year we started' },
+						{ value: '4', label: 'people in the studio' },
+						{ value: '60+', label: 'projects delivered' },
+						{ value: '10 wk', label: 'a typical identity project' },
 					],
 				}),
-				sec('roomsList', {
-					heading: 'Four kinds of room',
-					intro: 'From a ground-floor room opening into the orchard to a rooftop with windows on three sides.',
-					onlyFeatured: true,
-				}),
-				sec('gallery', { heading: 'The house, the valley and the road', album: albums['The house and the orchard'] }),
-				sec('quote', {
-					text: 'Tsering told us to do nothing on day one, and he was right. We slept, and woke up ready for the mountains.',
-					attribution: 'Daniel and Ruth, Leeds',
-					image: m('zanskar-range'),
-				}),
-				sec('experiencesList', {
-					heading: 'Beyond the gate',
-					intro: 'Monastery mornings, high passes and a cooking lesson. We arrange the car, the driver and the permits.',
-					count: 3,
-				}),
-				sec('testimonials', { heading: 'Guests write', count: 3 }),
-				sec('offers', { heading: 'Offers this season' }),
-				sec('faq', { heading: 'Good to know', image: faqImage }),
-				sec('location', {
-					heading: 'Find us in Changspa',
-					text: rt('We are ten minutes from the airport and a quiet fifteen-minute walk from the main bazaar, in the green part of Leh.'),
-					image: m('main-bazaar'),
-					directions: [
-						{ label: 'From the airport', text: 'Ten minutes by car. We send one: ₹600.' },
-						{ label: 'From the main bazaar', text: 'Walk up Changspa Road past the prayer-wheel pavilion. We are on the left, behind the green gate.' },
-						{ label: 'From Shanti Stupa', text: 'Fifteen minutes downhill on foot, along the stream.' },
-					],
-				}),
+				sec('testimonials', { heading: 'What clients say', count: 3 }),
+				sec('latestPosts', { heading: 'From the journal', count: 3 }),
 				sec('cta', {
-					heading: 'Come for a week. Start with a slow day.',
-					text: 'Tell us your dates and who is travelling. We reply within a day.',
-					label: 'Enquire',
+					heading: 'Have a project in mind?',
+					text: 'Tell us what you are making and when you need it. We reply within one working day.',
+					label: 'Start a project',
 					href: '/contact',
-					image: m('prayer-flags'),
+					image: m('drafting-desk'),
 				}),
 			],
+		} as never,
+	});
+
+	const aboutSections = [
+		sec('hero', {
+			heading: 'A small studio, on purpose',
+			subheading:
+				'Four people, one room above a bookshop, and a rule that the person who pitches the work does the work.',
+			image: m('studio-desk'),
+		}),
+		sec('richText', {
+			heading: 'How the studio works',
+			body: rt(
+				'Halden Studio began in 2017, when Isha Rao left a publisher’s design team with a laptop, a list of former colleagues and one client. The client was a stationery shop. We still work with them.',
+				'We stayed small because the work is better when everyone on the project has seen the whole of it. Today there are four of us. We take on about eight projects a year and finish each one before starting the next large one.',
+				h2('What we care about'),
+				ul(
+					'Plain things that last: a type system, a page that loads, an object that ships flat',
+					'Honest estimates, written down, with the reasons',
+					'Handing over everything: files, fonts, licences and the knowledge to use them',
+				),
+			),
+		}),
+		sec('split', {
+			heading: 'Where we work',
+			text: rt(
+				'The studio is on the third floor of an old building off Church Street, with high windows facing north. Most of what Sunita photographs is shot at the window by the stairs.',
+				'We meet clients here or on a call. If you are in town, come and see the drawers of type we keep for fun.',
+			),
+			image: m('type-drawers'),
+			imageSide: 'right',
+			ctaLabel: 'Get in touch',
+			ctaHref: '/contact',
+		}),
+		sec('gallery', {
+			heading: 'Around the studio',
+			images: [
+				'studio-desk',
+				'type-drawers',
+				'drawing-instruments',
+				'pencil-leads',
+				'compact-camera',
+				'desk-lamp',
+			].map(m),
+		}),
+		sec('teamGrid', { heading: 'The people' }),
+		sec('quote', {
+			text: 'A studio should be small enough that the person who drew it can answer the phone.',
+			attribution: 'Isha Rao, founder',
+			image: m('type-specimen'),
+		}),
+		sec('cta', {
+			heading: 'Say hello',
+			text: 'We are always glad to hear about a new project, even if it is not for us.',
+			label: 'Contact the studio',
+			href: '/contact',
+			image: m('film-camera'),
+		}),
+	];
+	await ensure('pages', {
+		where: { slug: { equals: 'about' } },
+		data: {
+			title: 'About',
+			slug: 'about',
+			cover: m('studio-desk'),
+			meta: {
+				description:
+					'A four-person design studio in Bengaluru, working with small businesses since 2017.',
+			},
+			sections: aboutSections,
 		} as never,
 	});
 
 	await ensure('pages', {
-		where: { slug: { equals: 'about' } },
+		where: { slug: { equals: 'process' } },
 		data: {
-			title: 'About the house',
-			slug: 'about',
-			meta: { description: 'A family house in Changspa, built the old way, with an apricot orchard.' },
+			title: 'Process',
+			slug: 'process',
+			cover: m('pencil-leads'),
+			meta: {
+				description:
+					'How a project runs at Halden Studio, from the first conversation to handover.',
+			},
 			sections: [
-				sec('hero', {
-					heading: 'A family house',
-					subheading: 'Three generations, fourteen apricot trees and one very patient oven.',
-					image: m('harvest-village'),
-					secondImage: m('apricot-preparing'),
-				}),
 				sec('richText', {
-					heading: 'How we began',
+					heading: 'How a project runs',
 					body: rt(
-						'Dolkar’s grandparents built the first rooms around the courtyard in the 1960s, from mud brick dug and dried on the same land. Guests began to stay in the 1990s, when the first foreign trekkers walked up the lane and asked for tea.',
-						'Today there are twelve rooms. The walls are still mud brick, the roofs still poplar and willow, and the family still lives in the east wing.',
-						h2('What we care about'),
-						ul('Building and repairing in local materials', 'Solar hot water and no plastic bottles', 'Going slowly: guests, drivers and apricots'),
+						'Every project, whatever the service, goes through the same four stages. The lengths vary but the shape does not.',
+						h2('1. Brief'),
+						'One call or workshop, then a written brief that you sign before we draw. It names the audience, the scope and the number of review rounds.',
+						h2('2. Explore'),
+						'We try more than one direction at a rough stage so that you can choose with your eyes and not with a description.',
+						h2('3. Make'),
+						'The chosen direction is built and refined in short cycles. You see something real every week.',
+						h2('4. Hand over'),
+						'Final files, a guide and a short session with the people who will use the work after we leave.',
 					),
 				}),
 				sec('features', {
-					title: 'Small things we do',
+					heading: 'What you can expect from us',
 					items: [
-						{ label: 'Solar hot water', text: 'With a backup for cloudy days.', icon: 'hotwater' },
-						{ label: 'Filtered water refills', text: 'Free, so no plastic bottles.', icon: 'water' },
-						{ label: 'Butter tea on arrival', text: 'It helps at altitude.', icon: 'tea' },
-						{ label: 'Oxygen on request', text: 'We hope you never need it.', icon: 'oxygen' },
+						{
+							title: 'A written scope',
+							text: 'Before any drawing, with the review rounds and the price.',
+							icon: 'pen',
+						},
+						{
+							title: 'Weekly progress',
+							text: 'Something to look at every week, even if it is rough.',
+							icon: 'clock',
+						},
+						{
+							title: 'Plain answers',
+							text: 'We tell you what we think, and why, in words.',
+							icon: 'chat',
+						},
+						{
+							title: 'Full handover',
+							text: 'Files, fonts and the knowledge to use them.',
+							icon: 'star',
+						},
 					],
 				}),
-				sec('split', {
-					heading: 'The kitchen',
-					text: rt('Stanzin has cooked in this kitchen for thirty years. Breakfast is included, dinner is on request, and the cooking morning is the thing guests talk about on the way home.'),
-					image: m('ladakhi-kitchen'),
-					imageSide: 'left',
-					ctaLabel: 'See the menu',
-					ctaHref: '/dining',
+				sec('faq', {
+					heading: 'Questions we get asked',
+					items: [
+						{
+							question: 'How long does a project take?',
+							answer:
+								'An identity usually takes ten weeks, a website six to eight, a photography job two. Product design is the longest at three to four months because a prototype has to be made.',
+						},
+						{
+							question: 'How do you charge?',
+							answer:
+								'A fixed fee for each project, agreed in the scope. The price list on each service page shows where fees start. We invoice in three parts: at the start, at the midpoint and at handover.',
+						},
+						{
+							question: 'Do you work outside Bengaluru?',
+							answer:
+								'Yes. Most of our clients are in India and a few are abroad. We meet on video, and visit for photography or when a workshop needs it.',
+						},
+						{
+							question: 'Who owns the work?',
+							answer:
+								'You do, once the final invoice is paid. Licences for fonts and photographs are listed in the handover.',
+						},
+						{
+							question: 'What if we need changes after handover?',
+							answer:
+								'Small fixes in the first 30 days are included. After that we work by the hour, or you can do it yourself with the guide.',
+						},
+					],
 				}),
-				sec('cta', { heading: 'Stay with us', text: 'Open April to October. Winter stays by arrangement.', label: 'Enquire', href: '/contact', image: m('changspa-valley') }),
+				sec('cta', {
+					heading: 'Ready to start?',
+					text: 'A short message is enough. We will ask the rest.',
+					label: 'Start a project',
+					href: '/contact',
+				}),
 			],
 		} as never,
 	});
 
-	// Dining and contact feed their three designs: the first split/location is the intro, the other
-	// blocks fill the page. An older local seed (one block each) is upgraded once.
-	const upgradeSections = async (slug: string, title: string, sections: unknown[], cover: string) => {
-		const doc = await ensure('pages', {
-			where: { slug: { equals: slug } },
-			data: { title, slug, cover, sections } as never,
-		});
-		const have = (doc as unknown as { sections?: unknown[] }).sections ?? [];
-		if (have.length < sections.length) await cms.update('pages', doc.id, { cover, sections } as never);
-	};
-	await upgradeSections(
-		'dining',
-		'Dining',
-		[
-			sec('split', {
-				heading: 'Ladakhi food, made at home',
-				text: rt(
-					p('Breakfast is included: khambir bread with butter and orchard jam, eggs, porridge and tea. Dinner is on request, told to us by noon, cooked fresh by Stanzin.'),
-					p('Most of what we cook is Ladakhi and most of it is vegetarian, because that is how the valley eats. Tell us what you cannot eat and we will cook around it.'),
-				),
-				image: m('thukpa'),
-				imageSide: 'right',
-			}),
-			sec('features', {
-				title: 'How dinner works',
-				items: [
-					{ label: 'Tell us by noon', text: 'Dinner is cooked fresh for the guests who ask.', icon: 'hotwater' },
-					{ label: 'Breakfast is included', text: 'From seven, in the courtyard or on the roof.', icon: 'tea' },
-					{ label: 'Vegetarian and vegan', text: 'Say so when you book. Nearly everything adapts.', icon: 'water' },
-					{ label: 'Packed lunch', text: 'For a day out: bread, boiled eggs, apricots.', icon: 'sun' },
-				],
-			}),
-			sec('gallery', { heading: 'From the kitchen', images: ms(['dried-apricots', 'ladakhi-kitchen', 'momos', 'butter-tea']) }),
-		],
-		m('ladakhi-kitchen'),
-	);
-	await upgradeSections(
-		'contact',
-		'Contact',
-		[
-			sec('location', {
-				heading: 'Find us',
-				text: rt('Changspa Road, Leh. Ten minutes from the airport, a quiet fifteen-minute walk from the main bazaar.'),
-				image: m('leh-street'),
-				directions: [
-					{ label: 'By air', text: 'Fly to Leh (IXL). Ten minutes by car; we send one for ₹600, and a bowl of butter tea waits.' },
-					{ label: 'By road from Manali', text: 'Two long days over Baralacha La and Tanglang La. Rest overnight at Keylong or Sarchu, and arrive in daylight.' },
-					{ label: 'By road from Srinagar', text: 'Two days through Kargil. Shared taxis stop at the bus stand; we are a five-minute drive from there.' },
-					{ label: 'On foot from the bazaar', text: 'Up Changspa Road past the prayer-wheel pavilion. We are on the left, behind the green gate.' },
-				],
-			}),
-			sec('richText', {
-				heading: 'Arriving at 3,500 metres',
-				body: rt(
-					p('Leh is high. Plan nothing on your first day, drink water, and skip alcohol until the second night. A headache on day one is common and passes; a headache that gets worse, or breathlessness at rest, means going lower and telling us.'),
-					ul('Fly in? Rest the whole first day.', 'Driving in? You have acclimatised on the way, but still go slowly.', 'We keep oxygen at the house and know the doctor.'),
-				),
-			}),
-		],
-		m('leh-street'),
-	);
-
-	// One example redirect for the SEO plugin (an old URL guests may still have).
-	await ensure('redirects' as never, { where: { from: { equals: '/accommodation' } }, data: { from: '/accommodation', to: '/rooms', type: '301', enabled: true, note: 'Old menu link' } } as never);
-
-	// ----- Site settings ---------------------------------------------------------------------------
-	const home = await cms.findOne('pages', { where: { slug: { equals: 'home' } } });
+	// ----- Site settings ------------------------------------------------------------------------------
 	const about = await cms.findOne('pages', { where: { slug: { equals: 'about' } } });
 	const siteData = {
-		siteName: 'Dolkar House',
-		tagline: 'A family-run guesthouse in Changspa, Leh, Ladakh. Twelve rooms, an apricot orchard, slow mornings at 3,500 metres.',
+		siteName: 'Halden Studio',
+		tagline:
+			'A design studio in Bengaluru. Brand identity, websites, product design and photography for small businesses.',
 		nav: [
-			{ label: 'Rooms', href: '/rooms' },
-			{ label: 'Experiences', href: '/experiences' },
-			{ label: 'Dining', href: '/dining' },
-			{ label: 'Journal', href: '/journal' },
+			{ label: 'Work', href: '/work' },
+			{ label: 'Services', href: '/services' },
 			{ label: 'About', page: about?.id },
+			{ label: 'Blog', href: '/blog' },
 			{ label: 'Contact', href: '/contact' },
 		],
-		season: 'Open April to October. Winter stays by arrangement.',
-		checkIn: '1 pm',
-		checkOut: '11 am',
-		footerText: 'A mud-brick house with a courtyard orchard, a rooftop and a very slow breakfast.',
+		cta: { label: 'Start a project', href: '/contact' },
+		announcement: {
+			enabled: false,
+			text: 'We have two project slots open from January.',
+			link: '/contact',
+		},
+		footerText:
+			'A four-person design studio in Bengaluru. This is a demo site: the studio and its clients are fictional.',
 		social: [
 			{ label: 'Instagram', url: 'https://instagram.com/' },
-			{ label: 'Tripadvisor', url: 'https://tripadvisor.com/' },
+			{ label: 'Behance', url: 'https://behance.net/' },
 		],
 		contact: {
-			address: 'Changspa Road, Changspa\nLeh, Ladakh 194101',
-			phone: '+91 98765 43210',
-			whatsapp: '+91 98765 43210',
-			email: 'stay@dolkarhouse.example',
-			mapUrl: 'https://www.openstreetmap.org/?mlat=34.1587&mlon=77.5640#map=16/34.1587/77.5640',
-			latitude: 34.1587,
-			longitude: 77.564,
-		},
-		announcement: { enabled: true, text: 'Apricot season is on: the orchard is picked from the middle of July.', link: '/journal' },
-		bookingCta: { label: 'Enquire', href: '/contact' },
-		design: {
-			header: 'a',
-			footer: 'a',
-			home: 'a',
-			page: 'a',
-			rooms: 'a',
-			room: 'a',
-			experiences: 'a',
-			experience: 'a',
-			journal: 'a',
-			post: 'a',
-			gallery: 'a',
-			dining: 'a',
-			contact: 'a',
+			email: 'hello@halden.example',
+			phone: '+91 80 5550 0142',
+			address: 'Studio 3, Third Floor, 14 Church Lane\nShivajinagar, Bengaluru 560001',
+			hours: 'Mon to Fri, 10 am to 6 pm',
+			mapUrl: 'https://www.openstreetmap.org/?mlat=12.9847&mlon=77.6044#map=16/12.9847/77.6044',
 		},
 	};
-	// A local database seeded by the old playground seed still has the placeholder site: upgrade it once.
-	const current = await cms.findGlobal('site');
-	if (current.siteName === 'kitcms dev') await cms.updateGlobal('site', siteData as never);
-	else await ensureGlobal('site', siteData as never);
-	void home;
-	void roomIds;
-	log('Dolkar House seeded.');
+	await ensureGlobal('site', siteData as never);
+	log('Halden Studio seeded.');
 });

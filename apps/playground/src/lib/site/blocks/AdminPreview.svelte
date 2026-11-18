@@ -1,41 +1,27 @@
 <script lang="ts">
 	// The admin's live preview for every block (registered per block in `src/kitcms.admin.ts`). It
-	// renders the real site components from the live form values, in the site's `page` design, with
-	// the same tokens, so the preview looks like the page. Upload fields hold ids there, so they are
-	// resolved to media docs first (`ResolveMedia`). Blocks that list collection data (rooms, FAQs,
-	// ...) show their own heading only: that data is not part of the form.
-	import '@fontsource/barlow/400.css';
-	import '@fontsource/barlow/500.css';
-	import '@fontsource/barlow/600.css';
-	import '@fontsource/barlow-condensed/700.css';
+	// renders the real block components from the live form values, in the home page's A design (the
+	// design is a per-page choice the editor makes on the page itself). Upload fields hold ids there,
+	// so it resolves them to media docs first (`ResolveMedia`). Collection-listing blocks show a
+	// labelled placeholder because their data is not loaded here.
+	import '@fontsource-variable/hanken-grotesk';
+	import '@fontsource/instrument-serif';
 	import '../site.css';
 	import type { BlockPreviewProps } from '@kitcms/ui';
-	import { onMount } from 'svelte';
-	import { resolveDesign } from '../designs';
 	import type { Media } from '../media';
 	import type { PageBlock } from '../types';
-	import RenderBlocks from './RenderBlocks.svelte';
 	import ResolveMedia from './ResolveMedia.svelte';
+	import RenderBlocks from './RenderBlocks.svelte';
 
 	let { block }: BlockPreviewProps = $props();
 
-	// The design the site settings pick for plain pages.
-	let design = $state('a');
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/globals/site');
-			if (res.ok) design = resolveDesign('page', ((await res.json()) as { design?: Record<string, string> }).design);
-		} catch {
-			// keep the default
-		}
-	});
-
 	const idOf = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-	const MEDIA_FIELDS = ['image', 'secondImage'] as const;
 	const ids = $derived.by(() => {
-		const out = MEDIA_FIELDS.map((f) => idOf(block[f])).filter((x): x is string => x !== null);
-		if (Array.isArray(block.images)) out.push(...block.images.map(idOf).filter((x): x is string => x !== null));
-		return [...new Set(out)];
+		const out: string[] = [];
+		const single = idOf(block.image);
+		if (single) out.push(single);
+		if (Array.isArray(block.images)) for (const v of block.images) if (idOf(v)) out.push(idOf(v)!);
+		return out;
 	});
 
 	let resolved = $state.raw<Record<string, Media | null>>({});
@@ -43,16 +29,11 @@
 		if (resolved[id] !== media) resolved = { ...resolved, [id]: media };
 	};
 
-	// The block with ids swapped for the resolved media docs.
+	// The block with ids swapped for the resolved media docs (an id that has not resolved yet shows no picture).
 	const view = $derived.by(() => {
-		const out: Record<string, unknown> = { ...block };
-		for (const f of MEDIA_FIELDS) {
-			const id = idOf(block[f]);
-			if (id) out[f] = resolved[id] ?? null;
-		}
-		if (Array.isArray(block.images)) {
-			out.images = block.images.map((v) => resolved[idOf(v) ?? '']).filter((m): m is Media => Boolean(m));
-		}
+		const out: Record<string, unknown> = { ...block, id: 'preview' };
+		if ('image' in block) out.image = (idOf(block.image) && resolved[idOf(block.image)!]) || null;
+		if (Array.isArray(block.images)) out.images = block.images.map((v) => (idOf(v) ? resolved[idOf(v)!] : null)).filter(Boolean);
 		return out as unknown as PageBlock;
 	});
 </script>
@@ -61,6 +42,14 @@
 	<ResolveMedia {id} {onresolve} />
 {/each}
 
-<div class="site" style="min-height: 0; display: block;">
-	<RenderBlocks blocks={[view]} {design} />
+<div class="site preview-scope">
+	<RenderBlocks blocks={[view]} design="a" />
 </div>
+
+<style>
+	/* Reveal animations would hide the preview until scrolled into view. */
+	.preview-scope :global(.reveal) {
+		opacity: 1 !important;
+		transform: none !important;
+	}
+</style>

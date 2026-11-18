@@ -46,7 +46,7 @@ With `E2E_SKIP_BUILD=1`, build yourself with `VITE_TURNSTILE=off pnpm --filter p
 | --- | --- | --- |
 | `auth` | `auth.spec.ts` | First-user setup, logout, wrong/right password; saves the session |
 | `admin` | `admin-*.spec.ts` | Pages, preview, media, orderable team, globals, versions, CSRF smoke |
-| `site` | `site.spec.ts` | The public site: home, a room enquiry (JS and no-JS), sitemap, robots, redirect. Creates its content through the REST API |
+| `site` | `site.spec.ts`, `lab.spec.ts` | The public site: home, the brief form (JS and no-JS), a project page, sitemap, robots, redirect, the offers add-on; the Lab access pages. Creates its content through the REST API |
 | `rpc` | `rpc.spec.ts` | Access, drafts, system calls, error wire format, unknown options rejected |
 
 Titles are unique per run (`uid()` in `tests/helpers.ts`); there are no sleeps.

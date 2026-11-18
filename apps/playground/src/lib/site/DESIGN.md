@@ -1,124 +1,98 @@
-# Dolkar House: design guide
+# Halden Studio site: design notes
 
-The demo site is a fictional 12-room guesthouse in Changspa, Leh, Ladakh (3,500 m). This file is for
-whoever adds the next designs. Read it, then read `designs.ts` and one finished design.
+A calm, typographic studio site. Light only. One accent, real photographs, no gradients except a
+neutral scrim under text that sits on a photograph. Everything is tokens in `site.css`, scoped under
+`.site` so nothing leaks into the admin (the admin block previews wrap their output in `.site` too).
 
-## The idea
+## Tokens (`site.css`)
 
-Built from the subject's own inventory: sun-dried mud brick and whitewash, poplar beams and willow-twig
-ceilings, a courtyard apricot orchard, a roof with Shanti Stupa one way and Stok Kangri the other,
-butter tea, a first day of doing nothing, 3,500 metres. The numbers (3,500 m, 12 rooms, 14 apricot
-trees) are used as content, not decoration.
-
-**On this site, the altitude and the orchard become the pace of the page:** few words, large pictures,
-long pauses, and the one live fact that is true today (is the house open this month: `seasonStatus()` in
-`shell.ts`, shown in the footers and the Ledger hero).
-
-## Three compositions, A, B and C (what each letter means)
-
-Every page type has designs `a`, `b`, `c`. They are different compositions, never colour swaps. The
-letters keep one meaning across page types, so the three directions stay coherent when mixed:
-
-| | Idea | Composition habits |
+| Token | Value | Use |
 | --- | --- | --- |
-| **A** | Editorial, asymmetric ("pictures like prints on a wall") | 12-column grid, pictures at uneven sizes and offsets, text small between them, heading overlapping a picture by a few pixels, staggered vertical offsets, alternating rows |
-| **B** | Immersive ("the place carries it") | Full-bleed photographs 80-100svh, the name huge at the bottom edge, one solid card instead of a layout, drag rows, field colours (slate, earth), few words |
-| **C** | Structured ("a ledger") | Fixed or sticky photograph beside a scrolling column, tables, grids of equal tiles, datasheets with a sticky panel, surface-tone panels, everything on column lines |
+| `--bg` | `#f6f5f1` | page ground |
+| `--ink` | `#161716` | text, `.inverse` fields |
+| `--accent` | `#2f5d50` | buttons, links, `.accent-field` |
+| `--accent-ink` | `#fff` | text on the accent (recomputed for a theme accent) |
+| `--surface`, `--surface-2` | ink 5% / 9% on bg | tint steps instead of rules |
+| `--muted` | ink 66% on bg | secondary text |
+| `--gutter` | 16px at phone, up to 32px | page margin |
+| `--section` | 64 to 152px | gap between sections |
+| `--s-1..7` | 4px to ~144px | spacing steps |
+| `--header-h` | 72 / 80px | header height (also the floating header's clearance) |
 
-Names so far (`designs.ts` is the source of truth): header Bar / Centred / Overlay, footer Hearth /
-Directory / Signboard, home Courtyard / Panorama / Ledger, rooms Salon / Orchard / Compare, room
-Threshold / Window / Plan. Part 2 and 3 page types already have names (experiences Trails / Postcards /
-Itinerary, journal Field notes / Cover story / Archive, ...). Keep each design's name true to its letter.
+`site.theme` (accent, background, text) is applied as inline variables on `.site` by `themeStyle`
+(`shell.ts`) after `isHex` validation; surface, muted and line colours are derived from them in CSS.
 
-## Tokens (`site.css`, scoped under `.site`)
+Type: Instrument Serif (display, headings) and Hanken Grotesk Variable (text), both via @fontsource.
+Five sizes: `--step-small` 15px, `--step-0` 17px, `--step-lead` 19 to 24px, `--step-h3` 26 to 36px,
+`--step-h2` 38 to 72px, `--step-h1` 48 to 128px. Headings tighten tracking (-0.015 to -0.025em).
 
-Use tokens only. No hex values in components.
+Helpers: `.container`, `.section`, `.surface`, `.inverse` (ink field), `.accent-field`, `.lead`, `.small`,
+`.muted`, `.btn` (`.ghost`, `.light`), `.link`, `.more`, `.prose` (CMS rich text), `.reveal` (scroll entrance,
+use with the `reveal` action from `reveal.ts`; content is visible without script).
 
-- Colour: `--bg` whitewash lime `#e9e5da`, `--surface` `#ddd8ca`, `--ink` poplar umber `#2a1d17`, `--muted`,
-  `--accent` willow green `#3d6433` (buttons, links, one large block), `--earth` mud brick `#7d4f2f`,
-  `--slate` `#2b373e`, `--apricot` `#e7a553` (on dark fields only), `--flag` prayer-flag red (status dots,
-  errors, sparingly). `site.theme` (hex, validated) can override accent, ground and ink.
-- Type: display **Barlow Condensed 700**, uppercase for `h1`, mixed case for `h2`-`h4`; text **Barlow**
-  400/500/600 (self-hosted via `@fontsource`). Steps: `--step-small`, `--step-body`, `--step-lead`,
-  `--step-h2`, `--step-display`. A page uses five sizes at most.
-- Space: `--s-1..--s-7`, `--section` (the gap between sections, 72-152px), `--gutter` (page margin),
-  `--max` (82rem). Sections on the page ground pad their top only (`Section.svelte`).
-- Shape: one radius `--radius` (4px), one button shape (flat, 48px high, `.btn`, `.btn.ghost`, `.btn.light`).
-  No shadows, no outlined boxes, no gradients except the neutral scrim under text on a photograph.
+## Designs
 
-## Components to reuse
+Every page type has designs a/b/c (`designs.ts`). The site picks the design from `site.design.<type>`; a
+document can override it. `designFor(type, site, override)` (`content.ts`) resolves it; in dev
+`devPick(url)` (`devDesign.ts`) lets `?design=a|b|c` override it for screenshots (and `?header=`, `?footer=`).
 
-- `Img.svelte`: `srcset` through `/cdn-cgi/image` (a no-op in dev and on `*.workers.dev`), width/height,
-  lazy unless `eager` (the first picture of a page is eager).
-- `Pic.svelte`: a picture in a fixed frame (`ratio` or `fill`); the one place that crops.
-- `Section.svelte`: vertical rhythm and field colour (`tone`: bg, surface, accent, earth, slate; `bleed`).
-- `Link.svelte` for any href from the CMS, `RichText.svelte` for rich text, `Icon.svelte` for icons
-  (`icons.ts`), `Amenities.svelte`, `PageHead.svelte` (list-page title), `reveal.ts` (`use:reveal` scroll
-  entrance, visible without script), `format.ts` (INR, dates, room facts), `jsonld.ts`, `Seo.svelte`.
-- Header/footer/menu live in `header/` and `footer/`; `Shell.svelte` picks them from the Design tab.
-  Header C floats over the first screen: pages that open on a photograph return `overHero` from their load.
-- Data: `content.ts` (`loadShell`, `loadPage`, `loadBlockExtras`, `designFor`), `types.ts` (loose
-  document types), `media.ts` (`asMedia`: upload fields are ids or documents).
+- **Header**: A Bar (sticky, wordmark left, links and button right). B Split (tall, scrolls away, wordmark
+  centred, links either side, tinted ground). C Floating (a solid inset bar over the content; page content is
+  padded below it by `.site[data-header='c'] main`, so nothing sits under it. Never add a sticky strip that
+  uses `top: 0` under header C). The menu is a native `<dialog>`; without script the Menu link jumps to the
+  footer navigation (`#footer-nav`).
+- **Footer**: A Simple (name, links, contact). B Columns (four labelled columns on a tint). C Statement (ink
+  field, the email as the largest link on it).
+- **Home** (hero first): A Editorial (big headline + portrait photo; services as large rows; work in two offset
+  columns; one large quote). B Showcase (full-bleed hero photo; service tiles with photographs; one large
+  picture per project; accent-field stats). C Studio index (typographic hero with a wide strip; services and
+  work as text indexes; ink stats; featured post).
+- **Page** (CMS pages): A Editorial (title very large beside the cover). B Immersive (cover is the first screen,
+  title on it; accent field without a cover). C Structured (title on a tint with a contents list).
 
-## How to add a design
+Every block takes a `design` prop (`'a' | 'b' | 'c'`) and has a different composition per letter, not just colour.
 
-1. `designs.ts`: add `d: 'Name'` to the page type's `designs` (and a note). The `site` Design tab and the
-   per-page selects update themselves (`kitcms.config.ts` builds them from the registry); run
-   `pnpm --filter playground db:generate <name>` only if you changed fields (not for new designs).
-2. Add the component under `pages/` (or a new `{#if design === 'd'}` branch in the block) and switch on
-   `data.design` in the route. The route already resolves it: `designFor('rooms', site, override)`.
-3. A block's `design` prop comes from the page's resolved design (`home` for slug `home`, `page` for
-   others). Blocks must render every design id; unknown ids fall back to `a`.
-4. To add a page type: add it to `PAGE_TYPES`, a `siteDesign('<type>')` line in the config's Design tab
-   group, a route, and a loader that calls `designFor`.
-5. Screenshot it (below) at 360, 768 and 1280 before you call it done.
+### List and detail pages (`pages/`)
 
-## Rules
+Components in `pages/`, routes under `(site)/`. Each takes the resolved `design` letter. Detail pages use the same
+letter as their list where there is no separate type (a service uses `services`).
 
-- Mobile first (320px up). No horizontal page scroll: check `scrollWidth <= innerWidth`.
-- Tap targets 44px or more (`min-height: 2.75rem`). Body text 17px or more, never below 14px.
-- AA contrast. Check text on `--earth`, `--slate` and `--accent` with `--earth-ink` etc.; muted text only
-  on `--bg`/`--surface`. Apricot text only on slate or earth.
-- Visible focus (`:focus-visible` is global; do not remove outlines). Semantic landmarks (`header`, `nav`
-  with labels, `main#main`, `footer`), one `h1` per page, skip link.
-- `prefers-reduced-motion`: motion is opt-in (`reveal` and view transitions are skipped).
-- Headlines two lines or fewer at every width; no eyebrow labels, no index numbering, no monospace.
-- Photographs are Ladakh pictures, not the (fictional) hotel: never captioned as the hotel's own rooms.
-  Credits live in each media document (`credit`) and on `/credits`; files and licences in
-  `apps/playground/seed/CREDITS.md`.
-- CSS only (no Tailwind), tokens as CSS variables, Svelte 5 runes, imports use `#lib/...` with `.ts`
-  extension for TypeScript files.
+- **Services** (`/services`, `/services/[slug]`): A List (huge title, ruled rows with number, summary, price).
+  B Cards (tinted field, photo cards in two offset columns). C Steps (each service beside its process as numbered
+  steps). Detail: A text and "What you get" columns then process rows; B photo opening with the title on a scrim,
+  process as four tiles; C process first as a large numbered sequence, ink price card beside the text. Related work
+  and a "Start a project" link to `/contact?service=<slug>`.
+- **Work** (`/work`, `?service=<slug>` filter as plain links): A Grid (three portrait columns). B Large rows
+  (wide picture, alternating sides, title and summary). C Index (ruled table with a thumbnail). **Project**: A Case
+  study (cover wide, facts then story and quote, gallery). B Gallery first (mosaic of the pictures, then words).
+  C Fact sheet (tinted fact table beside cover and text, gallery strip). The Lightbox opens from every picture.
+- **Blog** (`/blog`, `?tag=`, `?page=` as plain links, 9 per page): A Journal (newest large, dated entries with a
+  thumbnail). B Cards (three-column grid). C Index (ruled dates and titles). **Post**: A Essay (narrow centred
+  column), B Feature (photo opening, author rail), C Article (tinted head, rail with author). All end with related posts.
+- **Contact**: both enquiry forms on every design, in `#brief` and `#message` (`EnquiryFields.svelte`). A Form first
+  (brief first, details and the short form in a column). B Split (ink panel with details, forms beside it).
+  C Directory (four contact tiles, then the forms side by side). Without script the form posts and the server redirects
+  to `/contact?form=<form>&enquiry=sent`; `form` says which of the two shows the thanks message.
+- JSON-LD: `Service`, `CreativeWork` (projects), `BlogPosting` (posts). Lists with a filter or past page 1 are `noindex`.
+- Photo openings (service B, post B) use white text on a neutral scrim, start below the floating header, and fall
+  back to an accent field without a cover.
 
-## Screenshot loop
+## Using it (for the next pages)
 
-The playground has a local D1 (`pnpm --filter playground db:migrate && pnpm --filter playground db:seed`).
-
-```sh
-pnpm --filter playground dev          # http://localhost:5173
-```
-
-Switch a design by saving the site settings in the admin (Site settings, Design tab) or per page with the
-page's Design select. Then screenshot every width, for example with Playwright from `e2e/node_modules`
-(viewport 360, 768, 1280; scroll the page once so lazy pictures load; `reducedMotion: 'reduce'`) and look at
-every one. The design-taste-frontend skill has `scripts/inspect.mjs` (headline lines, fonts, contrast,
-overflow) and `references/critique.md` for the look-and-fix rounds. Check
-`document.documentElement.scrollWidth <= innerWidth` on every page.
-
-## Part 2 page types (experiences, journal, gallery, generic pages)
-
-Components live in `pages/` (and `lightbox/`); routes in `src/routes/(site)/` only load data and switch on `data.design`.
-In dev, `?design=a|b|c` on any of these routes previews a design without saving (`pages/devDesign.ts`, ignored in production).
-
-| Page type | A | B | C |
-| --- | --- | --- | --- |
-| experiences (`ExperienceCards`) | Trails: 12-column grid, uneven pictures, heading cut into the picture's corner | Postcards: full-bleed photo plus one solid card; on wide screens a band whose hovered panel opens | Itinerary: a table on column lines (time, effort, season) |
-| experience (`ExperienceView`) | Journey: facts in a sticky margin, pictures staggered | Summit: cover as first screen, facts as big numbers on an earth field, call to action on accent | Day sheet: body plus sticky panel (picture, facts table, one button) |
-| journal (`JournalList`) | Field notes: one large entry beside its text, rest staggered | Cover story: newest post is the first screen, rest on a slate field | Archive: dated rows grouped by year, topics in a sticky column |
-| post (`PostView`) | Essay: reading column, byline and share in the margin | Feature: cover first screen, wide measure, next note on a slate field | Letter: sticky sender column (from, written, filed under), signature at the end |
-| gallery (`GalleryPage`) | Wall: uneven mosaic per album | Reel: one edge-to-edge scroll row per album | Contact sheet: equal tiles with captions and credits, sticky album index |
-| page (`PageFrame`) | Notebook: title beside the cover, closing line | Vista: cover (or hero block) first, earth field with the enquiry button | Index: sticky strip of the page's section headings, blocks anchored |
-
-- Journal tag filter and paging are server-side (`?tag=slug&page=n`); filtered and later pages are `noindex`. Page size is 9 (`journal/+page.server.ts`).
-- Posts: reading-progress bar (`ReadingProgress`), share links are plain URLs (`ShareLinks`, WhatsApp first), `BlogPosting` JSON-LD in the route.
-- `lightbox/Lightbox.svelte`: native `<dialog>` (focus trap, Escape, focus returns to the opener), arrow keys/Home/End, swipe, caption and credit. Bind `index` (`null` = closed).
-- Lazy pictures inside horizontally scrolling rows (Reel) only load once scrolled near; screenshots must scroll the rows too.
+- Content: `content.ts` is the only data layer. `loadShell(cms)` (layout), `loadPage(cms, slug)` and
+  `loadBlockExtras(cms, blocks)` (collection data for listing blocks). For list pages call `cms.find(...)` in
+  `+page.server.ts` and pass docs into components. Types: `types.ts` (`Page`, `Service`, `Project`, `Post`, ...,
+  upload and relationship fields are `unknown`: narrow with `asMedia`, `asMediaList`, `asDoc` from `media.ts`).
+- Layout data (`data.site`, `data.legal`) comes from `(site)/+layout.server.ts`; use `await parent()` in a load
+  to read `site` for `designFor`.
+- Shell: `buildShell(site, legal)` -> `Shell` (`shell.ts`); `Shell.svelte` wraps pages.
+- Components: `Img` (responsive, `eager` for the first screen), `Pic` (fixed-ratio frame), `Link` (CMS hrefs),
+  `Icon` (names in `icons.ts`), `RichText`, `Seo` (title, description, image, `noIndex`, `jsonLd`),
+  `Lightbox` (`bind:index`), `blocks/RenderBlocks` (a page's `sections`), `blocks/SectionHead`.
+- SEO: read the plugin's `meta` group with `metaOf(doc)` (`meta.ts`).
+- Offers: `loadBlockExtras` turns a `ForbiddenError` from the `offers` add-on into `null`; the Offers block
+  renders nothing for `null`. Use the same `forbiddenAsNull` approach for any other gated collection.
+- Rules for new designs: a floating header must never overlap the first section of any page type; test every
+  new page at 390 and 1440 with header A, B and C (`?design=` and `?header=` in dev). Tap targets are at least
+  44px; images carry width and height (or a ratio frame) and are lazy except on the first screen; no
+  horizontal scroll at 390.

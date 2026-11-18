@@ -1,129 +1,91 @@
 <script lang="ts">
-	// Questions. A heading beside an accordion. B the accordion beside a tall photograph. C grouped by
-	// topic, two columns. All use native <details>: keyboard and screen readers work without script.
-	import Pic from '../Pic.svelte';
-	import Section from '../Section.svelte';
-	import { asMedia } from '../media';
-	import type { Faq } from '../types';
-	import type { BlockProps } from './props';
+	// Questions as native <details>: they work without script. A: heading left, questions right.
+	// B: questions stacked full width on tinted rows. C: two columns of questions.
+	import type { DesignId } from '../designs';
+	import Icon from '../Icon.svelte';
+	import { reveal } from '../reveal';
+	import type { BlockOf } from '../types';
 
-	let { block, design = 'a', extras }: BlockProps<'faq'> = $props();
-	const items = $derived((extras?.faqs ?? []).filter((f) => !block.category || f.category === block.category));
-	const groups = $derived.by(() => {
-		const m: Record<string, Faq[]> = {};
-		for (const f of items) (m[f.category ?? 'General'] ??= []).push(f);
-		return Object.entries(m);
-	});
-	const image = $derived(asMedia(block.image));
+	let { block, design = 'a' }: { block: BlockOf<'faq'>; design?: DesignId } = $props();
+	const items = $derived(block.items ?? []);
 </script>
 
-{#snippet qa(f: Faq)}
-	<details>
-		<summary><span>{f.question}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 9l7 7 7-7" /></svg></summary>
-		<p>{f.answer}</p>
-	</details>
-{/snippet}
-
-{#if design === 'c'}
-	<Section tone="surface">
-		<h2 class="h">{block.heading ?? 'Good to know'}</h2>
-		<div class="groups">
-			{#each groups as [name, list] (name)}
-				<div>
-					<h3>{name}</h3>
-					{#each list as f (f.id)}{@render qa(f)}{/each}
-				</div>
-			{/each}
-		</div>
-	</Section>
-{:else}
-	<Section>
-		<div class="split {design}">
-			<div class="col">
-				<h2>{block.heading ?? 'Good to know'}</h2>
-				<div class="list">{#each items as f (f.id)}{@render qa(f)}{/each}</div>
+{#if items.length}
+	<section class="blk section" data-design={design}>
+		<div class="container grid">
+			{#if block.heading}<h2 class="reveal" use:reveal>{block.heading}</h2>{/if}
+			<div class="list">
+				{#each items as item, i (item.id ?? i)}
+					<details class="reveal" use:reveal style:--i={i % 3}>
+						<summary>
+							<span>{item.question}</span>
+							<span class="icon"><Icon name="plus" size={22} /></span>
+						</summary>
+						<p>{item.answer}</p>
+					</details>
+				{/each}
 			</div>
-			{#if design === 'b'}<Pic media={image} ratio={3 / 4} sizes="(min-width: 56rem) 40vw, 100vw" class="tall" />{/if}
 		</div>
-	</Section>
+	</section>
 {/if}
 
 <style>
-	.h {
-		margin-bottom: var(--s-6);
-	}
-	.col {
+	.grid {
 		display: grid;
-		gap: var(--s-6);
-		align-content: start;
+		gap: var(--s-5);
+	}
+	h2 {
+		max-width: 12ch;
 	}
 	.list {
 		display: grid;
-		gap: var(--s-4);
+		gap: var(--s-2);
+		align-content: start;
 	}
 	details {
-		padding-block: var(--s-1);
+		background: var(--surface);
+	}
+	[data-design='b'] details {
+		background: var(--surface-2);
 	}
 	summary {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--s-4);
-		min-height: 2.75rem;
-		font: 600 1.2rem/1.3 var(--font-text);
+		gap: var(--s-3);
+		min-height: 3.5rem;
+		padding: 0.75rem 1.1rem;
+		font: 600 var(--step-0) / 1.35 var(--font-text);
 		cursor: pointer;
 		list-style: none;
 	}
 	summary::-webkit-details-marker {
 		display: none;
 	}
-	summary svg {
-		flex: none;
-		transition: transform 0.25s var(--ease);
+	summary:hover {
+		background: color-mix(in srgb, var(--ink) 4%, transparent);
 	}
-	details[open] summary svg {
-		transform: rotate(180deg);
+	.icon {
+		flex: none;
+		transition: rotate 0.25s var(--ease);
+	}
+	details[open] .icon {
+		rotate: 45deg;
 	}
 	details p {
-		padding: var(--s-2) 0 var(--s-3);
-		max-width: 60ch;
+		padding: 0 1.1rem 1.25rem;
+		max-width: 44rem;
 		color: var(--muted);
 	}
-	.split {
-		display: grid;
-		gap: var(--s-6);
-	}
-	.groups {
-		display: grid;
-		gap: var(--s-6);
-	}
-	.groups h3 {
-		margin-bottom: var(--s-3);
-		color: var(--accent);
-	}
 	@media (min-width: 56rem) {
-		.split.a {
-			grid-template-columns: 4fr 7fr;
+		[data-design='a'] .grid {
+			grid-template-columns: 4fr 8fr;
 			gap: var(--s-7);
 		}
-		.split.a .col {
-			display: contents;
-		}
-		.split.a .col h2 {
-			grid-column: 1;
-		}
-		.split.a .list {
-			grid-column: 2;
-			grid-row: 1;
-		}
-		.split.b {
-			grid-template-columns: 7fr 5fr;
-			gap: var(--s-7);
-			align-items: start;
-		}
-		.groups {
+		[data-design='c'] .list {
 			grid-template-columns: 1fr 1fr;
-			gap: var(--s-6) var(--s-7);
+			gap: var(--s-3);
+			align-items: start;
 		}
 	}
 </style>

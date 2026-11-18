@@ -6,4 +6,5 @@ TURNSTILE_SECRET=1x0000000000000000000000000000000AA
 
 # Runtime plan and add-ons (plugin-entitlements). JSON on one line, in single quotes.
 # Remove "offers" from addons to see the gated Offers collection and site section disappear.
-KITCMS_ENTITLEMENTS='{"plan":"demo","addons":["offers"],"limits":{"documents":{"rooms":20}}}'
+# limits.documents caps documents per collection (here: 20 projects).
+KITCMS_ENTITLEMENTS='{"plan":"demo","addons":["offers"],"limits":{"documents":{"projects":20}}}'

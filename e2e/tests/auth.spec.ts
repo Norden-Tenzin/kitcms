@@ -25,7 +25,7 @@ test('the first-user form is gone once a user exists', async ({ page }) => {
 test('log out, a wrong password shows an error, the right one signs in', async ({ page }) => {
 	// Fresh sign-in (the first test's session lives in another context).
 	await page.goto('/admin');
-	await expect(page.getByRole('heading', { name: 'Dolkar House' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Halden Studio' })).toBeVisible();
 	await expect(page.getByText('Sign in to continue.')).toBeVisible();
 
 	await page.getByLabel('Email').fill(ADMIN.email);

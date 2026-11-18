@@ -15,8 +15,8 @@
 		"dev:rpc": "KITCMS_DEV_RPC=1 CLOUDFLARE_DEV_REGISTRY_PATH=../../.dev-registry WRANGLER_REGISTRY_PATH=../../.dev-registry vite dev"
 	},
 	"dependencies": {
-		"@fontsource/barlow": "^5.3.0",
-		"@fontsource/barlow-condensed": "^5.3.0",
+		"@fontsource-variable/hanken-grotesk": "^5.2.0",
+		"@fontsource/instrument-serif": "^5.2.0",
 		"@kitcms/core": "workspace:*",
 		"@kitcms/plugin-enquiries": "workspace:*",
 		"@kitcms/plugin-entitlements": "workspace:*",

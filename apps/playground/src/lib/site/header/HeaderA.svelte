@@ -1,13 +1,12 @@
 <script lang="ts">
-	// Bar: wordmark left, links right, one action. Sticky.
+	// A "Bar": a plain sticky bar. Wordmark left, links and one button right.
 	import { page } from '$app/state';
 	import Img from '../Img.svelte';
 	import Link from '../Link.svelte';
+	import { isActive, type Shell } from '../shell';
 	import MobileMenu from './MobileMenu.svelte';
-	import type { Shell } from '../shell';
 
 	let { shell }: { shell: Shell } = $props();
-	const active = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
 </script>
 
 <header>
@@ -18,10 +17,10 @@
 		</Link>
 		<nav aria-label="Main" class="desktop">
 			{#each shell.nav as item (item.id)}
-				<Link href={item.href} aria-current={active(item.href) ? 'page' : undefined}>{item.label}</Link>
+				<Link href={item.href} aria-current={isActive(item.href, page.url.pathname) ? 'page' : undefined}>{item.label}</Link>
 			{/each}
+			<Link href={shell.cta.href} class="btn">{shell.cta.label}</Link>
 		</nav>
-		<Link href={shell.cta.href} class="btn desktop">{shell.cta.label}</Link>
 		<MobileMenu {shell} class="mobile" />
 	</div>
 </header>
@@ -30,37 +29,33 @@
 	header {
 		position: sticky;
 		top: 0;
-		z-index: 10;
+		z-index: 20;
 		background: var(--bg);
 	}
 	.bar {
 		display: flex;
 		align-items: center;
-		gap: var(--s-5);
-		min-height: var(--header-h);
 		justify-content: space-between;
+		min-height: var(--header-h);
 	}
 	.bar :global(.brand) {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: var(--s-2);
-		font: 700 1.7rem/1 var(--font-display);
-		text-transform: uppercase;
-		letter-spacing: 0.01em;
-		text-decoration: none;
+		gap: 0.6rem;
 		min-height: 2.75rem;
+		font: 1.9rem/1 var(--font-display);
+		letter-spacing: -0.01em;
+		text-decoration: none;
 	}
 	.bar :global(.brand img) {
-		width: 2.5rem;
-		height: 2.5rem;
+		width: 2.25rem;
+		height: 2.25rem;
 		object-fit: contain;
 	}
-	nav {
-		display: flex;
-		gap: var(--s-5);
-		margin-inline: auto var(--s-4);
+	.desktop {
+		display: none;
 	}
-	nav :global(a) {
+	nav :global(a:not(.btn)) {
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
@@ -69,19 +64,15 @@
 		text-underline-offset: 0.35em;
 		transition: text-decoration-color 0.2s var(--ease);
 	}
-	nav :global(a:hover),
+	nav :global(a:not(.btn):hover),
 	nav :global(a[aria-current]) {
 		text-decoration-color: currentColor;
 	}
-	.bar :global(.desktop) {
-		display: none;
-	}
 	@media (min-width: 56rem) {
-		.bar :global(nav.desktop) {
+		.desktop {
 			display: flex;
-		}
-		.bar :global(a.desktop) {
-			display: inline-flex;
+			align-items: center;
+			gap: var(--s-4);
 		}
 		.bar :global(.mobile) {
 			display: none;

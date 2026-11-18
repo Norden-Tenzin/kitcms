@@ -1,26 +1,27 @@
-// Playground live previews. Every block previews through the real site components (same designs and
-// tokens as the public page); the `site` global has its own header-style preview.
+// Playground live previews. Every block previews through the real site components (the same tokens
+// and designs as the public page); the `site` global has its own header-style preview.
 import { defineAdmin } from '@kitcms/ui';
 
 const block = () => import('#lib/site/blocks/AdminPreview.svelte');
 
 export default defineAdmin({
 	previews: {
-		globals: { site: () => import('#lib/SitePreview.svelte') },
+		globals: { site: () => import('#lib/site/SitePreview.svelte') },
 		blocks: {
 			hero: block,
-			features: block,
 			richText: block,
+			features: block,
 			split: block,
 			gallery: block,
-			cta: block,
 			stats: block,
-			roomsList: block,
-			experiencesList: block,
-			testimonials: block,
-			faq: block,
 			quote: block,
-			location: block,
+			faq: block,
+			cta: block,
+			servicesList: block,
+			projectsList: block,
+			testimonials: block,
+			teamGrid: block,
+			latestPosts: block,
 			offers: block,
 		},
 	},

@@ -1,8 +1,6 @@
 <script lang="ts">
-	import '@fontsource/barlow/400.css';
-	import '@fontsource/barlow/500.css';
-	import '@fontsource/barlow/600.css';
-	import '@fontsource/barlow-condensed/700.css';
+	import '@fontsource-variable/hanken-grotesk';
+	import '@fontsource/instrument-serif';
 	import '#lib/site/site.css';
 	import { dev } from '$app/env';
 	import { onNavigate } from '$app/navigation';
@@ -13,11 +11,10 @@
 
 	let { data, children } = $props();
 	const shell = $derived(buildShell(data.site, data.legal));
-	// Dev only: `?header=b` / `?footer=c` preview a header or footer design without saving settings.
+	// Dev only: `?header=b` and `?footer=c` preview a design without saving the settings.
 	const devParam = (name: string) => (dev ? page.url.searchParams.get(name) : null);
 	const header = $derived(designFor('header', data.site, devParam('header')));
 	const footer = $derived(designFor('footer', data.site, devParam('footer')));
-	const overHero = $derived(Boolean((page.data as { overHero?: boolean }).overHero));
 
 	// View transitions between pages (skipped for reduced motion and where unsupported).
 	onNavigate((navigation) => {
@@ -31,6 +28,6 @@
 	});
 </script>
 
-<Shell {shell} {header} {footer} {overHero} style={themeStyle(data.site.theme)}>
+<Shell {shell} {header} {footer} style={themeStyle(data.site.theme)}>
 	{@render children()}
 </Shell>

@@ -1,405 +1,326 @@
 <script lang="ts">
-	// One journal post, three compositions. A "Essay": a quiet reading column with the byline and share
-	// links in the margin. B "Feature": the cover is the first screen, a wide measure, the next note
-	// on a field. C "Letter": a sticky sender column beside the text, a signature at the end.
-	// All three: a reading-progress bar, tags that filter the journal, newer/older links.
+	// One post (`post` design). A "Essay": a narrow centred column, the title large, the cover wide
+	// after it. B "Feature": the cover is the first screen with the title on it, the author beside the
+	// text. C "Article": title and byline on a tint, the text in a wide column with the author and tags
+	// in a rail. All three end with related posts.
+	import { toPlainText } from '@kitcms/core/richtext';
+	import type { DesignId } from '../designs';
+	import { formatDate, initials } from '../format';
 	import Img from '../Img.svelte';
 	import Link from '../Link.svelte';
+	import { asDoc, asMedia } from '../media';
 	import Pic from '../Pic.svelte';
+	import { reveal } from '../reveal';
 	import RichText from '../RichText.svelte';
-	import Section from '../Section.svelte';
-	import { fmtDate } from '../format';
-	import { asMedia } from '../media';
-	import type { DesignId } from '../designs';
-	import type { Post } from '../types';
-	import PostPager from './PostPager.svelte';
-	import { authorOf, photoOf, tagsOf } from './postmeta';
-	import ReadingProgress from './ReadingProgress.svelte';
-	import ShareLinks from './ShareLinks.svelte';
+	import type { Post, Tag, TeamMember } from '../types';
 
-	interface Pager {
-		slug: string;
-		title: string;
-		cover?: unknown;
-		publishedAt?: string | null;
-	}
-	interface Props {
-		post: Post;
-		newer: Pager | null;
-		older: Pager | null;
-		related: Post[];
-		url: string;
-		design?: DesignId;
-	}
-	let { post, newer, older, related, url, design = 'a' }: Props = $props();
+	let { post, related, design = 'a' }: { post: Post; related: Post[]; design?: DesignId } = $props();
 	const cover = $derived(asMedia(post.cover));
-	const author = $derived(authorOf(post));
-	const photo = $derived(photoOf(author));
-	const tags = $derived(tagsOf(post));
-	const date = $derived(fmtDate(post.publishedAt));
+	const author = $derived(asDoc<TeamMember>(post.author));
+	const authorPhoto = $derived(asMedia(author?.photo));
+	const tags = $derived((post.tags ?? []).flatMap((t) => { const d = asDoc<Tag>(t); return d?.slug ? [d] : []; }));
+	const minutes = $derived(Math.max(1, Math.round(toPlainText(post.body).split(/\s+/).filter(Boolean).length / 220)));
+	const date = $derived(formatDate(post.publishedAt));
 </script>
 
-<!-- Internal links and anchors are plain paths built here, not routes to resolve. -->
-<!-- eslint-disable svelte/no-navigation-without-resolve -->
+{#snippet byline()}
+	<p class="by small">
+		{#if author}<span class="who">{author.name}</span>{/if}
+		{#if date}<time datetime={post.publishedAt ?? undefined}>{date}</time>{/if}
+		<span>{minutes} min read</span>
+	</p>
+{/snippet}
 
-<ReadingProgress target="post-body" />
-
-{#snippet tagLinks()}
+{#snippet tagList()}
 	{#if tags.length}
 		<ul class="tags" aria-label="Topics">
-			{#each tags as t (t.id)}<li><a href={`/journal?tag=${encodeURIComponent(t.slug)}`}>{t.name}</a></li>{/each}
+			{#each tags as t (t.id)}<li><Link href={`/blog?tag=${t.slug}`} class="tag">{t.name}</Link></li>{/each}
 		</ul>
 	{/if}
 {/snippet}
 
-{#snippet byline()}
+{#snippet authorCard()}
 	{#if author}
-		<div class="by">
-			{#if photo}<span class="face"><Pic media={photo} ratio={1} widths={[120, 240]} sizes="3.5rem" alt="" /></span>{/if}
-			<p><strong>{author.name}</strong>{#if author.role}<span class="small">{author.role}</span>{/if}</p>
+		<div class="author">
+			{#if authorPhoto}
+				<div class="av"><Pic media={authorPhoto} ratio={1} widths={[120, 240]} sizes="4rem" alt="" /></div>
+			{:else}
+				<span class="av ini" aria-hidden="true">{initials(author.name)}</span>
+			{/if}
+			<p><strong>{author.name}</strong><br /><span class="muted small">{author.role ?? ''}</span></p>
 		</div>
 	{/if}
 {/snippet}
 
-{#snippet more()}
-	{#if related.length}
-		<Section>
-			<h2 class="h2">More from the journal</h2>
-			<ul class="more">
-				{#each related as p (p.id)}
-					<li>
-						<Link href={`/journal/${p.slug}`}>
-							<Pic media={asMedia(p.cover)} ratio={3 / 2} sizes="(min-width: 56rem) 28vw, 100vw" />
-							<span class="small">{fmtDate(p.publishedAt)}</span>
-							<h3>{p.title}</h3>
-						</Link>
-					</li>
-				{/each}
-			</ul>
-		</Section>
-	{/if}
-{/snippet}
-
-{#if design === 'b'}
-	<article>
-		<header class="b-hero on-dark">
-			<div class="photo"><Img media={cover} eager fit="cover" widths={[800, 1400, 2000]} sizes="100vw" alt="" /></div>
+<article data-design={design}>
+	{#if design === 'b'}
+		<header class="b" class:photo={!!cover}>
+			{#if cover}<div class="bg"><Img media={cover} fit="cover" eager widths={[800, 1400, 1800]} sizes="100vw" alt="" /></div>{/if}
 			<div class="container inner">
+				{@render byline()}
 				<h1>{post.title}</h1>
-				{#if post.excerpt}<p class="lead">{post.excerpt}</p>{/if}
-				<p class="small">{[date, author?.name].filter(Boolean).join(', ')}</p>
 			</div>
 		</header>
-		<Section>
-			<div class="b-wrap">
-				<div id="post-body" class="b-body"><RichText doc={post.body} /></div>
-				<div class="b-foot">
-					{@render tagLinks()}
-					<ShareLinks {url} title={post.title} />
-				</div>
-			</div>
-		</Section>
-		{#if older}
-			<Section tone="slate" pad="none">
-				<div class="b-next">
-					<Link href={`/journal/${older.slug}`} class="b-nextlink" rel="prev">
-						<span class="small">Older note, {fmtDate(older.publishedAt)}</span>
-						<span class="t">{older.title}</span>
-					</Link>
-					<Pic media={asMedia(older.cover)} ratio={4 / 3} sizes="(min-width: 56rem) 40vw, 100vw" alt="" class="b-nextpic" />
-				</div>
-			</Section>
-		{/if}
-		{#if newer}
-			<Section pad="top"><PostPager {newer} older={null} /></Section>
-		{/if}
-		{@render more()}
-	</article>
-{:else if design === 'c'}
-	<article>
-		<div class="container c-wrap pt-hdr">
-			<aside class="c-side" aria-label="About this note">
-				<dl>
-					<div><dt class="small">From</dt><dd>{@render byline()}</dd></div>
-					<div><dt class="small">Written</dt><dd>{date}</dd></div>
-					{#if tags.length}<div><dt class="small">Filed under</dt><dd>{@render tagLinks()}</dd></div>{/if}
-				</dl>
-				<ShareLinks {url} title={post.title} />
-			</aside>
-			<div class="c-main">
-				<h1>{post.title}</h1>
+		<div class="container bbody section">
+			<aside class="rail">{@render authorCard()}{@render tagList()}</aside>
+			<div class="text">
 				{#if post.excerpt}<p class="lead">{post.excerpt}</p>{/if}
-				<Pic media={cover} ratio={3 / 2} eager widths={[700, 1200, 1800]} sizes="(min-width: 56rem) 52vw, 100vw" alt="" />
-				<div id="post-body"><RichText doc={post.body} /></div>
-				{#if author}<p class="sign">{author.name}</p>{/if}
+				<RichText doc={post.body} />
 			</div>
 		</div>
-		<Section pad="top"><PostPager {newer} {older} /></Section>
-		{@render more()}
-	</article>
-{:else}
-	<article>
-		<header class="container a-head pt-hdr">
-			<p class="small">{date}{#if tags.length}, {tags.map((t) => t.name).join(', ')}{/if}</p>
-			<h1>{post.title}</h1>
-			{#if post.excerpt}<p class="lead">{post.excerpt}</p>{/if}
-		</header>
-		<div class="container"><Pic media={cover} ratio={16 / 8} eager widths={[800, 1400, 2000]} sizes="(min-width: 82rem) 78rem, 100vw" alt="" /></div>
-		<Section>
-			<div class="a-cols">
-				<aside class="a-side" aria-label="About this note">
-					{@render byline()}
-					{@render tagLinks()}
-					<ShareLinks {url} title={post.title} />
-				</aside>
-				<div id="post-body" class="a-body"><RichText doc={post.body} /></div>
+	{:else if design === 'c'}
+		<header class="c surface">
+			<div class="container cg">
+				<h1>{post.title}</h1>
+				<div class="cmeta">{@render byline()}{@render tagList()}</div>
 			</div>
-		</Section>
-		<Section pad="top"><PostPager {newer} {older} /></Section>
-		{@render more()}
-	</article>
-{/if}
+		</header>
+		<div class="container cbody section">
+			<div class="text">
+				{#if cover}<Pic media={cover} ratio={16 / 9} eager widths={[600, 1000, 1400]} sizes="(min-width: 56rem) 60vw, 100vw" />{/if}
+				<RichText doc={post.body} />
+			</div>
+			<aside class="rail">
+				{@render authorCard()}
+				{#if post.excerpt}<p class="muted">{post.excerpt}</p>{/if}
+			</aside>
+		</div>
+	{:else}
+		<header class="container a">
+			{@render byline()}
+			<h1>{post.title}</h1>
+			{#if post.excerpt}<p class="lead muted">{post.excerpt}</p>{/if}
+		</header>
+		{#if cover}
+			<div class="container awide"><Pic media={cover} ratio={16 / 9} eager widths={[700, 1200, 1800]} sizes="100vw" alt="" /></div>
+		{/if}
+		<div class="container acol section">
+			<RichText doc={post.body} />
+			{@render tagList()}
+			{@render authorCard()}
+		</div>
+	{/if}
+
+	{#if related.length}
+		<section class="related surface section" aria-labelledby="rel-h">
+			<div class="container">
+				<h2 id="rel-h">Keep reading</h2>
+				<ul class="rel">
+					{#each related as p, i (p.id)}
+						<li class="reveal" use:reveal style:--i={i}>
+							<Link href={`/blog/${p.slug}`} class="rcard">
+								<Pic media={asMedia(p.cover)} ratio={3 / 2} widths={[400, 700, 1000]} sizes="(min-width: 56rem) 30vw, 100vw" />
+								<span class="small muted">{formatDate(p.publishedAt)}</span>
+								<span class="rt">{p.title}</span>
+							</Link>
+						</li>
+					{/each}
+				</ul>
+				<p class="all"><Link href="/blog" class="more">All posts</Link></p>
+			</div>
+		</section>
+	{/if}
+</article>
 
 <style>
-	ul,
-	dl,
-	dd {
+	ul {
 		list-style: none;
-		margin: 0;
-		padding: 0;
 	}
-	.h2 {
-		margin-bottom: var(--s-6);
+	h2 {
+		font-size: var(--step-h2);
+	}
+	.by {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem var(--s-3);
+		font-weight: 600;
+	}
+	.by > * + *::before {
+		content: '·';
+		margin-right: var(--s-3);
+		font-weight: 400;
 	}
 	.tags {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0 var(--s-4);
+		gap: var(--s-2);
 	}
-	.tags a {
+	.tags :global(.tag) {
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
+		padding: 0.2rem 1rem;
+		border: 2px solid currentColor;
+		text-decoration: none;
 		font-weight: 600;
-		text-decoration-thickness: 2px;
-		text-underline-offset: 0.25em;
+		font-size: var(--step-small);
 	}
-	.by {
+	.tags :global(.tag:hover) {
+		background: var(--ink);
+		color: var(--bg);
+	}
+	.author {
 		display: flex;
-		align-items: center;
 		gap: var(--s-3);
+		align-items: center;
 	}
-	.by p {
-		display: grid;
-		gap: 0;
-	}
-	.face {
+	.av {
 		width: 3.5rem;
 		flex: none;
-	}
-	.more {
-		display: grid;
-		gap: var(--s-6);
-	}
-	.more :global(a) {
-		display: grid;
-		gap: var(--s-2);
-		text-decoration: none;
-	}
-	.more :global(a:hover h3) {
-		text-decoration: underline;
-		text-decoration-thickness: 2px;
-		text-underline-offset: 0.12em;
-	}
-	@media (min-width: 56rem) {
-		.more {
-			grid-template-columns: repeat(3, 1fr);
-			gap: var(--s-5);
-		}
-	}
-
-	/* ----- A: Essay ----- */
-	.a-head {
-		display: grid;
-		gap: var(--s-4);
-		padding-bottom: var(--s-6);
-		max-width: 62rem;
-		margin-inline: auto;
-	}
-	.a-head h1 {
-		font-size: clamp(3rem, 1rem + 8vw, 7.5rem);
-	}
-	.a-cols {
-		display: grid;
-		gap: var(--s-6);
-	}
-	.a-side {
-		display: grid;
-		gap: var(--s-4);
-		align-content: start;
-		order: 2;
-	}
-	.a-body :global(.prose) {
-		font-size: clamp(1.125rem, 1.05rem + 0.35vw, 1.3125rem);
-		line-height: 1.65;
-	}
-	@media (min-width: 56rem) {
-		.a-cols {
-			grid-template-columns: repeat(12, 1fr);
-			gap: var(--s-5);
-		}
-		.a-side {
-			order: 0;
-			grid-column: 1 / 4;
-			position: sticky;
-			top: calc(var(--header-h) + var(--s-5));
-			align-self: start;
-		}
-		.a-body {
-			grid-column: 5 / 12;
-		}
-	}
-
-	/* ----- B: Feature ----- */
-	.b-hero {
-		position: relative;
-		min-height: 92svh;
-		display: grid;
-		align-items: end;
-		color: #fff;
-		isolation: isolate;
-	}
-	.photo {
-		position: absolute;
-		inset: 0;
-		z-index: -1;
+		border-radius: 50%;
 		overflow: hidden;
-		background: var(--slate);
 	}
-	.photo::after {
-		content: '';
-		position: absolute;
-		inset: 30% 0 0;
-		background: linear-gradient(transparent, rgb(20 12 8 / 0.82)); /* neutral scrim under text on a photograph, taste-skill-ignore */
-	}
-	.inner {
-		display: grid;
-		gap: var(--s-4);
-		padding-block: var(--s-7) var(--s-6);
-	}
-	.b-hero h1 {
-		font-size: clamp(3rem, 0.8rem + 9vw, 8.5rem);
-	}
-	.inner .small {
-		color: inherit;
-		opacity: 0.92;
-	}
-	.b-wrap {
-		display: grid;
-		gap: var(--s-6);
-		max-width: 46rem;
-		margin-inline: auto;
-		padding-bottom: var(--section);
-	}
-	.b-body :global(.prose) {
-		max-width: none;
-		font-size: clamp(1.1875rem, 1.1rem + 0.45vw, 1.4rem);
-		line-height: 1.65;
-	}
-	.b-body :global(.prose > p:first-child) {
-		font-size: var(--step-lead);
-		line-height: 1.4;
-	}
-	.b-foot {
-		display: grid;
-		gap: var(--s-4);
-	}
-	.b-next {
-		display: grid;
-	}
-	.b-next :global(.b-nextlink) {
-		display: grid;
-		gap: var(--s-3);
-		align-content: center;
-		padding: var(--s-7) var(--gutter);
-		text-decoration: none;
-		min-height: 14rem;
-	}
-	.b-next :global(.b-nextlink .t) {
-		font: 700 clamp(2.4rem, 1.4rem + 4vw, 5rem) / 0.95 var(--font-display);
-	}
-	.b-next :global(.b-nextlink:hover .t) {
-		color: var(--apricot);
-	}
-	.b-next :global(.b-nextpic),
-	.b-next :global(.b-nextpic .img) {
-		border-radius: 0;
-	}
-	@media (min-width: 56rem) {
-		.b-next {
-			grid-template-columns: 1fr 1fr;
-			align-items: stretch;
-		}
-		.b-next :global(.b-nextpic) {
-			height: 100%;
-			aspect-ratio: auto !important;
-			min-height: 22rem;
-		}
-		.b-next :global(.b-nextlink) {
-			padding-left: max(var(--gutter), calc((100vw - var(--max)) / 2 + var(--gutter)));
-		}
-	}
-
-	/* ----- C: Letter ----- */
-	.c-wrap {
-		display: grid;
-		gap: var(--s-6);
-	}
-	.c-side {
-		display: grid;
-		gap: var(--s-5);
-		align-content: start;
-		padding-top: var(--s-4);
-		border-top: 2px solid var(--ink);
-	}
-	.c-side dl {
-		display: grid;
-		gap: var(--s-4);
-	}
-	.c-side dd {
+	.ini {
+		display: inline-grid;
+		place-items: center;
+		height: 3.5rem;
+		background: var(--accent);
+		color: var(--accent-ink);
 		font-weight: 600;
 	}
-	.c-main {
+	.text {
 		display: grid;
 		gap: var(--s-5);
 		align-content: start;
 		min-width: 0;
 	}
-	.c-main h1 {
-		font-size: clamp(2.8rem, 1.2rem + 6vw, 6rem);
+	.text :global(.prose),
+	.acol :global(.prose) {
+		font-size: var(--step-lead);
+		line-height: 1.55;
+		max-width: 40rem;
 	}
-	.c-main :global(.prose) {
-		font-size: clamp(1.125rem, 1.05rem + 0.35vw, 1.25rem);
-		line-height: 1.65;
+	.rail {
+		display: grid;
+		gap: var(--s-4);
+		align-content: start;
 	}
-	.sign {
-		font: 700 clamp(2rem, 1.4rem + 2vw, 3rem) / 1 var(--font-display);
-		padding-top: var(--s-4);
-		border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); /* a real table row, taste-skill-ignore */
-		max-width: var(--measure);
+
+	/* A */
+	.a {
+		display: grid;
+		gap: var(--s-4);
+		padding-block: var(--s-5);
+	}
+	.a h1 {
+		font-size: clamp(3rem, 1rem + 8vw, 7.5rem);
+	}
+	.awide :global(.pic) {
+		min-height: 12rem;
+	}
+	/* `.site` raises the specificity above the shared `.container` max-width. */
+	:global(.site) .acol {
+		display: grid;
+		gap: var(--s-5);
+		max-width: calc(42rem + 2 * var(--gutter));
+		justify-items: start;
+	}
+
+	/* B */
+	.b {
+		position: relative;
+		display: flex;
+		align-items: flex-end;
+		min-height: clamp(26rem, 72svh, 46rem);
+		padding-block: var(--s-7) var(--s-6);
+		overflow: hidden;
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+	.b.photo {
+		color: #fff;
+		background: #26282a;
+	}
+	.b .bg {
+		position: absolute;
+		inset: 0;
+	}
+	.b.photo::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(to top, rgb(0 0 0 / 0.82), rgb(0 0 0 / 0.35) 65%, rgb(0 0 0 / 0.2));
+	}
+	.b .inner {
+		position: relative;
+		z-index: 1;
+		display: grid;
+		gap: var(--s-3);
+	}
+	.b h1 {
+		font-size: clamp(3rem, 0.8rem + 9vw, 8.5rem);
+		max-width: 16ch;
+	}
+	.bbody {
+		display: grid;
+		gap: var(--s-5);
 	}
 	@media (min-width: 56rem) {
-		.c-wrap {
-			grid-template-columns: 15rem minmax(0, 1fr);
-			gap: var(--s-7);
-			align-items: start;
+		.bbody {
+			grid-template-columns: 3fr 7fr;
+			gap: var(--s-6);
 		}
-		.c-side {
-			position: sticky;
-			top: calc(var(--header-h) + var(--s-5));
+	}
+
+	/* C */
+	.c {
+		padding-block: var(--s-6);
+	}
+	.cg {
+		display: grid;
+		gap: var(--s-4);
+	}
+	.c h1 {
+		font-size: clamp(2.8rem, 1rem + 6vw, 6.5rem);
+	}
+	.cmeta {
+		display: grid;
+		gap: var(--s-3);
+		align-content: end;
+	}
+	.cbody {
+		display: grid;
+		gap: var(--s-5);
+	}
+	@media (min-width: 56rem) {
+		.cg {
+			grid-template-columns: 8fr 4fr;
+			gap: var(--s-6);
+			align-items: end;
 		}
-		.c-main {
-			max-width: 50rem;
+		.cbody {
+			grid-template-columns: 8fr 4fr;
+			gap: var(--s-6);
+		}
+	}
+
+	/* Related */
+	.related h2 {
+		margin-bottom: var(--s-5);
+	}
+	.rel {
+		display: grid;
+		gap: var(--s-5) var(--s-4);
+	}
+	.related :global(.rcard) {
+		display: grid;
+		gap: 0.3rem;
+		text-decoration: none;
+	}
+	.rt {
+		font: var(--step-h3) / 1.05 var(--font-display);
+	}
+	.related :global(.rcard:hover .rt) {
+		text-decoration: underline;
+		text-decoration-thickness: 2px;
+		text-underline-offset: 0.15em;
+	}
+	.all {
+		margin-top: var(--s-5);
+	}
+	@media (min-width: 56rem) {
+		.rel {
+			grid-template-columns: repeat(3, 1fr);
 		}
 	}
 </style>

@@ -32,7 +32,6 @@
 		class: className,
 	}: Props = $props();
 
-	// Transformations need a zone: not in dev and not on *.workers.dev.
 	const enabled = $derived(!dev && !page.url.hostname.endsWith('.workers.dev'));
 	const fallback = $derived(widths[Math.floor(widths.length / 2)] ?? 960);
 	const build = (w: number) =>
@@ -40,7 +39,6 @@
 			? imageUrl(media.url, { width: w, height: ratio ? w / ratio : undefined, fit: ratio ? 'cover' : 'scale-down' }, enabled)
 			: '';
 	const srcset = $derived(enabled ? widths.map((w) => `${build(w)} ${w}w`).join(', ') : undefined);
-	// With a ratio the intrinsic size is the crop, so the attributes match what is shown.
 	const w = $derived(ratio && media?.width ? media.width : (media?.width ?? undefined));
 	const h = $derived(ratio && media?.width ? Math.round(media.width / ratio) : (media?.height ?? undefined));
 </script>

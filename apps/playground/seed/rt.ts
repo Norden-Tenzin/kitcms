@@ -9,6 +9,10 @@ export const ul = (...items: string[]): Node => ({
 	type: 'bulletList',
 	content: items.map((i) => ({ type: 'listItem', content: [p(i)] })),
 });
+export const ol = (...items: string[]): Node => ({
+	type: 'orderedList',
+	content: items.map((i) => ({ type: 'listItem', content: [p(i)] })),
+});
 export const quote = (t: string): Node => ({ type: 'blockquote', content: [p(t)] });
 
 /** `rt(p('...'), h2('...'))`, or plain strings which become paragraphs. */

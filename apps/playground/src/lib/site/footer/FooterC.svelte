@@ -1,88 +1,81 @@
 <script lang="ts">
-	// Signboard: the name returns at full width, like the board over a shop door.
+	// C "Statement": an ink field that closes the page with one large invitation and the email as the
+	// biggest link on it. The link lists sit small underneath.
 	import Link from '../Link.svelte';
-	import { seasonStatus, telHref, type Shell } from '../shell';
+	import { telHref, type Shell } from '../shell';
+	import FooterLinks from './FooterLinks.svelte';
 
 	let { shell }: { shell: Shell } = $props();
-	const status = seasonStatus();
+	const year = new Date().getFullYear();
 </script>
 
-<footer data-tone="slate" class="on-dark">
-	<div class="container">
-		<div class="row">
-			<p class="lead">{shell.footerText || shell.tagline}</p>
-			<div class="meta">
-				{#if shell.contact.address}<address>{shell.contact.address}</address>{/if}
-				{#if shell.contact.phone}<Link href={telHref(shell.contact.phone)}>{shell.contact.phone}</Link>{/if}
-				{#if shell.contact.email}<Link href={`mailto:${shell.contact.email}`}>{shell.contact.email}</Link>{/if}
-				<p class="small">{status.text}</p>
-			</div>
-		</div>
-		<p class="board" aria-hidden="true">{shell.siteName}</p>
-		<div class="legal small">
-			{#each shell.nav as item (item.id)}<Link href={item.href}>{item.label}</Link>{/each}
-			{#each shell.legal as doc (doc.slug)}<Link href={`/legal/${doc.slug}`}>{doc.title}</Link>{/each}
-			{#each shell.social as s (s.id)}<Link href={s.url}>{s.label}</Link>{/each}
-			<Link href="/credits">Photo credits</Link>
-			<span>© {new Date().getFullYear()} {shell.siteName}. A demo hotel: not a real business.</span>
-		</div>
+<footer class="inverse">
+	<div class="container statement">
+		<p class="ask">Have something to make?</p>
+		{#if shell.contact.email}
+			<Link class="mail" href={`mailto:${shell.contact.email}`}>{shell.contact.email}</Link>
+		{:else}
+			<Link class="mail" href={shell.cta.href}>{shell.cta.label}</Link>
+		{/if}
 	</div>
+	<div class="container lists">
+		<FooterLinks {shell} which="nav" id="footer-nav" />
+		<div>
+			{#if shell.contact.address}<address>{shell.contact.address}</address>{/if}
+			{#if shell.contact.phone}<Link class="link phone" href={telHref(shell.contact.phone)}>{shell.contact.phone}</Link>{/if}
+		</div>
+		<FooterLinks {shell} which="social" />
+		<FooterLinks {shell} which="legal" />
+	</div>
+	<p class="container small muted copy">&copy; {year} {shell.siteName}. {shell.footerText}</p>
 </footer>
 
 <style>
 	footer {
-		padding-block: var(--section) var(--s-5);
-		margin-top: var(--section);
-		overflow: hidden;
+		padding-block: var(--section) var(--s-4);
 	}
-	.row {
-		display: grid;
-		gap: var(--s-6);
+	.ask {
+		font: var(--step-h3) / 1.1 var(--font-display);
+		color: var(--muted);
+		margin-bottom: var(--s-3);
 	}
-	.meta {
-		display: flex;
-		flex-direction: column;
-	}
-	.meta :global(a),
-	.legal :global(a) {
-		display: inline-flex;
-		align-items: center;
+	.statement :global(.mail) {
+		display: inline-block;
 		min-height: 2.75rem;
+		font: clamp(2.2rem, 0.8rem + 6.4vw, 7rem) / 1 var(--font-display);
+		letter-spacing: -0.02em;
+		text-decoration: underline;
+		text-decoration-thickness: 3px;
+		text-underline-offset: 0.12em;
+		text-decoration-color: color-mix(in srgb, var(--bg) 40%, transparent);
+		overflow-wrap: anywhere;
+		transition: text-decoration-color 0.2s var(--ease);
+	}
+	.statement :global(.mail:hover) {
+		text-decoration-color: var(--bg);
+	}
+	.lists {
+		display: grid;
+		gap: var(--s-4);
+		margin-top: var(--s-7);
 	}
 	address {
 		font-style: normal;
 		white-space: pre-line;
 		margin-bottom: var(--s-2);
 	}
-	.board {
-		font: 700 17vw/0.82 var(--font-display);
-		text-transform: uppercase;
-		letter-spacing: -0.02em;
-		color: var(--apricot);
-		margin: var(--s-7) 0 var(--s-5) -0.04em;
-		white-space: nowrap;
-	}
-	.legal {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0 var(--s-5);
+	.lists :global(.phone) {
+		display: inline-flex;
 		align-items: center;
+		min-height: 2.75rem;
 	}
-	.legal span {
-		flex-basis: 100%;
+	.copy {
+		margin-top: var(--s-6);
 	}
 	@media (min-width: 56rem) {
-		.row {
-			grid-template-columns: 1.4fr 1fr;
-		}
-		.legal span {
-			flex-basis: auto;
-			margin-left: auto;
-		}
-	}
-	@media (max-width: 56rem) {
-		footer {
-			padding-bottom: 6rem;
+		.lists {
+			grid-template-columns: repeat(4, 1fr);
+			gap: var(--s-5);
 		}
 	}
 </style>

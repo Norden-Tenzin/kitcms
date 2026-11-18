@@ -27,8 +27,7 @@
 	.pic {
 		position: relative;
 		overflow: hidden;
-		background: var(--surface);
-		border-radius: var(--radius);
+		background: var(--surface-2);
 		width: 100%;
 	}
 	.pic.fill {

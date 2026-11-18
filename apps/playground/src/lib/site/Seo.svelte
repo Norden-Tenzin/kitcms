@@ -9,16 +9,32 @@
 		siteName?: string | null;
 		type?: 'website' | 'article';
 		noIndex?: boolean;
-		/** schema.org JSON-LD objects. */
+		/** schema.org objects, rendered as `application/ld+json`. */
 		jsonLd?: object[];
 	}
-	let { title, description, image, siteName, type = 'website', noIndex, jsonLd = [] }: Props = $props();
+	let {
+		title,
+		description,
+		image,
+		siteName,
+		type = 'website',
+		noIndex = false,
+		jsonLd = [],
+	}: Props = $props();
 
-	const fullTitle = $derived(title && siteName && title !== siteName ? `${title} | ${siteName}` : (title ?? siteName ?? ''));
-	// Open Graph wants an absolute URL.
+	const fullTitle = $derived(
+		title && siteName && !title.includes(siteName)
+			? `${title} | ${siteName}`
+			: (title ?? siteName ?? ''),
+	);
 	const ogImage = $derived(image ? new URL(image.url, page.url.href).href : null);
-	// `<` is escaped so a value can never close the script element.
-	const ld = $derived(jsonLd.map((o) => JSON.stringify(o).replace(/</g, '\\u003c')));
+	// `<` is escaped so a value can never close the script tag.
+	const ld = $derived(
+		jsonLd.map(
+			(o) =>
+				`<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}${'</'}script>`,
+		),
+	);
 </script>
 
 <svelte:head>
@@ -32,8 +48,8 @@
 	{#if siteName}<meta property="og:site_name" content={siteName} />{/if}
 	{#if ogImage}<meta property="og:image" content={ogImage} />{/if}
 	<meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
-	{#each ld as json (json)}
+	{#each ld as tag, i (i)}
 		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-		{@html '<' + 'script type="application/ld+json">' + json + '<' + '/script>'}
+		{@html tag}
 	{/each}
 </svelte:head>

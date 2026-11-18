@@ -4,7 +4,8 @@
 	import { useRelation } from '@kitcms/ui';
 	import type { Media } from '../media';
 
-	let { id, onresolve }: { id: string; onresolve: (id: string, media: Media | null) => void } = $props();
+	let { id, onresolve }: { id: string; onresolve: (id: string, media: Media | null) => void } =
+		$props();
 
 	const rel = useRelation('media', () => id);
 	$effect(() => {
@@ -12,7 +13,14 @@
 		onresolve(
 			id,
 			doc?.url
-				? { id: doc.id, url: doc.url, alt: doc.title, width: doc.width, height: doc.height, mimeType: doc.mimeType }
+				? {
+						id: doc.id,
+						url: doc.url,
+						alt: doc.title,
+						width: doc.width,
+						height: doc.height,
+						mimeType: doc.mimeType,
+					}
 				: null,
 		);
 	});

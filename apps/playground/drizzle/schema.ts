@@ -9,8 +9,6 @@ export const t_pages = sqliteTable("pages", {
 	title: text("title"),
 	slug: text("slug"),
 	design: text("design"),
-	publishedAt: integer("publishedAt", { mode: 'timestamp_ms' }),
-	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
 	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
 	sections: text("sections", { mode: 'json' }),
 	meta: text("meta", { mode: 'json' }),
@@ -21,62 +19,6 @@ export const t_pages = sqliteTable("pages", {
 	index("pages_cover_idx").on(t["cover"]),
 ]);
 
-export const t_rooms = sqliteTable("rooms", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	_status: text("_status").notNull().default("published"),
-	name: text("name"),
-	slug: text("slug"),
-	pageDesign: text("pageDesign"),
-	view: text("view"),
-	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
-	summary: text("summary"),
-	description: text("description", { mode: 'json' }),
-	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
-	gallery: text("gallery", { mode: 'json' }),
-	sizeSqm: real("sizeSqm"),
-	maxGuests: real("maxGuests"),
-	beds: text("beds"),
-	count: real("count"),
-	priceFrom: real("priceFrom"),
-	amenities: text("amenities", { mode: 'json' }),
-	meta: text("meta", { mode: 'json' }),
-}, (t) => [
-	index("rooms_createdAt_idx").on(t["createdAt"]),
-	index("rooms__order_idx").on(t["_order"]),
-	index("rooms__status_idx").on(t["_status"]),
-	uniqueIndex("rooms_slug_unique").on(t["slug"]),
-	index("rooms_cover_idx").on(t["cover"]),
-]);
-
-export const t_experiences = sqliteTable("experiences", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	_status: text("_status").notNull().default("published"),
-	title: text("title"),
-	slug: text("slug"),
-	pageDesign: text("pageDesign"),
-	difficulty: text("difficulty"),
-	duration: text("duration"),
-	season: text("season"),
-	priceNote: text("priceNote"),
-	summary: text("summary"),
-	body: text("body", { mode: 'json' }),
-	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
-	gallery: text("gallery", { mode: 'json' }),
-	meta: text("meta", { mode: 'json' }),
-}, (t) => [
-	index("experiences_createdAt_idx").on(t["createdAt"]),
-	index("experiences__order_idx").on(t["_order"]),
-	index("experiences__status_idx").on(t["_status"]),
-	uniqueIndex("experiences_slug_unique").on(t["slug"]),
-	index("experiences_cover_idx").on(t["cover"]),
-]);
-
 export const t_posts = sqliteTable("posts", {
 	id: text("id").primaryKey().notNull(),
 	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
@@ -84,7 +26,7 @@ export const t_posts = sqliteTable("posts", {
 	_status: text("_status").notNull().default("published"),
 	title: text("title"),
 	slug: text("slug"),
-	pageDesign: text("pageDesign"),
+	design: text("design"),
 	publishedAt: integer("publishedAt", { mode: 'timestamp_ms' }),
 	author: text("author").references((): AnySQLiteColumn => t_team.id, { onDelete: "set null" }),
 	tags: text("tags", { mode: 'json' }),
@@ -109,96 +51,6 @@ export const t_tags = sqliteTable("tags", {
 }, (t) => [
 	index("tags_createdAt_idx").on(t["createdAt"]),
 	uniqueIndex("tags_slug_unique").on(t["slug"]),
-]);
-
-export const t_albums = sqliteTable("albums", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	title: text("title"),
-	slug: text("slug"),
-	description: text("description"),
-	images: text("images", { mode: 'json' }),
-}, (t) => [
-	index("albums_createdAt_idx").on(t["createdAt"]),
-	index("albums__order_idx").on(t["_order"]),
-	uniqueIndex("albums_slug_unique").on(t["slug"]),
-]);
-
-export const t_testimonials = sqliteTable("testimonials", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	quote: text("quote"),
-	name: text("name"),
-	from: text("from"),
-	rating: real("rating"),
-	stayedIn: text("stayedIn"),
-}, (t) => [
-	index("testimonials_createdAt_idx").on(t["createdAt"]),
-	index("testimonials__order_idx").on(t["_order"]),
-]);
-
-export const t_faqs = sqliteTable("faqs", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	question: text("question"),
-	answer: text("answer"),
-	category: text("category"),
-}, (t) => [
-	index("faqs_createdAt_idx").on(t["createdAt"]),
-	index("faqs__order_idx").on(t["_order"]),
-]);
-
-export const t_offers = sqliteTable("offers", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	title: text("title"),
-	summary: text("summary"),
-	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
-	validFrom: integer("validFrom", { mode: 'timestamp_ms' }),
-	validTo: integer("validTo", { mode: 'timestamp_ms' }),
-	ctaLabel: text("ctaLabel"),
-	ctaHref: text("ctaHref"),
-	terms: text("terms"),
-}, (t) => [
-	index("offers_createdAt_idx").on(t["createdAt"]),
-	index("offers_cover_idx").on(t["cover"]),
-]);
-
-export const t_dishes = sqliteTable("dishes", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	name: text("name"),
-	description: text("description"),
-	course: text("course"),
-	ladakhi: integer("ladakhi", { mode: 'boolean' }).notNull().default(false),
-	vegetarian: integer("vegetarian", { mode: 'boolean' }).notNull().default(false),
-}, (t) => [
-	index("dishes_createdAt_idx").on(t["createdAt"]),
-	index("dishes__order_idx").on(t["_order"]),
-]);
-
-export const t_team = sqliteTable("team", {
-	id: text("id").primaryKey().notNull(),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-	_order: text("_order"),
-	name: text("name"),
-	role: text("role"),
-	photo: text("photo").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
-	bio: text("bio"),
-}, (t) => [
-	index("team_createdAt_idx").on(t["createdAt"]),
-	index("team__order_idx").on(t["_order"]),
-	index("team_photo_idx").on(t["photo"]),
 ]);
 
 export const t_legal = sqliteTable("legal", {
@@ -229,6 +81,154 @@ export const t_media = sqliteTable("media", {
 }, (t) => [
 	index("media_createdAt_idx").on(t["createdAt"]),
 	uniqueIndex("media_key_unique").on(t["key"]),
+]);
+
+export const t_services = sqliteTable("services", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_order: text("_order"),
+	_status: text("_status").notNull().default("published"),
+	title: text("title"),
+	slug: text("slug"),
+	icon: text("icon"),
+	priceFrom: text("priceFrom"),
+	summary: text("summary"),
+	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
+	body: text("body", { mode: 'json' }),
+	deliverables: text("deliverables", { mode: 'json' }),
+	process: text("process", { mode: 'json' }),
+	meta: text("meta", { mode: 'json' }),
+}, (t) => [
+	index("services_createdAt_idx").on(t["createdAt"]),
+	index("services__order_idx").on(t["_order"]),
+	index("services__status_idx").on(t["_status"]),
+	uniqueIndex("services_slug_unique").on(t["slug"]),
+	index("services_cover_idx").on(t["cover"]),
+]);
+
+export const t_projects = sqliteTable("projects", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_order: text("_order"),
+	_status: text("_status").notNull().default("published"),
+	title: text("title"),
+	slug: text("slug"),
+	design: text("design"),
+	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
+	year: real("year"),
+	services: text("services", { mode: 'json' }),
+	client: text("client"),
+	summary: text("summary"),
+	cover: text("cover").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
+	facts: text("facts", { mode: 'json' }),
+	body: text("body", { mode: 'json' }),
+	gallery: text("gallery", { mode: 'json' }),
+	testimonial: text("testimonial").references((): AnySQLiteColumn => t_testimonials.id, { onDelete: "set null" }),
+	meta: text("meta", { mode: 'json' }),
+}, (t) => [
+	index("projects_createdAt_idx").on(t["createdAt"]),
+	index("projects__order_idx").on(t["_order"]),
+	index("projects__status_idx").on(t["_status"]),
+	uniqueIndex("projects_slug_unique").on(t["slug"]),
+	index("projects_cover_idx").on(t["cover"]),
+	index("projects_testimonial_idx").on(t["testimonial"]),
+]);
+
+export const t_testimonials = sqliteTable("testimonials", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_order: text("_order"),
+	quote: text("quote"),
+	name: text("name"),
+	role: text("role"),
+	company: text("company"),
+	photo: text("photo").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
+}, (t) => [
+	index("testimonials_createdAt_idx").on(t["createdAt"]),
+	index("testimonials__order_idx").on(t["_order"]),
+	index("testimonials_photo_idx").on(t["photo"]),
+]);
+
+export const t_team = sqliteTable("team", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_order: text("_order"),
+	name: text("name"),
+	role: text("role"),
+	photo: text("photo").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
+	bio: text("bio"),
+}, (t) => [
+	index("team_createdAt_idx").on(t["createdAt"]),
+	index("team__order_idx").on(t["_order"]),
+	index("team_photo_idx").on(t["photo"]),
+]);
+
+export const t_offers = sqliteTable("offers", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_order: text("_order"),
+	title: text("title"),
+	price: text("price"),
+	summary: text("summary"),
+	includes: text("includes", { mode: 'json' }),
+	validTo: integer("validTo", { mode: 'timestamp_ms' }),
+	ctaLabel: text("ctaLabel"),
+	ctaHref: text("ctaHref"),
+}, (t) => [
+	index("offers_createdAt_idx").on(t["createdAt"]),
+	index("offers__order_idx").on(t["_order"]),
+]);
+
+export const t_kitchen_sink = sqliteTable("kitchen-sink", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	_status: text("_status").notNull().default("published"),
+	title: text("title"),
+	slug: text("slug"),
+	status: text("status"),
+	featured: integer("featured", { mode: 'boolean' }).notNull().default(false),
+	due: integer("due", { mode: 'timestamp_ms' }),
+	summary: text("summary"),
+	email: text("email"),
+	count: real("count"),
+	ratio: real("ratio"),
+	website: text("website"),
+	doneNote: text("doneNote"),
+	internalNote: text("internalNote"),
+	body: text("body", { mode: 'json' }),
+	settings: text("settings", { mode: 'json' }),
+	address: text("address", { mode: 'json' }),
+	links: text("links", { mode: 'json' }),
+	notes: text("notes"),
+	score: real("score"),
+	sections: text("sections", { mode: 'json' }),
+	image: text("image").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
+	images: text("images", { mode: 'json' }),
+	post: text("post").references((): AnySQLiteColumn => t_posts.id, { onDelete: "set null" }),
+	tags: text("tags", { mode: 'json' }),
+}, (t) => [
+	index("kitchen-sink_createdAt_idx").on(t["createdAt"]),
+	index("kitchen-sink__status_idx").on(t["_status"]),
+	uniqueIndex("kitchen-sink_slug_unique").on(t["slug"]),
+	index("kitchen-sink_image_idx").on(t["image"]),
+	index("kitchen-sink_post_idx").on(t["post"]),
+]);
+
+export const t_notes = sqliteTable("notes", {
+	id: text("id").primaryKey().notNull(),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+	title: text("title"),
+	visibility: text("visibility"),
+	body: text("body"),
+}, (t) => [
+	index("notes_createdAt_idx").on(t["createdAt"]),
 ]);
 
 export const t_redirects = sqliteTable("redirects", {
@@ -283,14 +283,11 @@ export const t__global_site = sqliteTable("_global_site", {
 	tagline: text("tagline"),
 	logo: text("logo").references((): AnySQLiteColumn => t_media.id, { onDelete: "set null" }),
 	nav: text("nav", { mode: 'json' }),
-	season: text("season"),
-	checkIn: text("checkIn"),
-	checkOut: text("checkOut"),
+	cta: text("cta", { mode: 'json' }),
+	announcement: text("announcement", { mode: 'json' }),
 	footerText: text("footerText"),
 	social: text("social", { mode: 'json' }),
 	contact: text("contact", { mode: 'json' }),
-	announcement: text("announcement", { mode: 'json' }),
-	bookingCta: text("bookingCta", { mode: 'json' }),
 	design: text("design", { mode: 'json' }),
 	theme: text("theme", { mode: 'json' }),
 }, (t) => [
@@ -313,34 +310,6 @@ export const t_pages_versions = sqliteTable("pages_versions", {
 	index("pages_versions_latest_idx").on(t["parent"], t["latest"]),
 ]);
 
-export const t_rooms_versions = sqliteTable("rooms_versions", {
-	id: text("id").primaryKey().notNull(),
-	parent: text("parent").notNull().references((): AnySQLiteColumn => t_rooms.id, { onDelete: "cascade" }),
-	version: text("version", { mode: 'json' }).notNull(),
-	_status: text("_status").notNull(),
-	autosave: integer("autosave", { mode: 'boolean' }).notNull().default(false),
-	latest: integer("latest", { mode: 'boolean' }).notNull().default(false),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-}, (t) => [
-	index("rooms_versions_parent_idx").on(t["parent"], t["createdAt"]),
-	index("rooms_versions_latest_idx").on(t["parent"], t["latest"]),
-]);
-
-export const t_experiences_versions = sqliteTable("experiences_versions", {
-	id: text("id").primaryKey().notNull(),
-	parent: text("parent").notNull().references((): AnySQLiteColumn => t_experiences.id, { onDelete: "cascade" }),
-	version: text("version", { mode: 'json' }).notNull(),
-	_status: text("_status").notNull(),
-	autosave: integer("autosave", { mode: 'boolean' }).notNull().default(false),
-	latest: integer("latest", { mode: 'boolean' }).notNull().default(false),
-	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
-}, (t) => [
-	index("experiences_versions_parent_idx").on(t["parent"], t["createdAt"]),
-	index("experiences_versions_latest_idx").on(t["parent"], t["latest"]),
-]);
-
 export const t_posts_versions = sqliteTable("posts_versions", {
 	id: text("id").primaryKey().notNull(),
 	parent: text("parent").notNull().references((): AnySQLiteColumn => t_posts.id, { onDelete: "cascade" }),
@@ -353,6 +322,48 @@ export const t_posts_versions = sqliteTable("posts_versions", {
 }, (t) => [
 	index("posts_versions_parent_idx").on(t["parent"], t["createdAt"]),
 	index("posts_versions_latest_idx").on(t["parent"], t["latest"]),
+]);
+
+export const t_services_versions = sqliteTable("services_versions", {
+	id: text("id").primaryKey().notNull(),
+	parent: text("parent").notNull().references((): AnySQLiteColumn => t_services.id, { onDelete: "cascade" }),
+	version: text("version", { mode: 'json' }).notNull(),
+	_status: text("_status").notNull(),
+	autosave: integer("autosave", { mode: 'boolean' }).notNull().default(false),
+	latest: integer("latest", { mode: 'boolean' }).notNull().default(false),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+	index("services_versions_parent_idx").on(t["parent"], t["createdAt"]),
+	index("services_versions_latest_idx").on(t["parent"], t["latest"]),
+]);
+
+export const t_projects_versions = sqliteTable("projects_versions", {
+	id: text("id").primaryKey().notNull(),
+	parent: text("parent").notNull().references((): AnySQLiteColumn => t_projects.id, { onDelete: "cascade" }),
+	version: text("version", { mode: 'json' }).notNull(),
+	_status: text("_status").notNull(),
+	autosave: integer("autosave", { mode: 'boolean' }).notNull().default(false),
+	latest: integer("latest", { mode: 'boolean' }).notNull().default(false),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+	index("projects_versions_parent_idx").on(t["parent"], t["createdAt"]),
+	index("projects_versions_latest_idx").on(t["parent"], t["latest"]),
+]);
+
+export const t_kitchen_sink_versions = sqliteTable("kitchen-sink_versions", {
+	id: text("id").primaryKey().notNull(),
+	parent: text("parent").notNull().references((): AnySQLiteColumn => t_kitchen_sink.id, { onDelete: "cascade" }),
+	version: text("version", { mode: 'json' }).notNull(),
+	_status: text("_status").notNull(),
+	autosave: integer("autosave", { mode: 'boolean' }).notNull().default(false),
+	latest: integer("latest", { mode: 'boolean' }).notNull().default(false),
+	createdAt: integer("createdAt", { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer("updatedAt", { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+	index("kitchen-sink_versions_parent_idx").on(t["parent"], t["createdAt"]),
+	index("kitchen-sink_versions_latest_idx").on(t["parent"], t["latest"]),
 ]);
 
 export const t__global_site_versions = sqliteTable("_global_site_versions", {

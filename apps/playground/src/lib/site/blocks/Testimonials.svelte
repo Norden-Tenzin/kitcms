@@ -1,142 +1,92 @@
 <script lang="ts">
-	// Guest words. A one big quotation, the others small beside it. B a scrolling row on slate.
-	// C three cards on the surface tone.
-	import Section from '../Section.svelte';
+	// Client quotes from the `testimonials` collection. A: the first quote large, the rest beside it.
+	// B: three columns on a tint. C: one column, quote right of the name.
+	import type { DesignId } from '../designs';
 	import { reveal } from '../reveal';
-	import type { BlockProps } from './props';
+	import Placeholder from './Placeholder.svelte';
+	import SectionHead from './SectionHead.svelte';
+	import type { BlockOf, Testimonial } from '../types';
 
-	let { block, design = 'a', extras }: BlockProps<'testimonials'> = $props();
-	const items = $derived((extras?.testimonials ?? []).slice(0, block.count ?? 3));
-	const first = $derived(items[0]);
-	const rest = $derived(items.slice(1));
+	let { block, testimonials, design = 'a' }: { block: BlockOf<'testimonials'>; testimonials?: Testimonial[]; design?: DesignId } = $props();
+	const shown = $derived((testimonials ?? []).slice(0, block.count ?? 3));
 </script>
 
-{#snippet who(t: (typeof items)[number])}
-	<footer>
-		<strong>{t.name}</strong>
-		<span class="small">{[t.from, t.stayedIn].filter(Boolean).join(', ')}</span>
-		<span class="small">{t.rating} out of 5</span>
-	</footer>
-{/snippet}
-
-{#if design === 'b'}
-	<Section tone="slate" bleed>
-		<div class="container"><h2>{block.heading ?? 'Guests write'}</h2></div>
-		<ul class="row">
-			{#each items as t (t.id)}
-				<li>
-					<blockquote><p>{t.quote}</p>{@render who(t)}</blockquote>
-				</li>
-			{/each}
-		</ul>
-	</Section>
-{:else if design === 'c'}
-	<Section tone="surface">
-		<h2 class="h">{block.heading ?? 'Guests write'}</h2>
-		<ul class="cards">
-			{#each items as t, i (t.id)}
-				<li class="reveal" use:reveal style:--i={i}>
-					<blockquote><p>{t.quote}</p>{@render who(t)}</blockquote>
-				</li>
-			{/each}
-		</ul>
-	</Section>
-{:else}
-	<Section>
-		{#if first}
-			<div class="a">
-				<blockquote class="big reveal" use:reveal>
-					<p>{first.quote}</p>
-					{@render who(first)}
-				</blockquote>
-				<ul class="side">
-					{#each rest as t, i (t.id)}
-						<li class="reveal" use:reveal style:--i={i + 1}>
-							<blockquote><p>{t.quote}</p>{@render who(t)}</blockquote>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/if}
-	</Section>
+{#if !testimonials}
+	<Placeholder title={block.heading || 'Testimonials'} text="Shows quotes from the Testimonials collection." />
+{:else if shown.length}
+	<section class={['blk section', design === 'b' && 'surface']} data-design={design}>
+		<div class="container">
+			<SectionHead heading={block.heading} />
+			<ul>
+				{#each shown as t, i (t.id)}
+					<li class={['reveal', i === 0 && 'first']} use:reveal style:--i={i}>
+						<blockquote><p>{t.quote}</p></blockquote>
+						<p class="who">
+							<strong>{t.name}</strong>
+							<span class="muted">{[t.role, t.company].filter(Boolean).join(', ')}</span>
+						</p>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	</section>
 {/if}
 
 <style>
 	ul {
 		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	blockquote {
-		margin: 0;
-		display: grid;
-		gap: var(--s-4);
-		align-content: start;
-	}
-	footer {
-		display: grid;
-		gap: 0;
-	}
-	.h {
-		margin-bottom: var(--s-6);
-	}
-	/* A */
-	.a {
-		display: grid;
-		gap: var(--s-7);
-	}
-	.big p {
-		font: 600 clamp(1.9rem, 1.2rem + 2.4vw, 3.2rem) / 1.12 var(--font-display);
-		max-width: 22ch;
-	}
-	.side {
-		display: grid;
-		gap: var(--s-6);
-	}
-	@media (min-width: 56rem) {
-		.a {
-			grid-template-columns: 7fr 4fr;
-			gap: var(--s-8, 6rem);
-		}
-		.side {
-			padding-top: var(--s-8, 6rem);
-		}
-	}
-	/* B */
-	.row {
-		display: flex;
-		gap: var(--s-6);
-		overflow-x: auto;
-		scroll-snap-type: x proximity;
-		scrollbar-width: none;
-		padding: var(--s-6) var(--gutter) 0;
-	}
-	.row::-webkit-scrollbar {
-		display: none;
-	}
-	.row li {
-		flex: none;
-		width: min(86vw, 30rem);
-		scroll-snap-align: start;
-		scroll-margin-left: var(--gutter);
-	}
-	.row p {
-		font-size: var(--step-lead);
-		line-height: 1.35;
-	}
-	/* C */
-	.cards {
 		display: grid;
 		gap: var(--s-5);
 	}
-	.cards li {
-		background: var(--bg);
-		padding: var(--s-5);
-		border-radius: var(--radius);
+	blockquote {
+		margin: 0 0 var(--s-3);
+	}
+	blockquote p {
+		font: clamp(1.4rem, 1.1rem + 1vw, 1.75rem) / 1.3 var(--font-display);
+		text-wrap: pretty;
+	}
+	.first blockquote p {
+		font-size: clamp(1.9rem, 1.1rem + 2.6vw, 2.5rem);
+		line-height: 1.15;
+	}
+	.who {
+		display: grid;
+		font-size: var(--step-small);
+	}
+	[data-design='b'] li {
+		background: var(--surface-2);
+		padding: var(--s-4);
 	}
 	@media (min-width: 56rem) {
-		.cards {
+		[data-design='a'] ul {
+			grid-template-columns: 7fr 5fr;
+			gap: var(--s-5) var(--s-7);
+		}
+		[data-design='a'] .first {
+			grid-row: span 2;
+		}
+		[data-design='b'] ul {
 			grid-template-columns: repeat(3, 1fr);
+			gap: var(--s-3);
+		}
+		[data-design='b'] .first blockquote p {
+			font-size: clamp(1.4rem, 1.1rem + 1vw, 1.75rem);
+			line-height: 1.3;
+		}
+		[data-design='c'] li {
+			display: grid;
+			grid-template-columns: 4fr 8fr;
+			gap: var(--s-5);
+		}
+		[data-design='c'] .who {
+			order: -1;
+		}
+		[data-design='c'] .first blockquote p {
+			font-size: clamp(1.4rem, 1.1rem + 1vw, 1.75rem);
+			line-height: 1.3;
+		}
+		[data-design='c'] blockquote {
+			margin: 0;
 		}
 	}
 </style>

@@ -16,48 +16,42 @@ export interface RichTextNode {
 	marks?: { type: string; attrs?: Record<string, unknown> }[];
 }
 
-export interface Media {
-	id: string;
-	createdAt: string;
-	updatedAt: string;
-	filename: string;
-	mimeType: string;
-	filesize: number;
-	width?: number | null;
-	height?: number | null;
-	key: string;
-	alt?: string | null;
-	url: string;
-}
-
 export interface Page {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
 	title: string;
 	slug: string;
-	publishedAt?: string | null;
-	featured: boolean;
+	design?: 'a' | 'b' | 'c' | null;
 	cover?: Rel<'media'> | null;
-	sections: (HeroBlock | FeaturesBlock)[];
-	seo: PageSeo;
-	parent?: Rel<'pages'> | null;
-	related: Rel<'pages'>[];
-	gallery: Rel<'media'>[];
-	views?: number | null;
-	contactEmail?: string | null;
-	extra?: unknown | null;
+	sections: (HeroBlock | RichTextBlock | FeaturesBlock | SplitBlock | GalleryBlock | StatsBlock | QuoteBlock | FaqBlock | CtaBlock | ServicesListBlock | ProjectsListBlock | TestimonialsBlock | TeamGridBlock | LatestPostsBlock | OffersBlock)[];
+	meta: PageMeta;
 	_status: 'draft' | 'published';
 }
 
-export interface Team {
+export interface Post {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	slug: string;
+	design?: 'a' | 'b' | 'c' | null;
+	publishedAt?: string | null;
+	author?: Rel<'team'> | null;
+	tags: Rel<'tags'>[];
+	excerpt?: string | null;
+	cover?: Rel<'media'> | null;
+	body?: RichTextDoc | null;
+	meta: PostMeta;
+	_status: 'draft' | 'published';
+}
+
+export interface Tag {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
 	name: string;
-	role?: string | null;
-	photo?: Rel<'media'> | null;
-	_order?: string | null;
+	slug: string;
 }
 
 export interface Legal {
@@ -69,12 +63,160 @@ export interface Legal {
 	body?: RichTextDoc | null;
 }
 
-export interface Bench {
+export interface Media {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
-	slug?: string | null;
-	sections: (HeroBlock2 | RichTextBlock | AmenitiesBlock | GalleryBlock | SplitBlock)[];
+	filename: string;
+	mimeType: string;
+	filesize: number;
+	width?: number | null;
+	height?: number | null;
+	key: string;
+	alt?: string | null;
+	caption?: string | null;
+	credit?: string | null;
+	url: string;
+}
+
+export interface Service {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	slug: string;
+	icon?: 'pen' | 'layout' | 'code' | 'camera' | 'compass' | 'chat' | 'clock' | 'star' | null;
+	priceFrom?: string | null;
+	summary?: string | null;
+	cover?: Rel<'media'> | null;
+	body?: RichTextDoc | null;
+	deliverables: ServiceDeliverables[];
+	process: ServiceProcess[];
+	meta: ServiceMeta;
+	_order?: string | null;
+	_status: 'draft' | 'published';
+}
+
+export interface Project {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	slug: string;
+	design?: 'a' | 'b' | 'c' | null;
+	featured: boolean;
+	year?: number | null;
+	services: Rel<'services'>[];
+	client?: string | null;
+	summary?: string | null;
+	cover?: Rel<'media'> | null;
+	facts: ProjectFacts[];
+	body?: RichTextDoc | null;
+	gallery: Rel<'media'>[];
+	testimonial?: Rel<'testimonials'> | null;
+	meta: ProjectMeta;
+	_order?: string | null;
+	_status: 'draft' | 'published';
+}
+
+export interface Testimonial {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	quote: string;
+	name: string;
+	role?: string | null;
+	company?: string | null;
+	photo?: Rel<'media'> | null;
+	_order?: string | null;
+}
+
+export interface Team {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	name: string;
+	role?: string | null;
+	photo?: Rel<'media'> | null;
+	bio?: string | null;
+	_order?: string | null;
+}
+
+export interface Offer {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	price?: string | null;
+	summary?: string | null;
+	includes: OfferIncludes[];
+	validTo?: string | null;
+	ctaLabel?: string | null;
+	ctaHref?: string | null;
+	_order?: string | null;
+}
+
+export interface FieldSample {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	slug: string;
+	status?: 'idea' | 'doing' | 'done' | null;
+	featured: boolean;
+	due?: string | null;
+	summary?: string | null;
+	email?: string | null;
+	count?: number | null;
+	ratio?: number | null;
+	website?: string | null;
+	doneNote?: string | null;
+	internalNote?: string | null;
+	body?: RichTextDoc | null;
+	settings?: unknown | null;
+	address: FieldSampleAddress;
+	links: FieldSampleLinks[];
+	notes?: string | null;
+	score?: number | null;
+	sections: (HeroBlock | RichTextBlock | QuoteBlock | CtaBlock)[];
+	image?: Rel<'media'> | null;
+	images: Rel<'media'>[];
+	post?: Rel<'posts'> | null;
+	tags: Rel<'tags'>[];
+	_status: 'draft' | 'published';
+}
+
+export interface Note {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	title: string;
+	visibility: 'public' | 'team';
+	body?: string | null;
+}
+
+export interface Redirect {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	from: string;
+	to: string;
+	type: '301' | '302';
+	enabled: boolean;
+	note?: string | null;
+}
+
+export interface Submission {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+	form: 'brief' | 'contact';
+	name?: string | null;
+	email?: string | null;
+	data?: unknown | null;
+	page?: string | null;
+	status: 'new' | 'handled';
+	notified: boolean;
 }
 
 export interface User {
@@ -96,6 +238,13 @@ export interface SiteSettings {
 	tagline?: string | null;
 	logo?: Rel<'media'> | null;
 	nav: SiteSettingsNav[];
+	cta: SiteSettingsCta;
+	announcement: SiteSettingsAnnouncement;
+	footerText?: string | null;
+	social: SiteSettingsSocial[];
+	contact: SiteSettingsContact;
+	design: SiteSettingsDesign;
+	theme: SiteSettingsTheme;
 	_status: 'draft' | 'published';
 }
 
@@ -105,104 +254,263 @@ export interface HeroBlock {
 	heading: string;
 	subheading?: string | null;
 	image?: Rel<'media'> | null;
-}
-
-export interface FeaturesBlockItems {
-	id: string;
-	label: string;
-	icon?: 'wifi' | 'pool' | 'spa' | 'parking' | null;
-}
-
-export interface FeaturesBlock {
-	id: string;
-	blockType: 'features';
-	title?: string | null;
-	items: FeaturesBlockItems[];
-}
-
-export interface PageSeo {
-	metaTitle?: string | null;
-	metaDescription?: string | null;
-	noindex: boolean;
-}
-
-export interface HeroBlockCta {
-	label?: string | null;
-	href?: string | null;
-	variant?: string | null;
-}
-
-export interface HeroBlock2 {
-	id: string;
-	blockType: 'hero';
-	heading?: string | null;
-	subheading?: string | null;
-	image?: Rel<'media'> | null;
-	cta: HeroBlockCta;
+	ctaLabel?: string | null;
+	ctaHref?: string | null;
 }
 
 export interface RichTextBlock {
 	id: string;
 	blockType: 'richText';
 	heading?: string | null;
-	body?: unknown | null;
+	body?: RichTextDoc | null;
 }
 
-export interface AmenitiesBlockItems {
+export interface FeaturesBlockItems {
 	id: string;
-	label?: string | null;
-	icon?: string | null;
+	title: string;
+	text?: string | null;
+	icon?: 'pen' | 'layout' | 'code' | 'camera' | 'compass' | 'chat' | 'clock' | 'star' | null;
 }
 
-export interface AmenitiesBlock {
+export interface FeaturesBlock {
 	id: string;
-	blockType: 'amenities';
+	blockType: 'features';
 	heading?: string | null;
-	items: AmenitiesBlockItems[];
-}
-
-export interface GalleryBlockImages {
-	id: string;
-	image?: Rel<'media'> | null;
-	caption?: string | null;
-}
-
-export interface GalleryBlock {
-	id: string;
-	blockType: 'gallery';
-	heading?: string | null;
-	images: GalleryBlockImages[];
-}
-
-export interface SplitBlockLinks {
-	id: string;
-	label?: string | null;
-	href?: string | null;
+	items: FeaturesBlockItems[];
 }
 
 export interface SplitBlock {
 	id: string;
 	blockType: 'split';
 	heading?: string | null;
-	text?: string | null;
+	text?: RichTextDoc | null;
 	image?: Rel<'media'> | null;
-	reverse: boolean;
-	links: SplitBlockLinks[];
+	imageSide?: 'left' | 'right' | null;
+	ctaLabel?: string | null;
+	ctaHref?: string | null;
+}
+
+export interface GalleryBlock {
+	id: string;
+	blockType: 'gallery';
+	heading?: string | null;
+	images: Rel<'media'>[];
+}
+
+export interface StatsBlockItems {
+	id: string;
+	value: string;
+	label: string;
+}
+
+export interface StatsBlock {
+	id: string;
+	blockType: 'stats';
+	heading?: string | null;
+	items: StatsBlockItems[];
+}
+
+export interface QuoteBlock {
+	id: string;
+	blockType: 'quote';
+	text: string;
+	attribution?: string | null;
+	image?: Rel<'media'> | null;
+}
+
+export interface FaqBlockItems {
+	id: string;
+	question: string;
+	answer: string;
+}
+
+export interface FaqBlock {
+	id: string;
+	blockType: 'faq';
+	heading?: string | null;
+	items: FaqBlockItems[];
+}
+
+export interface CtaBlock {
+	id: string;
+	blockType: 'cta';
+	heading: string;
+	text?: string | null;
+	label?: string | null;
+	href?: string | null;
+	image?: Rel<'media'> | null;
+}
+
+export interface ServicesListBlock {
+	id: string;
+	blockType: 'servicesList';
+	heading?: string | null;
+	intro?: string | null;
+}
+
+export interface ProjectsListBlock {
+	id: string;
+	blockType: 'projectsList';
+	heading?: string | null;
+	count?: number | null;
+	onlyFeatured: boolean;
+}
+
+export interface TestimonialsBlock {
+	id: string;
+	blockType: 'testimonials';
+	heading?: string | null;
+	count?: number | null;
+}
+
+export interface TeamGridBlock {
+	id: string;
+	blockType: 'teamGrid';
+	heading?: string | null;
+}
+
+export interface LatestPostsBlock {
+	id: string;
+	blockType: 'latestPosts';
+	heading?: string | null;
+	count?: number | null;
+}
+
+export interface OffersBlock {
+	id: string;
+	blockType: 'offers';
+	heading?: string | null;
+}
+
+export interface PageMeta {
+	title?: string | null;
+	description?: string | null;
+	image?: Rel<'media'> | null;
+	noIndex: boolean;
+}
+
+export interface PostMeta {
+	title?: string | null;
+	description?: string | null;
+	image?: Rel<'media'> | null;
+	noIndex: boolean;
+}
+
+export interface ServiceDeliverables {
+	id: string;
+	label: string;
+}
+
+export interface ServiceProcess {
+	id: string;
+	title: string;
+	text?: string | null;
+}
+
+export interface ServiceMeta {
+	title?: string | null;
+	description?: string | null;
+	image?: Rel<'media'> | null;
+	noIndex: boolean;
+}
+
+export interface ProjectFacts {
+	id: string;
+	label: string;
+	value: string;
+}
+
+export interface ProjectMeta {
+	title?: string | null;
+	description?: string | null;
+	image?: Rel<'media'> | null;
+	noIndex: boolean;
+}
+
+export interface OfferIncludes {
+	id: string;
+	label: string;
+}
+
+export interface FieldSampleAddress {
+	line?: string | null;
+	city?: string | null;
+	postcode?: string | null;
+}
+
+export interface FieldSampleLinks {
+	id: string;
+	label: string;
+	href: string;
 }
 
 export interface SiteSettingsNav {
 	id: string;
 	label: string;
 	page?: Rel<'pages'> | null;
+	href?: string | null;
+}
+
+export interface SiteSettingsCta {
+	label?: string | null;
+	href?: string | null;
+}
+
+export interface SiteSettingsAnnouncement {
+	enabled: boolean;
+	text?: string | null;
+	link?: string | null;
+}
+
+export interface SiteSettingsSocial {
+	id: string;
+	label: string;
+	url: string;
+}
+
+export interface SiteSettingsContact {
+	email?: string | null;
+	phone?: string | null;
+	address?: string | null;
+	hours?: string | null;
+	mapUrl?: string | null;
+}
+
+export interface SiteSettingsDesign {
+	header?: 'a' | 'b' | 'c' | null;
+	footer?: 'a' | 'b' | 'c' | null;
+	home?: 'a' | 'b' | 'c' | null;
+	page?: 'a' | 'b' | 'c' | null;
+	services?: 'a' | 'b' | 'c' | null;
+	work?: 'a' | 'b' | 'c' | null;
+	project?: 'a' | 'b' | 'c' | null;
+	blog?: 'a' | 'b' | 'c' | null;
+	post?: 'a' | 'b' | 'c' | null;
+	contact?: 'a' | 'b' | 'c' | null;
+}
+
+export interface SiteSettingsTheme {
+	accent?: string | null;
+	background?: string | null;
+	text?: string | null;
 }
 
 export interface KitcmsTypes {
 	collections: {
-		'media': Media;
 		'pages': Page;
-		'team': Team;
+		'posts': Post;
+		'tags': Tag;
 		'legal': Legal;
-		'bench': Bench;
+		'media': Media;
+		'services': Service;
+		'projects': Project;
+		'testimonials': Testimonial;
+		'team': Team;
+		'offers': Offer;
+		'kitchen-sink': FieldSample;
+		'notes': Note;
+		'redirects': Redirect;
+		'submissions': Submission;
 		'users': User;
 	};
 	globals: {

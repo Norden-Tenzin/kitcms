@@ -1,121 +1,82 @@
 <script lang="ts">
-	// Directory: four columns on an earth field: stay, explore, visit, hotel.
+	// B "Columns": four labelled columns (about, explore, studio, follow) on a tinted ground.
 	import Link from '../Link.svelte';
-	import { seasonStatus, telHref, waHref, type Shell } from '../shell';
+	import { telHref, type Shell } from '../shell';
+	import FooterLinks from './FooterLinks.svelte';
 
 	let { shell }: { shell: Shell } = $props();
-	const status = seasonStatus();
-	const stay = [
-		{ label: 'Rooms', href: '/rooms' },
-		{ label: 'Dining', href: '/dining' },
-		{ label: 'Contact', href: '/contact' },
-	];
-	const explore = [
-		{ label: 'Experiences', href: '/experiences' },
-		{ label: 'Journal', href: '/journal' },
-		{ label: 'Gallery', href: '/gallery' },
-	];
+	const year = new Date().getFullYear();
 </script>
 
-<footer data-tone="earth">
-	<div class="container">
-		<div class="grid">
-			<div class="intro">
-				<p class="name">{shell.siteName}</p>
-				{#if shell.footerText}<p>{shell.footerText}</p>{/if}
-			</div>
-			<nav aria-label="Stay">
-				<h2>Stay</h2>
-				{#each stay as { label, href } (href)}<Link {href}>{label}</Link>{/each}
-			</nav>
-			<nav aria-label="Explore">
-				<h2>Explore</h2>
-				{#each explore as { label, href } (href)}<Link {href}>{label}</Link>{/each}
-			</nav>
-			<div>
-				<h2>Visit</h2>
-				{#if shell.contact.address}<address>{shell.contact.address}</address>{/if}
-				{#if shell.contact.phone}<Link href={telHref(shell.contact.phone)}>{shell.contact.phone}</Link>{/if}
-				{#if shell.contact.whatsapp}<Link href={waHref(shell.contact.whatsapp)}>WhatsApp</Link>{/if}
-				{#if shell.contact.email}<Link href={`mailto:${shell.contact.email}`}>{shell.contact.email}</Link>{/if}
-				<p class="small">{status.text}</p>
-			</div>
+<footer class="surface-2">
+	<div class="container cols">
+		<div class="about">
+			<p class="name">{shell.siteName}</p>
+			{#if shell.tagline}<p class="small">{shell.tagline}</p>{/if}
 		</div>
-		<div class="legal small">
-			{#each shell.legal as doc (doc.slug)}<Link href={`/legal/${doc.slug}`}>{doc.title}</Link>{/each}
-			{#each shell.social as s (s.id)}<Link href={s.url}>{s.label}</Link>{/each}
-			<Link href="/credits">Photo credits</Link>
-			<span>© {new Date().getFullYear()} {shell.siteName}. A demo hotel: not a real business.</span>
+		<div>
+			<h2>Explore</h2>
+			<FooterLinks {shell} which="nav" id="footer-nav" />
+		</div>
+		<div>
+			<h2>Studio</h2>
+			<address>
+				{#if shell.contact.address}<p>{shell.contact.address}</p>{/if}
+				{#if shell.contact.hours}<p class="muted">{shell.contact.hours}</p>{/if}
+				{#if shell.contact.email}<Link class="link" href={`mailto:${shell.contact.email}`}>{shell.contact.email}</Link>{/if}
+				{#if shell.contact.phone}<Link class="link" href={telHref(shell.contact.phone)}>{shell.contact.phone}</Link>{/if}
+			</address>
+		</div>
+		<div>
+			<h2>Follow</h2>
+			<FooterLinks {shell} which="social" />
+			<h2 class="legal-h">Legal</h2>
+			<FooterLinks {shell} which="legal" />
 		</div>
 	</div>
+	<p class="container small muted copy">&copy; {year} {shell.siteName}. {shell.footerText}</p>
 </footer>
 
 <style>
 	footer {
-		padding-block: var(--section) var(--s-6);
-		margin-top: var(--section);
+		background: var(--surface-2);
+		padding-block: var(--s-6) var(--s-4);
 	}
-	.grid {
+	.cols {
 		display: grid;
-		gap: var(--s-7) var(--s-6);
-		grid-template-columns: 1fr 1fr;
-	}
-	.intro {
-		grid-column: 1 / -1;
-		max-width: 34ch;
+		gap: var(--s-5);
 	}
 	.name {
-		font: 700 clamp(2.5rem, 1.5rem + 4vw, 4rem) / 0.95 var(--font-display);
-		text-transform: uppercase;
+		font: var(--step-h3) / 1 var(--font-display);
 		margin-bottom: var(--s-3);
 	}
 	h2 {
-		font: 700 1.5rem/1 var(--font-display);
-		text-transform: uppercase;
-		margin-bottom: var(--s-3);
-		color: var(--apricot);
+		font: 600 var(--step-small) / 1.3 var(--font-text);
+		letter-spacing: 0;
+		margin-bottom: var(--s-2);
 	}
-	nav,
-	.grid > div:last-child {
-		display: flex;
-		flex-direction: column;
+	.legal-h {
+		margin-top: var(--s-4);
 	}
-	.grid :global(a),
-	.legal :global(a) {
+	address {
+		font-style: normal;
+		display: grid;
+		gap: var(--s-2);
+		justify-items: start;
+		white-space: pre-line;
+	}
+	address :global(.link) {
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
 	}
-	address {
-		font-style: normal;
-		white-space: pre-line;
-		margin-bottom: var(--s-2);
-	}
-	.legal {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0 var(--s-5);
-		margin-top: var(--s-7);
-		align-items: center;
-	}
-	.legal span {
-		flex-basis: 100%;
+	.copy {
+		margin-top: var(--s-6);
 	}
 	@media (min-width: 56rem) {
-		.grid {
-			grid-template-columns: 1.4fr 1fr 1fr 1.4fr;
-		}
-		.intro {
-			grid-column: auto;
-		}
-		.legal span {
-			flex-basis: auto;
-			margin-left: auto;
-		}
-	}
-	@media (max-width: 56rem) {
-		footer {
-			padding-bottom: 6rem;
+		.cols {
+			grid-template-columns: 1.3fr 1fr 1.2fr 1fr;
+			gap: var(--s-5);
 		}
 	}
 </style>

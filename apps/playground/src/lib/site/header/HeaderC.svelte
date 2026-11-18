@@ -1,74 +1,72 @@
 <script lang="ts">
-	// Overlay: transparent, minimal. Sits over the first screen (light type when the page opens on a
-	// photograph, `overHero`); the menu is always the drawer.
+	// C "Floating": a solid bar inset from the edges that hovers over the page while it scrolls. The
+	// page content starts below it (`.site[data-header='c'] main` in site.css), and the bar has its own
+	// ground, so nothing ever sits under it and it never fights a photograph. The menu is always the drawer.
 	import Img from '../Img.svelte';
 	import Link from '../Link.svelte';
-	import MobileMenu from './MobileMenu.svelte';
 	import type { Shell } from '../shell';
+	import MobileMenu from './MobileMenu.svelte';
 
-	let { shell, overHero = false }: { shell: Shell; overHero?: boolean } = $props();
+	let { shell }: { shell: Shell } = $props();
 </script>
 
-<header class:over={overHero}>
-	<div class="container bar">
+<header>
+	<div class="bar">
 		<Link href="/" class="brand">
 			{#if shell.logo}<Img media={shell.logo} widths={[80, 160]} sizes="2.5rem" eager alt="" />{/if}
 			<span>{shell.siteName}</span>
 		</Link>
 		<div class="right">
-			<Link href={shell.cta.href} class="btn light cta">{shell.cta.label}</Link>
-			<MobileMenu {shell} />
+			<Link href={shell.cta.href} class="btn cta">{shell.cta.label}</Link>
+			<MobileMenu {shell} always />
 		</div>
 	</div>
 </header>
 
 <style>
+	/* A zero-height sticky anchor: the bar floats over the content below without taking space. */
 	header {
-		position: absolute;
-		inset: 0 0 auto;
-		z-index: 10;
-	}
-	header.over {
-		color: #fff;
-	}
-	/* A soft neutral scrim under the bar only, so light type stays readable on any photograph. */
-	header.over::before {
-		content: '';
-		position: absolute;
-		inset: 0 0 -2rem;
-		background: linear-gradient(rgb(20 12 8 / 0.5), transparent); /* neutral scrim under text on a photograph, taste-skill-ignore */
-		pointer-events: none;
+		position: sticky;
+		top: 0.75rem;
+		z-index: 20;
+		height: 0;
 	}
 	.bar {
-		position: relative;
+		position: absolute;
+		inset: 0 var(--gutter) auto;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		min-height: var(--header-h);
+		max-width: calc(var(--maxw) - var(--gutter) * 2);
+		margin-inline: auto;
+		min-height: 3.75rem;
+		padding-inline: 1rem 0.5rem;
+		background: var(--surface-2);
 	}
 	.bar :global(.brand) {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: var(--s-2);
-		font: 700 1.5rem/1 var(--font-display);
-		text-transform: uppercase;
-		text-decoration: none;
+		gap: 0.6rem;
 		min-height: 2.75rem;
+		font: 1.7rem/1 var(--font-display);
+		letter-spacing: -0.01em;
+		text-decoration: none;
 	}
 	.bar :global(.brand img) {
-		width: 2.5rem;
-		height: 2.5rem;
+		width: 2rem;
+		height: 2rem;
 		object-fit: contain;
 	}
 	.right {
 		display: flex;
 		align-items: center;
-		gap: var(--s-3);
+		gap: 0.5rem;
 	}
 	.right :global(.cta) {
 		display: none;
+		min-height: 2.75rem;
 	}
-	@media (min-width: 56rem) {
+	@media (min-width: 40rem) {
 		.right :global(.cta) {
 			display: inline-flex;
 		}
