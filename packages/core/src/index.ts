@@ -36,3 +36,14 @@ export type {
 	ReadOptions,
 } from './api/types';
 export type { DocOf, InputOf } from './api/types';
+// Errors (Decision 33): plugins throw these so the admin, REST, RPC and plugin endpoints map them.
+export {
+	ConfigError,
+	ForbiddenError,
+	isKitcmsError,
+	KitcmsError,
+	NotFoundError,
+	UnauthorizedError,
+	ValidationError,
+} from './errors';
+export type { FieldError, KitcmsErrorCode } from './errors';
