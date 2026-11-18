@@ -20,6 +20,11 @@ export interface CacheOptions {
 	waitUntil?: (p: Promise<unknown>) => void;
 	/** Stable id of the config/schema; part of every key so a new schema never reads old entries. */
 	configId: string;
+	/**
+	 * The current on/off state of every gated add-on (Decision 34), e.g. `"10"`. Part of every key,
+	 * so flipping an add-on never serves a read cached under the other state (direct or populated).
+	 */
+	gateKey?: () => Promise<string>;
 }
 
 const ORIGIN = 'https://kitcms.cache';
@@ -222,7 +227,8 @@ export function withEdgeCache(
 			const token = await gen();
 			if (!token) return call();
 			const hash = await sha256Hex(canonicalize(args));
-			url = `${ORIGIN}/${encodeURIComponent(options.configId)}/${token}/${method}/${hash}`;
+			const gates = options.gateKey ? `g${await options.gateKey()}/` : '';
+			url = `${ORIGIN}/${encodeURIComponent(options.configId)}/${gates}${token}/${method}/${hash}`;
 		} catch {
 			return call(); // args that cannot be canonicalized are simply not cached
 		}

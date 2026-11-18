@@ -63,6 +63,7 @@ import { extractRefs } from '../refs/extract';
 
 import { ulid } from '../ulid';
 import { configFingerprint, withEdgeCacheLayer } from './cache';
+import { collectionEntitled } from '../access/entitlements';
 import { collectRelationIds, replaceRelationIds } from './populate';
 import type { Cms, MoveTarget, OperationOptions } from './types';
 
@@ -995,11 +996,28 @@ export function createLocalApi(ctx: CmsContext): Cms {
 	// Edge cache (§13.9): anonymous published reads are cached; every write bumps the generation.
 	// Hooks keep using the unwrapped `api` through `req.cms` (calls with `req` are never cached).
 	if (!config.cache) return api;
-	return withEdgeCacheLayer(api, { user: ctx.user }, {
-		ttl: config.cache.ttl,
-		configId: fingerprintOf(config),
-		waitUntil: ctx.waitUntil,
-	});
+	return withEdgeCacheLayer(
+		api,
+		{ user: ctx.user },
+		{
+			ttl: config.cache.ttl,
+			configId: fingerprintOf(config),
+			waitUntil: ctx.waitUntil,
+			gateKey: gateKeyOf(config),
+		},
+	);
+}
+
+/** Decision 34: the gate state that cached reads depend on, or `undefined` when nothing is gated. */
+function gateKeyOf(config: SanitizedConfig): (() => Promise<string>) | undefined {
+	const gated = [...config.collections, ...config.globals].filter(
+		(c) => c.entitlement !== undefined,
+	);
+	if (gated.length === 0) return undefined;
+	return async () =>
+		(await Promise.all(gated.map((c) => collectionEntitled(c))))
+			.map((on) => (on ? '1' : '0'))
+			.join('');
 }
 
 const fingerprints = new WeakMap<SanitizedConfig, string>();

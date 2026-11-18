@@ -27,6 +27,9 @@ import { readBookmarkCookie, serializeBookmarkCookie, sessionStartFor } from '..
 import { dbFor, storageFor } from '../runtime';
 import type { StorageAdapter } from '../storage/adapter';
 import { needsSession, stripBase } from './paths';
+import { entitled } from '../access/entitlements';
+import type { EmailSender } from '../config/plugin';
+import { emailFor } from '../email';
 
 export type { KitcmsUser } from '../config/hooks';
 
@@ -75,6 +78,8 @@ export interface KitcmsInternals {
 	cmsFor(user: KitcmsUser | null, source?: 'local' | 'admin' | 'rest'): Cms;
 	/** R2 adapter; `undefined` when no collection has `upload`. */
 	storage?: StorageAdapter;
+	/** Outgoing email (Decision 35). */
+	email: EmailSender;
 }
 
 const internals = new WeakMap<App.Locals, KitcmsInternals>();
@@ -91,6 +96,7 @@ const waitUntil = (workers as { waitUntil?: (p: Promise<unknown>) => void }).wai
 
 export function kitcms(options: KitcmsOptions): { handle: Handle; config: SanitizedConfig } {
 	const config = sanitizeConfig(options.config);
+	const handles = config.plugins.filter((p) => p.handle);
 
 	return {
 		config,
@@ -115,9 +121,19 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 				user: null,
 				cmsFor,
 				storage: storage as StorageAdapter | undefined,
+				email: emailFor(config, env, dev),
 			};
 			internals.set(event.locals, k);
 			event.locals.cms = k.cms as unknown as LocalAPI;
+
+			// Plugin handles (Decision 33): site requests only, never /admin* or /api*.
+			if (pathname !== null && !needsSession(pathname) && handles.length) {
+				for (const plugin of handles) {
+					if (!(await entitled(config, plugin.entitlement))) continue;
+					const res = await plugin.handle!({ event, path: pathname, cms: k.cms });
+					if (res instanceof Response) return res;
+				}
+			}
 
 			let signedIn = false;
 			let cookieBookmark: string | null = null;

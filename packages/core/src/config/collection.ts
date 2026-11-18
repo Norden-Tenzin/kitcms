@@ -3,6 +3,7 @@
 
 import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
+import type { EntitlementsProvider, KitcmsPlugin } from './plugin';
 import type { InferFields, InferInput, Simplify } from './infer';
 import type { Sort } from './where';
 
@@ -155,6 +156,11 @@ export interface CollectionInputDef<
 	auth?: A;
 	/** Extra (composite) indexes on top-level column fields (Decision 30). */
 	indexes?: CollectionIndex<DocFor<F, U, A, V, O>>[];
+	/**
+	 * Runtime add-on gate (Decision 34): when `config.entitlements.has(entitlement)` is not `true`,
+	 * every operation is denied (except `overrideAccess`) and the collection is hidden in the admin.
+	 */
+	entitlement?: string;
 }
 
 /** An index over top-level column fields (or `createdAt`/`updatedAt`/`_order`/`_status`). */
@@ -176,7 +182,9 @@ export interface CollectionDef<Slug extends string = string, Doc = GenericDoc, I
 	readonly auth?: boolean;
 	readonly orderable?: boolean;
 	readonly versions?: VersionsOption;
-	readonly indexes?: readonly CollectionIndex<never>[] | readonly { fields: readonly string[]; unique?: boolean }[];
+	readonly indexes?:
+		readonly CollectionIndex<never>[] | readonly { fields: readonly string[]; unique?: boolean }[];
+	readonly entitlement?: string;
 	/** Phantom: the stored document shape. */
 	readonly '~doc'?: Doc;
 	/** Phantom: the create input shape. */
@@ -243,6 +251,8 @@ export interface GlobalInputDef<Slug extends string, F extends Fields, V extends
 	access?: GlobalAccess<GlobalDocFor<F, V>>;
 	hooks?: GlobalHooks<GlobalDocFor<F, V>>;
 	versions?: V;
+	/** Runtime add-on gate (Decision 34), as on collections. */
+	entitlement?: string;
 }
 
 /** A global (a single document such as site settings), made with `global({ ... })`. */
@@ -254,6 +264,7 @@ export interface GlobalDef<Slug extends string = string, Doc = GenericGlobalDoc,
 	readonly access?: GlobalAccess<never>;
 	readonly hooks?: GlobalHooks<never>;
 	readonly versions?: VersionsOption;
+	readonly entitlement?: string;
 	/** Phantom: the stored document shape. */
 	readonly '~doc'?: Doc;
 	/** Phantom: the update input shape. */
@@ -275,8 +286,27 @@ export function global<
 // ---------------------------------------------------------------------------------------------
 
 export interface ConfigOptions {
-	/** Names of the Worker bindings. Default: `{ db: 'DB', bucket: 'BUCKET' }`. */
-	bindings?: { db?: string; bucket?: string };
+	/** Names of the Worker bindings. Default: `{ db: 'DB', bucket: 'BUCKET', email: 'EMAIL' }`. */
+	bindings?: {
+		db?: string;
+		bucket?: string;
+		/** A `send_email` binding (Cloudflare Email Service). */ email?: string;
+	};
+	/**
+	 * Outgoing email (Decision 35), sent through the `send_email` binding. Without it (or without the
+	 * binding) features that send email are disabled. In `vite dev` messages are logged, not sent.
+	 */
+	email?: {
+		/** The sender. The domain must be set up for Cloudflare Email Service. */
+		from: { address: string; name?: string };
+		/** Default reply-to address. */
+		replyTo?: string;
+	};
+	/**
+	 * Runtime add-on gating (Decision 34). Set by `@kitcms/plugin-entitlements`; collections, globals
+	 * and plugins with an `entitlement` are off unless `has(entitlement)` returns `true`.
+	 */
+	entitlements?: EntitlementsProvider;
 	admin?: {
 		/** Slug of the `auth: true` collection. Default: the one marked `auth: true`, else a built-in `users`. */
 		user?: string;
@@ -308,12 +338,7 @@ export interface ConfigOptions {
 	plugins?: readonly KitcmsPlugin[];
 }
 
-/** A plugin: a named config transform (Decision 28). */
-export interface KitcmsPlugin {
-	/** Shown in config errors. */
-	name: string;
-	config: (config: Config) => Config;
-}
+export type { KitcmsPlugin } from './plugin';
 
 /** White-label branding for the admin (§13.6). */
 export interface Branding {

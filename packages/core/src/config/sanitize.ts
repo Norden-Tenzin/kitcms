@@ -2,6 +2,7 @@
 // Pure and synchronous: no I/O, no Node APIs (it runs in Workers). Throws `ConfigError` on the
 // first problem. `toClientConfig()` derives the serializable subset sent to the admin.
 
+import { bindEntitlements } from '../access/entitlements';
 import { ConfigError } from '../errors';
 import type { Config, CollectionDef } from './collection';
 import type {
@@ -17,7 +18,8 @@ import type {
 	SanitizedConfig,
 	SanitizedField,
 } from './sanitized';
-import type { SanitizedBranding, SanitizedVersions } from './sanitized';
+import type { SanitizedBranding, SanitizedPlugin, SanitizedVersions } from './sanitized';
+import type { AdminPanelDef, EntitlementsProvider, PluginEndpoint, PluginHandle } from './plugin';
 import {
 	COLUMN_TYPES,
 	DEFAULT_AUTOSAVE_INTERVAL,
@@ -668,10 +670,23 @@ function sanitizeCollection(raw: Raw, ctx: Ctx, opts?: CollectionOpts): Sanitize
 		hooks,
 	};
 	if (opts?.globalSlug !== undefined) out.globalSlug = opts.globalSlug;
+	if (raw.entitlement !== undefined) {
+		if (auth) throw new ConfigError(`${path}.entitlement`, 'the auth collection cannot be gated.');
+		out.entitlement = sanitizeEntitlement(raw.entitlement, `${path}.entitlement`);
+	}
 	return out;
 }
 
-const GLOBAL_KEYS = new Set(['slug', 'fields', 'label', 'admin', 'access', 'hooks', 'versions']);
+const GLOBAL_KEYS = new Set([
+	'slug',
+	'fields',
+	'label',
+	'admin',
+	'access',
+	'hooks',
+	'versions',
+	'entitlement',
+]);
 
 function sanitizeGlobal(raw: Raw, ctx: Ctx): SanitizedCollection {
 	const slug: string = raw.slug;
@@ -702,6 +717,7 @@ function sanitizeGlobal(raw: Raw, ctx: Ctx): SanitizedCollection {
 			hooks: rawHooks,
 			versions: raw.versions,
 			defaultSort: 'id',
+			entitlement: raw.entitlement,
 		},
 		ctx,
 		{ kind: 'global', path, globalSlug: slug },
@@ -766,9 +782,17 @@ export function applyPlugins(config: Config): Config {
 	if (!Array.isArray(plugins)) throw new ConfigError('plugins', 'must be an array of plugins.');
 	let out: Config = { ...config, plugins: undefined };
 	for (const [i, p] of (plugins as unknown[]).entries()) {
-		if (!isObject(p) || typeof p.name !== 'string' || typeof p.config !== 'function') {
-			throw new ConfigError(`plugins.${i}`, 'is not a plugin (`{ name, config(config) => config }`).');
+		if (
+			!isObject(p) ||
+			typeof p.name !== 'string' ||
+			(p.config !== undefined && typeof p.config !== 'function')
+		) {
+			throw new ConfigError(
+				`plugins.${i}`,
+				'is not a plugin (`{ name, config?(config) => config }`).',
+			);
 		}
+		if (!p.config) continue;
 		const next: unknown = p.config(out);
 		if (!isObject(next)) throw new ConfigError(`plugins.${p.name}`, 'must return a config.');
 		out = { ...(next as Config), plugins: undefined };
@@ -776,8 +800,193 @@ export function applyPlugins(config: Config): Config {
 	return out;
 }
 
+const ENTITLEMENT = /^[a-z][a-z0-9_-]{0,63}$/;
+const PLUGIN_URL_NAME = /^[a-z][a-z0-9-]{0,63}$/;
+const PANEL_ID = /^[a-z][a-z0-9-]{0,63}$/;
+const ENDPOINT_SEGMENT = /^(?::[A-Za-z][A-Za-z0-9_]*|[A-Za-z0-9._-]+)$/;
+const ENDPOINT_METHODS = new Set(['GET', 'POST', 'PATCH', 'DELETE']);
+const ENDPOINT_ACCESS = new Set(['public', 'signedIn', 'admin']);
+export const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+export const MAX_BODY_BYTES = 1024 * 1024;
+
+function sanitizeEntitlement(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !ENTITLEMENT.test(v)) {
+		throw new ConfigError(
+			path,
+			'must be lowercase letters, digits, `-` and `_`, starting with a letter (max 64).',
+		);
+	}
+	return v;
+}
+
+/** The runtime parts of the config's plugins (Decision 33), validated. */
+function sanitizePlugins(plugins: unknown): SanitizedPlugin[] {
+	if (plugins === undefined) return [];
+	if (!Array.isArray(plugins)) throw new ConfigError('plugins', 'must be an array of plugins.');
+	const names = new Set<string>();
+	const out: SanitizedPlugin[] = [];
+	for (const p of plugins as Raw[]) {
+		const path = `plugins.${p.name as string}`;
+		const hasRuntime = p.handle !== undefined || p.endpoints !== undefined || p.admin !== undefined;
+		if (names.has(p.name))
+			throw new ConfigError(path, `duplicate plugin name "${p.name as string}".`);
+		names.add(p.name);
+		const entitlement =
+			p.entitlement === undefined
+				? undefined
+				: sanitizeEntitlement(p.entitlement, `${path}.entitlement`);
+		if (!hasRuntime) {
+			if (entitlement !== undefined)
+				out.push({ name: p.name, entitlement, endpoints: [], panels: [] });
+			continue;
+		}
+		if (p.handle !== undefined && typeof p.handle !== 'function')
+			throw new ConfigError(`${path}.handle`, 'must be a function.');
+
+		const rawEndpoints: unknown = p.endpoints ?? [];
+		const rawPanels: unknown = isObject(p.admin)
+			? (p.admin.panels ?? [])
+			: p.admin === undefined
+				? []
+				: null;
+		if (rawPanels === null) throw new ConfigError(`${path}.admin`, 'must be an object.');
+		if (!Array.isArray(rawEndpoints))
+			throw new ConfigError(`${path}.endpoints`, 'must be an array.');
+		if (!Array.isArray(rawPanels))
+			throw new ConfigError(`${path}.admin.panels`, 'must be an array.');
+		if ((rawEndpoints.length || rawPanels.length) && !PLUGIN_URL_NAME.test(p.name)) {
+			throw new ConfigError(
+				`${path}.name`,
+				'plugins with endpoints or panels need a name of lowercase letters, digits and `-`, starting with a letter.',
+			);
+		}
+
+		const routes = new Set<string>();
+		const endpoints: SanitizedPlugin['endpoints'] = rawEndpoints.map((e: unknown, i: number) => {
+			const epath = `${path}.endpoints.${i}`;
+			if (!isObject(e)) throw new ConfigError(epath, 'must be an endpoint object.');
+			if (typeof e.method !== 'string' || !ENDPOINT_METHODS.has(e.method)) {
+				throw new ConfigError(`${epath}.method`, 'must be GET, POST, PATCH or DELETE.');
+			}
+			if (typeof e.access !== 'string' || !ENDPOINT_ACCESS.has(e.access)) {
+				throw new ConfigError(`${epath}.access`, "is required: 'public', 'signedIn' or 'admin'.");
+			}
+			if (typeof e.handler !== 'function')
+				throw new ConfigError(`${epath}.handler`, 'must be a function.');
+			if (typeof e.path !== 'string') throw new ConfigError(`${epath}.path`, 'must be a string.');
+			const segments = e.path.split('/').filter(Boolean);
+			if (
+				segments.length === 0 ||
+				segments.length > 8 ||
+				!segments.every((s) => ENDPOINT_SEGMENT.test(s) && s !== '.' && s !== '..')
+			) {
+				throw new ConfigError(
+					`${epath}.path`,
+					'must be 1 to 8 segments of letters, digits, `.`, `_`, `-`, or `:param`.',
+				);
+			}
+			const shape = `${e.method} ${segments.map((s) => (s.startsWith(':') ? ':' : s)).join('/')}`;
+			if (routes.has(shape))
+				throw new ConfigError(`${epath}.path`, `duplicate endpoint ${e.method} "${e.path}".`);
+			routes.add(shape);
+			let maxBodyBytes = DEFAULT_MAX_BODY_BYTES;
+			if (e.maxBodyBytes !== undefined) {
+				if (
+					typeof e.maxBodyBytes !== 'number' ||
+					!Number.isInteger(e.maxBodyBytes) ||
+					e.maxBodyBytes < 0 ||
+					e.maxBodyBytes > MAX_BODY_BYTES
+				) {
+					throw new ConfigError(
+						`${epath}.maxBodyBytes`,
+						`must be an integer from 0 to ${MAX_BODY_BYTES}.`,
+					);
+				}
+				maxBodyBytes = e.maxBodyBytes;
+			}
+			if (e.rateLimit !== undefined) {
+				const r = e.rateLimit;
+				const okInt = (n: unknown, max: number) =>
+					typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= max;
+				if (!isObject(r) || !okInt(r.max, 100_000) || !okInt(r.window, 86_400)) {
+					throw new ConfigError(
+						`${epath}.rateLimit`,
+						'must be `{ max, window }`: integers, window in seconds (max 86400).',
+					);
+				}
+			}
+			return { ...(e as unknown as PluginEndpoint), maxBodyBytes, segments };
+		});
+
+		const ids = new Set<string>();
+		const panels = rawPanels.map((panel: unknown, i: number) => {
+			const ppath = `${path}.admin.panels.${i}`;
+			if (!isObject(panel)) throw new ConfigError(ppath, 'must be a panel object.');
+			if (typeof panel.id !== 'string' || !PANEL_ID.test(panel.id)) {
+				throw new ConfigError(
+					`${ppath}.id`,
+					'must be lowercase letters, digits and `-`, starting with a letter.',
+				);
+			}
+			if (ids.has(panel.id))
+				throw new ConfigError(`${ppath}.id`, `duplicate panel id "${panel.id}".`);
+			ids.add(panel.id);
+			if (typeof panel.label !== 'string' || !panel.label)
+				throw new ConfigError(`${ppath}.label`, 'must be a non-empty string.');
+			if (typeof panel.load !== 'function')
+				throw new ConfigError(`${ppath}.load`, 'must be a function.');
+			if (panel.access !== undefined && typeof panel.access !== 'function')
+				throw new ConfigError(`${ppath}.access`, 'must be a function.');
+			if (panel.group !== undefined && typeof panel.group !== 'string')
+				throw new ConfigError(`${ppath}.group`, 'must be a string.');
+			return panel as unknown as AdminPanelDef;
+		});
+
+		const sp: SanitizedPlugin = { name: p.name, endpoints, panels };
+		if (entitlement !== undefined) sp.entitlement = entitlement;
+		if (p.handle !== undefined) sp.handle = p.handle as PluginHandle;
+		out.push(sp);
+	}
+	return out;
+}
+
+const EMAIL_ADDRESS = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
+
+function sanitizeEmailConfig(raw: unknown): SanitizedConfig['email'] {
+	if (raw === undefined) return null;
+	if (!isObject(raw) || !isObject(raw.from))
+		throw new ConfigError('email.from', 'is required: `{ address, name? }`.');
+	const address: unknown = raw.from.address;
+	if (typeof address !== 'string' || address.length > 254 || !EMAIL_ADDRESS.test(address)) {
+		throw new ConfigError('email.from.address', 'must be an email address.');
+	}
+	const out: NonNullable<SanitizedConfig['email']> = { from: { address } };
+	const name: unknown = raw.from.name;
+	if (name !== undefined) {
+		if (typeof name !== 'string' || !name.trim() || name.length > 100 || /[\r\n<>"]/.test(name)) {
+			throw new ConfigError(
+				'email.from.name',
+				'must be a short name without line breaks, `<`, `>` or `"`.',
+			);
+		}
+		out.from.name = name.trim();
+	}
+	if (raw.replyTo !== undefined) {
+		if (
+			typeof raw.replyTo !== 'string' ||
+			raw.replyTo.length > 254 ||
+			!EMAIL_ADDRESS.test(raw.replyTo)
+		) {
+			throw new ConfigError('email.replyTo', 'must be an email address.');
+		}
+		out.replyTo = raw.replyTo;
+	}
+	return out;
+}
+
 export function sanitizeConfig(input: Config): SanitizedConfig {
 	const config = applyPlugins(input);
+	const plugins = sanitizePlugins(isObject(input) ? input.plugins : undefined);
 	if (!isObject(config) || !Array.isArray(config.collections)) {
 		throw new ConfigError('collections', 'must be an array. Use `defineConfig({ collections: [...] })`.');
 	}
@@ -860,6 +1069,43 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 
 	const collectionsBySlug = lookup(collections.map((c) => [c.slug, c]));
 
+	const entitlements: unknown = config.entitlements;
+	if (
+		entitlements !== undefined &&
+		(!isObject(entitlements) || typeof entitlements.has !== 'function')
+	) {
+		throw new ConfigError(
+			'entitlements',
+			'must be an entitlements provider (`{ has(addon) }`), e.g. from `@kitcms/plugin-entitlements`.',
+		);
+	}
+	if (entitlements === undefined) {
+		const gated = [
+			...collections.filter((c) => c.entitlement).map((c) => `collections.${c.slug}`),
+			...globals.filter((g) => g.entitlement).map((g) => `globals.${g.globalSlug as string}`),
+			...plugins.filter((p) => p.entitlement).map((p) => `plugins.${p.name}`),
+		];
+		if (gated.length) {
+			throw new ConfigError(
+				`${gated[0]}.entitlement`,
+				'needs `config.entitlements` (add `@kitcms/plugin-entitlements`).',
+			);
+		}
+	}
+
+	if (entitlements !== undefined) {
+		for (const c of [...collections, ...globals]) {
+			if (c.entitlement !== undefined) bindEntitlements(c, entitlements as EntitlementsProvider);
+		}
+	}
+
+	const bindingName = (v: unknown, def: string, path: string): string => {
+		if (v === undefined) return def;
+		if (typeof v !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(v))
+			throw new ConfigError(path, 'must be a binding name.');
+		return v;
+	};
+
 	return {
 		collections,
 		collectionsBySlug,
@@ -868,9 +1114,19 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 		rest: config.rest ?? true,
 		cache,
 		authCollection,
-		bindings: { db: config.bindings?.db ?? 'DB', bucket: config.bindings?.bucket ?? 'BUCKET' },
-		admin: { title: config.admin?.title ?? 'kitcms', branding: sanitizeBranding(config.admin?.branding) },
+		bindings: {
+			db: config.bindings?.db ?? 'DB',
+			bucket: config.bindings?.bucket ?? 'BUCKET',
+			email: bindingName(config.bindings?.email, 'EMAIL', 'bindings.email'),
+		},
+		admin: {
+			title: config.admin?.title ?? 'kitcms',
+			branding: sanitizeBranding(config.admin?.branding),
+		},
 		media,
+		plugins,
+		...(entitlements !== undefined ? { entitlements: entitlements as EntitlementsProvider } : {}),
+		email: sanitizeEmailConfig(config.email),
 	};
 }
 

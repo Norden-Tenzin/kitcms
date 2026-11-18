@@ -43,7 +43,7 @@ describe('seo plugin', () => {
 	it('leaves unlisted collections untouched and does not mutate input', () => {
 		const input = cfg({ collections: ['pages'] });
 		const before = JSON.stringify(Object.keys((input.collections![0] as unknown as { fields: object }).fields));
-		const out = seo({ collections: ['pages'] }).config(input);
+		const out = seo({ collections: ['pages'] }).config!(input);
 		expect(out.collections![1]).toBe(posts);
 		expect(out.collections![0]).not.toBe(pages);
 		expect(out.collections![0]!.slug).toBe('pages');

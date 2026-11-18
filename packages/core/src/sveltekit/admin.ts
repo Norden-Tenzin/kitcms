@@ -12,6 +12,9 @@
 import { resolve } from '$app/paths';
 import { error, fail, redirect, type Actions, type RequestEvent } from '@sveltejs/kit';
 import { adminAccess, collectionAccess } from '../access/engine';
+import { collectionEntitled, filterEntitled } from '../access/entitlements';
+import { sanitizePanelContent } from '../admin/panel';
+import type { AdminPanelDef } from '../config/plugin';
 import { FORM, formString, parseFormData } from '../admin/form';
 import type {
 	AdminActionData,
@@ -40,6 +43,9 @@ export function matchAdminRoute(path: string): AdminRoute | null {
 	if (parts[0] === 'globals' && parts.length === 2 && parts[1]) return { view: 'global', global: parts[1] };
 	if (parts[0] === 'globals' && parts.length === 3 && parts[1] && parts[2] === 'versions') {
 		return { view: 'versions', global: parts[1] };
+	}
+	if (parts[0] === 'plugins' && parts.length === 3 && parts[1] && parts[2]) {
+		return { view: 'panel', plugin: parts[1], panel: parts[2] };
 	}
 	if (parts[0] !== 'collections' || !parts[1]) return null;
 	if (parts.length === 2) return { view: 'list', collection: parts[1] };
@@ -94,17 +100,27 @@ async function requireAdmin(
 	return { k, user, cms: k.cmsFor(user, 'admin') };
 }
 
-function collectionFor(k: KitcmsInternals, slug: string): { col: SanitizedCollection; client: ClientCollection } {
+// A collection/global whose add-on is off (Decision 34) is "unknown" here: 404, as if it didn't exist.
+async function collectionFor(
+	k: KitcmsInternals,
+	slug: string,
+): Promise<{ col: SanitizedCollection; client: ClientCollection }> {
 	const col = k.config.collectionsBySlug[slug];
 	const client = clientConfig(k.config).collections.find((c) => c.slug === slug);
-	if (!col || !client) error(404, `Unknown collection "${slug}"`);
+	if (!col || !client || !(await collectionEntitled(col)))
+		error(404, `Unknown collection "${slug}"`);
 	return { col, client };
 }
 
-function globalFor(k: KitcmsInternals, slug: string): { col: SanitizedCollection; client: ClientCollection } {
-	const col = Object.hasOwn(k.config.globalsBySlug, slug) ? k.config.globalsBySlug[slug] : undefined;
+async function globalFor(
+	k: KitcmsInternals,
+	slug: string,
+): Promise<{ col: SanitizedCollection; client: ClientCollection }> {
+	const col = Object.hasOwn(k.config.globalsBySlug, slug)
+		? k.config.globalsBySlug[slug]
+		: undefined;
 	const client = clientConfig(k.config).globals.find((c) => c.globalSlug === slug);
-	if (!col || !client) error(404, `Unknown global "${slug}"`);
+	if (!col || !client || !(await collectionEntitled(col))) error(404, `Unknown global "${slug}"`);
 	return { col, client };
 }
 
@@ -117,16 +133,57 @@ async function permissions(col: SanitizedCollection, req: KitcmsReq, id?: string
 	return { create: create !== false, update: update !== false, delete: del !== false };
 }
 
-function globalsNav(k: KitcmsInternals) {
-	return k.config.globals
-		.filter((g) => !g.admin.hidden)
-		.map((g) => ({ slug: g.globalSlug as string, label: g.labels.singular, group: g.admin.group }));
+/** Globals in the navigation: not hidden, add-on on. */
+async function visibleGlobals(k: KitcmsInternals): Promise<SanitizedCollection[]> {
+	return filterEntitled(
+		k.config,
+		k.config.globals.filter((g) => !g.admin.hidden),
+	);
 }
 
-function nav(k: KitcmsInternals) {
-	return k.config.collections
-		.filter((c) => !c.admin.hidden)
-		.map((c) => ({ slug: c.slug, label: c.labels.plural, group: c.admin.group }));
+/** Collections in the navigation: not hidden, add-on on. */
+async function visibleCollections(k: KitcmsInternals): Promise<SanitizedCollection[]> {
+	return filterEntitled(
+		k.config,
+		k.config.collections.filter((c) => !c.admin.hidden),
+	);
+}
+
+async function globalsNav(k: KitcmsInternals) {
+	return (await visibleGlobals(k)).map((g) => ({
+		slug: g.globalSlug as string,
+		label: g.labels.singular,
+		group: g.admin.group,
+	}));
+}
+
+async function nav(k: KitcmsInternals) {
+	return (await visibleCollections(k)).map((c) => ({
+		slug: c.slug,
+		label: c.labels.plural,
+		group: c.admin.group,
+	}));
+}
+
+/** Plugin panels (Decision 33) this user may see: plugin add-on on, panel `access` passes. */
+async function visiblePanels(
+	k: KitcmsInternals,
+	req: KitcmsReq,
+): Promise<{ plugin: string; panel: AdminPanelDef }[]> {
+	const out: { plugin: string; panel: AdminPanelDef }[] = [];
+	for (const p of await filterEntitled(k.config, k.config.plugins)) {
+		for (const panel of p.panels) {
+			// FAIL CLOSED: a throwing or non-`true` access rule hides the panel.
+			const ok = panel.access
+				? await Promise.resolve(panel.access({ req })).then(
+						(v) => v === true,
+						() => false,
+					)
+				: true;
+			if (ok) out.push({ plugin: p.name, panel });
+		}
+	}
+	return out;
 }
 
 function me(user: KitcmsUser) {
@@ -202,11 +259,31 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 	if (route.view === 'login') return { route, title, branding };
 	if (route.view === 'create-first-user') return { route, title, branding };
 	if (!user) error(401, 'Unauthorized'); // unreachable: requireAdmin redirects
-	const base = { title, branding, user: me(user), nav: nav(k), globals: globalsNav(k) };
 	const req = sysReq(k, user);
+	const panels = await visiblePanels(k, req);
+	const base = {
+		title,
+		branding,
+		user: me(user),
+		nav: await nav(k),
+		globals: await globalsNav(k),
+		panels: panels.map(({ plugin, panel }) => ({
+			plugin,
+			id: panel.id,
+			label: panel.label,
+			group: panel.group,
+		})),
+	};
+
+	if (route.view === 'panel') {
+		const found = panels.find((p) => p.plugin === route.plugin && p.panel.id === route.panel);
+		if (!found) error(404, 'Not found');
+		const content = sanitizePanelContent(await found.panel.load({ req, cms }));
+		return { ...base, route, panel: { label: found.panel.label, content } };
+	}
 
 	if (route.view === 'dashboard') {
-		const visible = k.config.collections.filter((c) => !c.admin.hidden);
+		const visible = await visibleCollections(k);
 		const counts = await Promise.all(
 			visible.map((c) => cms.count(c.slug, { draft: true }).catch(() => -1)), // -1: not readable
 		);
@@ -220,22 +297,22 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 				description: c.admin.description,
 				totalDocs: counts[i] ?? -1,
 			})),
-			globals: k.config.globals
-				.filter((g) => !g.admin.hidden)
-				.map((g) => ({
-					slug: g.globalSlug as string,
-					label: g.labels.singular,
-					group: g.admin.group,
-					description: g.admin.description,
-				})),
+			globals: (await visibleGlobals(k)).map((g) => ({
+				slug: g.globalSlug as string,
+				label: g.labels.singular,
+				group: g.admin.group,
+				description: g.admin.description,
+			})),
 		};
 	}
 
 	if (route.view === 'global') {
-		const { col, client } = globalFor(k, route.global);
-		const doc = await cms.findGlobal(route.global as never, { draft: true }).catch((err: unknown) => {
-			throw toHttpError(err);
-		});
+		const { col, client } = await globalFor(k, route.global);
+		const doc = await cms
+			.findGlobal(route.global as never, { draft: true })
+			.catch((err: unknown) => {
+				throw toHttpError(err);
+			});
 		const update = (await collectionAccess(col, 'update', { req, id: route.global })) === true;
 		const [status, count] = await Promise.all([
 			docStatus(col, cms, doc as Record<string, unknown>, route),
@@ -254,7 +331,7 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 	}
 
 	if (route.view === 'versions' && route.global !== undefined) {
-		const { col, client } = globalFor(k, route.global);
+		const { col, client } = await globalFor(k, route.global);
 		if (col.versions === false) error(404, 'This global has no versions.');
 		const query = listQuery(event.url, col);
 		try {
@@ -272,7 +349,7 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		}
 	}
 
-	const { col, client } = collectionFor(k, route.collection);
+	const { col, client } = await collectionFor(k, route.collection);
 
 	if (route.view === 'versions') {
 		if (col.versions === false) error(404, 'This collection has no versions.');
@@ -468,7 +545,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view === 'global') {
 			const { k, cms } = await requireAdmin(event, route.view);
-			const { col } = globalFor(k, route.global);
+			const { col } = await globalFor(k, route.global);
 			const form = await event.request.formData();
 			const { data, errors } = parseFormData(col.fields, form);
 			if (errors.length > 0) return fail(400, { message: 'Invalid input', errors, values: data } satisfies AdminActionData);
@@ -481,7 +558,7 @@ export const actions: Actions = {
 		}
 		if (route.view !== 'edit' && route.view !== 'create') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		const form = await event.request.formData();
 		const { data, errors } = parseFormData(col.fields, form);
 		if (errors.length > 0) return fail(400, { message: 'Invalid input', errors, values: data } satisfies AdminActionData);
@@ -519,7 +596,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view !== 'edit') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		if (!hasDrafts(col)) error(404, 'Not found');
 		try {
 			await cms.unpublish(col.slug, route.id);
@@ -538,7 +615,7 @@ export const actions: Actions = {
 		const versionId = formString(form, FORM.versionId);
 		if (!versionId) return fail(400, { message: 'Invalid version' } satisfies AdminActionData);
 		if (route.global !== undefined) {
-			const { col } = globalFor(k, route.global);
+			const { col } = await globalFor(k, route.global);
 			try {
 				await cms.restoreGlobalVersion(route.global as never, versionId, draftOptions(col, form));
 			} catch (err) {
@@ -546,7 +623,7 @@ export const actions: Actions = {
 			}
 			redirect(303, adminUrl(`globals/${route.global}`));
 		}
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		try {
 			await cms.restoreVersion(col.slug, versionId, draftOptions(col, form));
 		} catch (err) {
@@ -560,7 +637,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view !== 'edit') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		try {
 			await cms.delete(col.slug, route.id);
 		} catch (err) {
@@ -574,7 +651,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view !== 'list') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		const form = await event.request.formData();
 		const ids = form.getAll(FORM.ids).filter((v): v is string => typeof v === 'string').slice(0, 100);
 		const failed: string[] = [];
@@ -599,7 +676,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view !== 'list') error(404, 'Not found');
 		const { k, cms } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		if (!col.orderable) error(404, 'Not found');
 		const form = await event.request.formData();
 		const id = formString(form, 'id');
@@ -621,7 +698,7 @@ export const actions: Actions = {
 		const route = routeOf(event);
 		if (route.view !== 'edit') error(404, 'Not found');
 		const { k, user } = await requireAdmin(event, route.view);
-		const { col } = collectionFor(k, route.collection);
+		const { col } = await collectionFor(k, route.collection);
 		if (!col.auth || !user) error(404, 'Not found');
 		const form = await event.request.formData();
 		const { setPassword } = await auth();

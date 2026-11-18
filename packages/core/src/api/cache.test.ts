@@ -70,6 +70,17 @@ describe('edge cache', () => {
 		expect(c2.docs[0]!.id).toBe('a');
 	});
 
+	it('keys include the add-on gate state (Decision 34): flipping an add-on never serves the old entry', async () => {
+		let gates = '1';
+		const { cms, calls, options } = setup({ gateKey: async () => gates });
+		await withEdgeCache(cms, anon, options).find('posts', {} as never);
+		await withEdgeCache(cms, anon, options).find('posts', {} as never);
+		expect(calls.find).toBe(1);
+		gates = '0';
+		await withEdgeCache(cms, anon, options).find('posts', {} as never);
+		expect(calls.find).toBe(2);
+	});
+
 	it('canonicalizes key order', async () => {
 		const { cms, calls, options } = setup();
 		const c = withEdgeCache(cms, anon, options);

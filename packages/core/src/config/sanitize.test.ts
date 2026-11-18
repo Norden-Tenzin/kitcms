@@ -48,7 +48,7 @@ describe('config defaults', () => {
 		const c = sanitize(page({ title: f.text() }));
 		expect(c.collections.map((x) => x.slug)).toEqual(['pages', 'users']);
 		expect(c.authCollection).toBe('users');
-		expect(c.bindings).toEqual({ db: 'DB', bucket: 'BUCKET' });
+		expect(c.bindings).toEqual({ db: 'DB', bucket: 'BUCKET', email: 'EMAIL' });
 		expect(c.admin.title).toBe('kitcms');
 		expect(c.media).toEqual({});
 		const users = c.collectionsBySlug.users!;
@@ -62,7 +62,7 @@ describe('config defaults', () => {
 			media: { publicUrl: 'https://m.example.com//' },
 			admin: { title: 'X', user: 'users' },
 		});
-		expect(c.bindings).toEqual({ db: 'MYDB', bucket: 'BUCKET' });
+		expect(c.bindings).toEqual({ db: 'MYDB', bucket: 'BUCKET', email: 'EMAIL' });
 		expect(c.media.publicUrl).toBe('https://m.example.com');
 		expect(c.admin.title).toBe('X');
 	});

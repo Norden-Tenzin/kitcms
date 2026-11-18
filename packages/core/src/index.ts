@@ -7,7 +7,15 @@ export type { SeedContext, SeedFn } from './seed';
 export type * from './config/fields';
 export type * from './config/collection';
 export type * from './config/hooks';
-export type { Rel, RichTextDoc, RichTextNode, InferFields, InferInput, Simplify } from './config/infer';
+export type * from './config/plugin';
+export type {
+	Rel,
+	RichTextDoc,
+	RichTextNode,
+	InferFields,
+	InferInput,
+	Simplify,
+} from './config/infer';
 export type { Where, WhereOps, WhereInput, Sort } from './config/where';
 export type {
 	Cms,

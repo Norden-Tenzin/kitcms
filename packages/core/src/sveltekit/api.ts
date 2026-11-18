@@ -11,6 +11,7 @@
 //   POST /api/upload/:collection                  (multipart: file + other fields)
 //   GET  /api/media/<key>                         (when `media.publicUrl` is unset)
 // The REST fallback API (/api/collections/*, /api/globals/*; plan §13.7) lives in ./rest.
+// Plugin endpoints (/api/plugins/<plugin>/*; Decision 33) live in ./plugins.
 
 import type { RequestEvent } from '@sveltejs/kit';
 import { adminAccess } from '../access/engine';
@@ -132,6 +133,17 @@ async function handle(event: RequestEvent, fn: () => Promise<Response>): Promise
 	}
 }
 
+/** `/api/plugins/<plugin>/*` (Decision 33): dispatched to the lazily imported plugin module. */
+async function plugins(
+	event: RequestEvent,
+	method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+): Promise<Response | null> {
+	const segs = segments(event);
+	if (segs[0] !== 'plugins') return null;
+	const { handlePluginEndpoint } = await import('./plugins');
+	return handlePluginEndpoint(event, getKitcms(event.locals), method, segs.slice(1));
+}
+
 /** `/api/collections/*` and `/api/globals/*`: dispatched to the lazily imported REST module. */
 async function rest(event: RequestEvent, method: 'GET' | 'POST' | 'PATCH' | 'DELETE'): Promise<Response | null> {
 	const segs = segments(event);
@@ -143,7 +155,7 @@ async function rest(event: RequestEvent, method: 'GET' | 'POST' | 'PATCH' | 'DEL
 export async function GET(event: RequestEvent): Promise<Response> {
 	const [a, b, c, ...rest_] = segments(event);
 	return handle(event, async () => {
-		const r = await rest(event, 'GET');
+		const r = (await rest(event, 'GET')) ?? (await plugins(event, 'GET'));
 		if (r) return r;
 		if (a === 'admin' && b === 'search' && c && rest_.length === 0) return adminSearch(event, c);
 		if (a === 'admin' && b === 'lookup' && c && rest_.length === 0) return adminLookup(event, c);
@@ -158,7 +170,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 export async function POST(event: RequestEvent): Promise<Response> {
 	const [a, b, ...rest_] = segments(event);
 	return handle(event, async () => {
-		const r = await rest(event, 'POST');
+		const r = (await rest(event, 'POST')) ?? (await plugins(event, 'POST'));
 		if (r) return r;
 		if (a === 'upload' && b && rest_.length === 0) {
 			const origin = event.request.headers.get('origin');
@@ -173,9 +185,21 @@ export async function POST(event: RequestEvent): Promise<Response> {
 }
 
 export async function PATCH(event: RequestEvent): Promise<Response> {
-	return handle(event, async () => (await rest(event, 'PATCH')) ?? errorResponse(404, 'Not found.'));
+	return handle(
+		event,
+		async () =>
+			(await rest(event, 'PATCH')) ??
+			(await plugins(event, 'PATCH')) ??
+			errorResponse(404, 'Not found.'),
+	);
 }
 
 export async function DELETE(event: RequestEvent): Promise<Response> {
-	return handle(event, async () => (await rest(event, 'DELETE')) ?? errorResponse(404, 'Not found.'));
+	return handle(
+		event,
+		async () =>
+			(await rest(event, 'DELETE')) ??
+			(await plugins(event, 'DELETE')) ??
+			errorResponse(404, 'Not found.'),
+	);
 }

@@ -78,6 +78,7 @@ function internals(user: KitcmsUser | null): KitcmsInternals {
 		cms: cmsFor(user),
 		user,
 		cmsFor,
+		email: { enabled: false, send: () => Promise.reject(new Error('no email')) },
 	};
 }
 

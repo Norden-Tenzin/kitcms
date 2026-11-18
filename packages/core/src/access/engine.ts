@@ -18,6 +18,7 @@ import type { KitcmsReq, KitcmsUser, Operation } from '../config/hooks';
 import type { SanitizedCollection, SanitizedConfig, SanitizedField } from '../config/sanitized';
 import type { WhereInput } from '../config/where';
 import { ForbiddenError } from '../errors';
+import { collectionEntitled } from './entitlements';
 
 /** `true` (allow all), `false` (deny), or a filter the documents must match. */
 export type AccessDecision = boolean | WhereInput;
@@ -79,6 +80,10 @@ export async function collectionAccess(
 	args: AccessArgsInput,
 ): Promise<AccessDecision> {
 	if (args.overrideAccess) return true;
+	// Runtime add-on gate (Decision 34): an add-on that is off denies everything but trusted code.
+	if (collection.entitlement !== undefined && !(await collectionEntitled(collection))) {
+		return false;
+	}
 	// Locked collections (§13.3) and globals: no create/delete, whatever the rules say. Checked
 	// before the rule, so a permissive `create`/`delete` rule can't re-open them.
 	if ((operation === 'create' || operation === 'delete') && (collection.admin.locked || collection.kind === 'global')) {

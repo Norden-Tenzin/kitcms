@@ -3,6 +3,7 @@
 
 import type { ClientCollection, SanitizedBranding } from '../config/sanitized';
 import type { FieldError } from '../errors';
+import type { PanelContent } from '../config/plugin';
 
 export type AdminRoute =
 	| { view: 'login' }
@@ -13,7 +14,9 @@ export type AdminRoute =
 	| { view: 'edit'; collection: string; id: string }
 	| { view: 'global'; global: string }
 	| { view: 'versions'; collection: string; id: string; global?: undefined }
-	| { view: 'versions'; global: string; collection?: undefined; id?: undefined };
+	| { view: 'versions'; global: string; collection?: undefined; id?: undefined }
+	/** A plugin's read-only panel (Decision 33): `/admin/plugins/<plugin>/<panel>`. */
+	| { view: 'panel'; plugin: string; panel: string };
 
 export type AdminDoc = Record<string, unknown> & { id: string };
 
@@ -64,6 +67,15 @@ interface SignedIn extends Base {
 	nav: AdminNavItem[];
 	/** Visible globals (`/admin/globals/:slug`), in config order. */
 	globals: AdminNavItem[];
+	/** Plugin panels the user may see (`/admin/plugins/:plugin/:id`), in config order. */
+	panels: AdminPanelNavItem[];
+}
+
+export interface AdminPanelNavItem {
+	plugin: string;
+	id: string;
+	label: string;
+	group?: string;
 }
 
 export interface ListQuery {
@@ -129,6 +141,11 @@ export type AdminData =
 			/** Globals with drafts only. */
 			status?: AdminDocStatus;
 			versionCount?: number;
+	  })
+	| (SignedIn & {
+			route: { view: 'panel'; plugin: string; panel: string };
+			/** Validated, read-only content (unsafe links already dropped). */
+			panel: { label: string; content: PanelContent };
 	  })
 	| (SignedIn & {
 			route: Extract<AdminRoute, { view: 'versions' }>;

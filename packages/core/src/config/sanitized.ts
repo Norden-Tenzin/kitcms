@@ -9,6 +9,7 @@
 // - Every option has its default filled in, so consumers never re-apply defaults.
 // - Upload and auth collections include their built-in fields as ordinary sanitized fields.
 
+import type { AdminPanelDef, EntitlementsProvider, PluginEndpoint, PluginHandle } from './plugin';
 import type { BlockAdmin, DataFieldType, FieldAdmin } from './fields';
 import type {
 	CollectionAccess,
@@ -195,6 +196,8 @@ export interface AnyCollection<M extends Mode = 'server'> {
 	versions: SanitizedVersions;
 	/** Extra indexes (Decision 30), validated: top-level column fields or system columns. */
 	indexes: { fields: string[]; unique: boolean }[];
+	/** Runtime add-on gate (Decision 34). Absent = always on. */
+	entitlement?: string;
 	/** Server only. As written in the config (defaults are applied by the access engine). */
 	access: M extends 'server' ? CollectionAccess : Record<string, never>;
 	hooks: M extends 'server' ? NormalizedCollectionHooks : Record<string, never>;
@@ -217,9 +220,24 @@ export interface SanitizedConfig {
 	cache: false | { ttl: number };
 	/** Slug of the `auth: true` collection (added as `users` when the config has none). */
 	authCollection: string;
-	bindings: { db: string; bucket: string };
+	bindings: { db: string; bucket: string; email: string };
 	admin: { title: string; branding: SanitizedBranding };
 	media: { publicUrl?: string };
+	/** Plugins that contribute server code (Decision 33), in config order. */
+	plugins: SanitizedPlugin[];
+	/** Decision 34. Present whenever anything has an `entitlement`. */
+	entitlements?: EntitlementsProvider;
+	/** Decision 35. `null` = email disabled. */
+	email: { from: { address: string; name?: string }; replyTo?: string } | null;
+}
+
+/** A plugin's runtime parts (Decision 33), validated. */
+export interface SanitizedPlugin {
+	name: string;
+	entitlement?: string;
+	handle?: PluginHandle;
+	endpoints: (PluginEndpoint & { maxBodyBytes: number; segments: string[] })[];
+	panels: AdminPanelDef[];
 }
 
 /** Validated branding (§13.6): every value is safe to put in a CSS variable / `src`. */
