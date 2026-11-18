@@ -7,7 +7,6 @@
 			"@kitcms/core",
 			"@kitcms/ui",
 			"@kitcms/client",
-			"@kitcms/plugin-multi-tenant",
 			"@kitcms/plugin-seo",
 			"create-kitcms"
 		]

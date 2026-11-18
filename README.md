@@ -13,7 +13,6 @@ This repository is the monorepo for the packages, the templates and a local play
 - [`@kitcms/core`](packages/core/README.md): config, the Local API, D1 and R2, auth, the SvelteKit integration, RPC and the `kitcms` CLI
 - [`@kitcms/ui`](packages/ui/README.md): the Svelte 5 admin
 - [`@kitcms/client`](packages/client/README.md): the typed Service Binding client for headless consumers
-- [`@kitcms/plugin-multi-tenant`](packages/plugin-multi-tenant/README.md): several tenants in one CMS, with isolated data
 - [`@kitcms/plugin-seo`](packages/plugin-seo/README.md): SEO fields, meta tags and a search result preview
 - [`create-kitcms`](packages/create-kitcms/README.md): the scaffolder (`pnpm create kitcms@latest`)
 

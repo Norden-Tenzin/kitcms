@@ -23,17 +23,17 @@ On the first visit, `/admin` asks you to create the first admin user.
 
 ## Repository layout
 
-| Path                                                  | What it is                                                                                                                         |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`                                       | `@kitcms/core`: config, Local API, access control, hooks, D1 and R2, auth, SvelteKit integration, RPC entrypoint, the `kitcms` CLI |
-| `packages/ui`                                         | `@kitcms/ui`: the Svelte 5 admin                                                                                                   |
-| `packages/client`                                     | `@kitcms/client`: typed client for Workers that call kitcms over a Service Binding                                                 |
-| `packages/plugin-multi-tenant`, `packages/plugin-seo` | Official plugins                                                                                                                   |
-| `packages/create-kitcms`                              | The scaffolder (`pnpm create kitcms`)                                                                                              |
-| `templates/blank`, `templates/website`                | Projects the scaffolder copies                                                                                                     |
-| `apps/playground`                                     | A SvelteKit app that uses every package from the workspace. Use it to try changes and as the e2e target                            |
-| `apps/playground-consumer`                            | A small Worker that reads from the playground over Service Binding RPC (the headless setup)                                        |
-| `e2e`                                                 | Playwright admin tests and RPC contract tests, run under `wrangler dev`                                                            |
+| Path                                   | What it is                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`                        | `@kitcms/core`: config, Local API, access control, hooks, D1 and R2, auth, SvelteKit integration, RPC entrypoint, the `kitcms` CLI |
+| `packages/ui`                          | `@kitcms/ui`: the Svelte 5 admin                                                                                                   |
+| `packages/client`                      | `@kitcms/client`: typed client for Workers that call kitcms over a Service Binding                                                 |
+| `packages/plugin-seo`                  | The official SEO plugin                                                                                                            |
+| `packages/create-kitcms`               | The scaffolder (`pnpm create kitcms`)                                                                                              |
+| `templates/blank`, `templates/website` | Projects the scaffolder copies                                                                                                     |
+| `apps/playground`                      | A SvelteKit app that uses every package from the workspace. Use it to try changes and as the e2e target                            |
+| `apps/playground-consumer`             | A small Worker that reads from the playground over Service Binding RPC (the headless setup)                                        |
+| `e2e`                                  | Playwright admin tests and RPC contract tests, run under `wrangler dev`                                                            |
 
 The apps are private and never published.
 
@@ -87,7 +87,7 @@ For RPC with HMR there's an opt-in mode: `pnpm --filter playground dev:rpc` plus
 - **D1 and R2 through bindings only,** behind the internal `DbAdapter` / `StorageAdapter` interfaces.
 - **Schema is code only.** The admin must never create or edit collections, fields, blocks or forms.
 - **One pipeline.** The Local API, RPC, REST and admin actions all go through access → hooks → validate → D1 → hooks. Don't query D1 around it.
-- **Access control, auth, RPC trust and tenant isolation are security-critical.** Changes there need tests and a careful review. Please explain the threat model in the PR.
+- **Access control, auth and RPC trust are security-critical.** Changes there need tests and a careful review. Please explain the threat model in the PR.
 - TypeScript strict. Svelte 5 runes only (`$state`, `$derived`, `$props`, `$effect`): no stores, no `export let`.
 - Nested data (group, array, blocks, json, richText) is stored as JSON `TEXT` columns. IDs are ULIDs. D1 has no interactive transactions, so use `batch()`.
 
