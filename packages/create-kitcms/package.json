@@ -1,6 +1,6 @@
 {
 	"name": "create-kitcms",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Scaffold a kitcms app: pnpm create kitcms",
 	"license": "MIT",
 	"repository": {
