@@ -184,7 +184,9 @@
 	let previewHidden = $state(false);
 	$effect(() => {
 		try {
-			previewHidden = localStorage.getItem(hiddenKey) === '1';
+			const stored = localStorage.getItem(hiddenKey);
+			// No saved choice: on small screens the preview starts collapsed (toggle to show it).
+			previewHidden = stored === null ? window.matchMedia('(max-width: 800px)').matches : stored === '1';
 		} catch {
 			// storage unavailable: keep the default
 		}
@@ -538,6 +540,13 @@
 		}
 	}
 	@media (max-width: 800px) {
+		.title-row [data-testid='preview-toggle'] {
+			flex: 1 1 100%;
+			border-color: var(--kc-border);
+		}
+		.preview-col {
+			margin-top: 0.75rem;
+		}
 		.layout {
 			grid-template-columns: minmax(0, 1fr);
 		}

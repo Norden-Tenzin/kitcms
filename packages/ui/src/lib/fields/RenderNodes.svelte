@@ -113,6 +113,17 @@
 		display: flex;
 		gap: 0.25rem;
 		border-bottom: 1px solid var(--kc-border);
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+	}
+	.kc-tabs__list button {
+		flex: none;
+		white-space: nowrap;
+	}
+	@media (max-width: 800px), (pointer: coarse) {
+		.kc-tabs__list button {
+			min-height: 2.75rem;
+		}
 	}
 	.kc-tabs__list button {
 		background: none;

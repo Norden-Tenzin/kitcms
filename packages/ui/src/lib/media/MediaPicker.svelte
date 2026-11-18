@@ -214,6 +214,36 @@
 		gap: 0.75rem;
 		padding: 1rem;
 	}
+	/* Small screens: a full-screen sheet; the footer (Confirm/Cancel) stays in reach. */
+	@media (max-width: 640px) {
+		.kc-mp[open] {
+			width: 100vw;
+			max-width: 100vw;
+			height: 100dvh;
+			max-height: 100dvh;
+			margin: 0;
+			border: 0;
+			border-radius: 0;
+		}
+		.kc-mp__body {
+			min-height: 100%;
+			align-content: start;
+			grid-auto-rows: auto;
+			padding: 0.75rem;
+		}
+		.kc-mp__grid {
+			grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+		}
+		.kc-mp__foot {
+			position: sticky;
+			bottom: 0;
+			align-self: end;
+			margin: 0 -0.75rem -0.75rem;
+			padding: 0.75rem;
+			background: var(--kc-surface);
+			border-top: 1px solid var(--kc-border);
+		}
+	}
 	.kc-mp__head {
 		display: flex;
 		align-items: center;

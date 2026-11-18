@@ -125,6 +125,10 @@
 </div>
 
 <style>
+	.kc-row-card {
+		min-width: 0;
+		max-width: 100%;
+	}
 	.kc-row-card--dragging {
 		opacity: 0.5;
 	}
@@ -173,6 +177,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		flex: 1;
+		min-width: 0;
 	}
 	.kc-row-card__err {
 		display: inline-grid;
@@ -201,5 +206,24 @@
 	}
 	.kc-row-card__body[hidden] {
 		display: none;
+	}
+	/* Touch / small screens: 44px targets; the tool buttons get their own wrapped row. */
+	@media (max-width: 800px), (pointer: coarse) {
+		.kc-row-card__handle {
+			min-width: 2.75rem;
+			min-height: 2.75rem;
+			touch-action: none;
+		}
+		.kc-row-card__toggle {
+			min-height: 2.75rem;
+			flex-basis: 6rem;
+		}
+		.kc-row-card__tools {
+			flex: 1 1 100%;
+			gap: 0.25rem;
+		}
+		.kc-row-card__tools :global(.kc-btn) {
+			min-width: 2.75rem;
+		}
 	}
 </style>

@@ -27,3 +27,6 @@ const GLOBAL_PREFIX = '_global_';
 /** Where a document of `collection` is edited. `_global_<slug>` (refs from a global) links to the global. */
 export const refHref = (collection: string, id: string) =>
 	collection.startsWith(GLOBAL_PREFIX) ? globalHref(collection.slice(GLOBAL_PREFIX.length)) : docHref(collection, id);
+
+/** A plugin's read-only admin panel (Decision 33). */
+export const panelHref = (plugin: string, panel: string) => adminHref(`plugins/${plugin}/${panel}`);

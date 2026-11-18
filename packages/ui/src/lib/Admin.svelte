@@ -3,7 +3,7 @@
 	import './theme.css';
 	import { enhance } from '$app/forms';
 	import type { AdminActionData, AdminData, AdminDataOf } from '@kitcms/core/client';
-	import { adminHref, collectionHref, globalHref } from './links';
+	import { adminHref, collectionHref, globalHref, panelHref } from './links';
 	import Login from './views/Login.svelte';
 	import FirstUser from './views/FirstUser.svelte';
 	import Dashboard from './views/Dashboard.svelte';
@@ -11,6 +11,7 @@
 	import type { AdminClientConfig } from './preview/types';
 	import Edit from './views/Edit.svelte';
 	import Versions from './views/Versions.svelte';
+	import Panel from './views/Panel.svelte';
 
 	let {
 		data,
@@ -26,6 +27,7 @@
 	const list = $derived(as('list'));
 	const editing = $derived(as('create') ?? as('edit') ?? as('global'));
 	const versions = $derived(as('versions'));
+	const panel = $derived(as('panel'));
 	const signed = $derived(
 		data.route.view === 'login' || data.route.view === 'create-first-user'
 			? null
@@ -33,6 +35,30 @@
 	);
 
 	let navOpen = $state(false);
+	let menuBtn = $state<HTMLButtonElement>();
+	let navEl = $state<HTMLElement>();
+
+	// Mobile drawer: focus moves into it when it opens, Escape (or leaving it) closes it and
+	// returns focus to the menu button.
+	function closeNav(restoreFocus = false) {
+		if (!navOpen) return;
+		navOpen = false;
+		if (restoreFocus) menuBtn?.focus();
+	}
+	function toggleNav() {
+		navOpen = !navOpen;
+		if (navOpen) {
+			// After the nav is displayed.
+			queueMicrotask(() => {
+				const first = navEl?.querySelector<HTMLElement>('a[aria-current="page"], a');
+				if (navEl && navEl.offsetParent !== null) first?.focus();
+			});
+		}
+	}
+	function onNavFocusOut(e: FocusEvent) {
+		const to = e.relatedTarget as Node | null;
+		if (to && !navEl?.contains(to) && to !== menuBtn) navOpen = false;
+	}
 
 	// Nav grouped by `group`; ungrouped collections first.
 	const groups = $derived.by(() => {
@@ -41,6 +67,16 @@
 		for (const item of signed.nav) (by[item.group ?? ''] ??= []).push(item);
 		return Object.entries(by).sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
 	});
+	// Plugin panels: grouped by `group` (own section), ungrouped ones under "Plugins".
+	const panelGroups = $derived.by(() => {
+		if (!signed) return [];
+		const by: Record<string, Signed['panels']> = {};
+		for (const p of signed.panels ?? []) (by[p.group || 'Plugins'] ??= []).push(p);
+		return Object.entries(by);
+	});
+	const activePanel = $derived(
+		data.route.view === 'panel' ? `${data.route.plugin}/${data.route.panel}` : undefined,
+	);
 	const activeSlug = $derived('collection' in data.route ? data.route.collection : undefined);
 	const activeGlobal = $derived('global' in data.route ? data.route.global : undefined);
 	// Edit views are also re-keyed on `updatedAt`, so the form re-seeds from the saved document
@@ -59,6 +95,15 @@
 
 <svelte:head><title>{data.title}</title></svelte:head>
 
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'Escape' && navOpen) {
+			e.preventDefault();
+			closeNav(true);
+		}
+	}}
+/>
+
 <div
 	class="kitcms-admin"
 	style:--kc-accent={data.branding.colors.accent}
@@ -75,7 +120,8 @@
 					class="kc-btn kc-btn--ghost menu"
 					aria-expanded={navOpen}
 					aria-controls="kc-nav"
-					onclick={() => (navOpen = !navOpen)}>Menu</button
+					bind:this={menuBtn}
+					onclick={toggleNav}>Menu</button
 				>
 				<a class="brand" href={adminHref('')}>
 					{#if data.branding.logo}<img class="logo" src={data.branding.logo} alt={data.title} />{/if}
@@ -87,11 +133,22 @@
 					<button class="kc-btn kc-btn--ghost">Log out</button>
 				</form>
 			</header>
-			<nav id="kc-nav" class="nav" data-open={navOpen} aria-label="Main">
+			{#if navOpen}
+				<!-- Mobile only (hidden by CSS on desktop): tapping outside the drawer closes it. -->
+				<button type="button" class="backdrop" tabindex="-1" aria-label="Dismiss navigation" onclick={() => closeNav(true)}></button>
+			{/if}
+			<nav
+				id="kc-nav"
+				class="nav"
+				data-open={navOpen}
+				aria-label="Main"
+				bind:this={navEl}
+				onfocusout={onNavFocusOut}
+			>
 				<a
 					href={adminHref('')}
 					aria-current={data.route.view === 'dashboard' ? 'page' : undefined}
-					onclick={() => (navOpen = false)}>Dashboard</a
+					onclick={() => closeNav()}>Dashboard</a
 				>
 				{#each groups as [group, items] (group)}
 					{#if group}<span class="group">{group}</span>{/if}
@@ -99,7 +156,7 @@
 						<a
 							href={collectionHref(item.slug)}
 							aria-current={item.slug === activeSlug ? 'page' : undefined}
-							onclick={() => (navOpen = false)}>{item.label}</a
+							onclick={() => closeNav()}>{item.label}</a
 						>
 					{/each}
 				{/each}
@@ -109,10 +166,20 @@
 						<a
 							href={globalHref(item.slug)}
 							aria-current={item.slug === activeGlobal ? 'page' : undefined}
-							onclick={() => (navOpen = false)}>{item.label}</a
+							onclick={() => closeNav()}>{item.label}</a
 						>
 					{/each}
 				{/if}
+				{#each panelGroups as [group, items] (group)}
+					<span class="group">{group}</span>
+					{#each items as item (item.plugin + '/' + item.id)}
+						<a
+							href={panelHref(item.plugin, item.id)}
+							aria-current={`${item.plugin}/${item.id}` === activePanel ? 'page' : undefined}
+							onclick={() => closeNav()}>{item.label}</a
+						>
+					{/each}
+				{/each}
 			</nav>
 			<main class="content">
 				{#if dashboard}
@@ -123,6 +190,8 @@
 					{#key viewKey}<Edit data={editing} {form} {admin} />{/key}
 				{:else if versions}
 					<Versions data={versions} {form} />
+				{:else if panel}
+					<Panel data={panel} />
 				{/if}
 			</main>
 		</div>
@@ -204,27 +273,73 @@
 		padding: 1.25rem;
 		min-width: 0;
 	}
+	.backdrop {
+		display: none;
+	}
 	@media (max-width: 800px) {
+		.backdrop {
+			display: block;
+		}
 		.shell {
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-areas:
 				'top'
-				'nav'
 				'content';
-			grid-template-rows: auto auto 1fr;
+			grid-template-rows: auto 1fr;
+		}
+		.top {
+			position: sticky;
+			top: 0;
+			z-index: 50;
+			min-height: 3.5rem;
+			padding-inline: 0.5rem;
 		}
 		.menu {
 			display: inline-flex;
+			min-width: 2.75rem;
+			min-height: 2.75rem;
+		}
+		.brand {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 		.who {
 			display: none;
 		}
+		/* The nav becomes a drawer under the header. */
 		.nav {
-			border-right: 0;
-			border-bottom: 1px solid var(--kc-border);
+			position: fixed;
+			z-index: 45;
+			top: 3.5rem;
+			bottom: 0;
+			left: 0;
+			width: min(18rem, 85vw);
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			border-right: 1px solid var(--kc-border);
+			box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+		}
+		.nav a {
+			display: flex;
+			align-items: center;
+			min-height: 2.75rem;
 		}
 		.nav[data-open='false'] {
 			display: none;
+		}
+		.backdrop {
+			position: fixed;
+			z-index: 44;
+			inset: 3.5rem 0 0 0;
+			border: 0;
+			padding: 0;
+			background: rgb(0 0 0 / 0.4);
+			cursor: default;
+		}
+		.content {
+			padding: 1rem 0.75rem;
 		}
 	}
 </style>

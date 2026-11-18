@@ -90,3 +90,17 @@ export function formatCell(collection: ClientCollection, name: string, value: un
 		}
 	}
 }
+
+/** `1536` → `1.5 KB`. Binary units, one decimal at most. */
+export function formatBytes(n: number): string {
+	if (!Number.isFinite(n) || n < 0) return '0 B';
+	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	let v = n;
+	let i = 0;
+	while (v >= 1024 && i < units.length - 1) {
+		v /= 1024;
+		i++;
+	}
+	const s = i === 0 ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
+	return `${s} ${units[i]}`;
+}
