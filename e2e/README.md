@@ -8,7 +8,7 @@ Playwright tests for the kitcms admin and the Service Binding RPC contract, run 
 ```sh
 pnpm exec playwright install chromium   # once (from e2e/ or the repo root)
 pnpm test:e2e                           # from the repo root
-pnpm --filter e2e test -- --project=admin -g "tenancy"   # a subset
+pnpm --filter e2e test -- --project=admin -g "versions"   # a subset
 ```
 
 `E2E_SKIP_BUILD=1 pnpm test:e2e` reuses the existing `apps/playground/.svelte-kit` build. Ports 8801 (CMS),
@@ -38,7 +38,7 @@ admin or the API. `BETTER_AUTH_SECRET` is passed with `--var`.
 | Project | Files | Notes |
 | --- | --- | --- |
 | `auth` | `auth.spec.ts` | First-user setup, logout, wrong/right password; saves the session |
-| `admin` | `admin-*.spec.ts` | Pages, preview, media, orderable team, globals, versions, tenancy, CSRF smoke |
-| `rpc` | `rpc.spec.ts` | Access, drafts, system calls, error wire format, tenant scoping over RPC |
+| `admin` | `admin-*.spec.ts` | Pages, preview, media, orderable team, globals, versions, CSRF smoke |
+| `rpc` | `rpc.spec.ts` | Access, drafts, system calls, error wire format, unknown options rejected |
 
 Titles are unique per run (`uid()` in `tests/helpers.ts`); there are no sleeps.

@@ -16,7 +16,6 @@
 	},
 	"dependencies": {
 		"@kitcms/core": "workspace:*",
-		"@kitcms/plugin-multi-tenant": "workspace:*",
 		"@kitcms/plugin-seo": "workspace:*",
 		"@kitcms/ui": "workspace:*"
 	},
