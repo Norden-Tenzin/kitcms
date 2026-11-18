@@ -11,6 +11,7 @@ import { runnerImport } from 'vite';
 import { createLocalApi } from '../api/local';
 import type { Cms } from '../api/types';
 import { dbFor, storageFor } from '../runtime';
+import type { StorageAdapter } from '../storage/adapter';
 import { createSeedContext, type SeedFn, type SeedStats } from '../seed';
 import { findD1Binding } from './args';
 import type { Ctx } from './commands';
@@ -77,7 +78,7 @@ export function assertRemoteBinding(wranglerFile: string, text: string, binding:
 
 export function formatStats(stats: SeedStats): string[] {
 	const keys = Object.keys(stats).sort();
-	if (keys.length === 0) return ['nothing to do (the seed used no ensure/ensureGlobal)'];
+	if (keys.length === 0) return ['nothing to do (the seed used no ensure/ensureGlobal/ensureUpload)'];
 	return keys.map((k) => `${k}: ${stats[k]!.created} created, ${stats[k]!.present} already present`);
 }
 
@@ -117,7 +118,11 @@ export async function seed(ctx: Ctx): Promise<SeedStats> {
 			storage = undefined; // no R2 binding: fine unless the seed touches uploads
 		}
 		const localApi = createLocalApi({ config, db, storage, user: null, source: 'local' }) as Cms;
-		const { ctx: seedCtx, stats } = createSeedContext(localApi, ctx.log);
+		const { ctx: seedCtx, stats } = createSeedContext(localApi, ctx.log, {
+			config,
+			storage: storage as StorageAdapter | undefined,
+			readFile: async (p) => new Uint8Array(await fs.promises.readFile(path.resolve(ctx.root, p))),
+		});
 		await mod.default(seedCtx);
 		for (const line of formatStats(stats)) ctx.log(line);
 		return stats;

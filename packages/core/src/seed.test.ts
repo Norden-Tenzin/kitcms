@@ -78,3 +78,71 @@ describe('seed context', () => {
 		expect(stats['global:site']).toEqual({ created: 1, present: 1 });
 	});
 });
+
+describe('ensureUpload', () => {
+	const upConfig = sanitizeConfig(
+		defineConfig({
+			collections: [
+				collection({ slug: 'media', upload: { mimeTypes: ['image/*'], maxFileSize: 1000 }, access: { read: () => true }, fields: { alt: f.text() } }),
+			],
+		}),
+	);
+	// 1x1 PNG
+	const png = Uint8Array.from(
+		atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
+		(c) => c.charCodeAt(0),
+	);
+	let upDb: TestDb;
+	let upApi: Cms;
+	const objects = new Map<string, { type: string }>();
+	const storage = {
+		put: async (key: string, _b: unknown, o: { contentType: string }) => void objects.set(key, { type: o.contentType }),
+		delete: async (key: string) => void objects.delete(key),
+		get: async () => null,
+		url: (key: string) => `/api/media/${key}`,
+	};
+	beforeAll(async () => {
+		upDb = await createTestDb(upConfig);
+		upApi = createLocalApi({ config: upConfig, db: createD1Adapter(upConfig, upDb.d1), storage, user: null, source: 'local' });
+	});
+	afterAll(() => upDb.dispose());
+
+	it('uploads once (bytes or path), sniffs type and size, stores in R2', async () => {
+		const reads: string[] = [];
+		const { ctx, stats } = createSeedContext(upApi, () => {}, {
+			config: upConfig,
+			storage: storage as never,
+			readFile: async (p) => (reads.push(p), png),
+		});
+		const a = (await ctx.ensureUpload('media' as never, {
+			where: { alt: { equals: 'Dot' } } as never,
+			file: 'static/seed/dot.png',
+			data: { alt: 'Dot' } as never,
+		})) as unknown as Record<string, unknown>;
+		expect(a).toMatchObject({ alt: 'Dot', filename: 'dot.png', mimeType: 'image/png', width: 1, height: 1, filesize: png.byteLength });
+		expect(objects.get(a.key as string)).toEqual({ type: 'image/png' });
+		const b = (await ctx.ensureUpload('media' as never, {
+			where: { alt: { equals: 'Dot' } } as never,
+			file: { bytes: png, filename: 'other.png' },
+		})) as unknown as Record<string, unknown>;
+		expect(b.id).toBe(a.id);
+		expect(reads).toEqual(['static/seed/dot.png']);
+		expect(stats.media).toEqual({ created: 1, present: 1 });
+	});
+
+	it('enforces the collection mimeTypes and maxFileSize', async () => {
+		const { ctx } = createSeedContext(upApi, () => {}, { config: upConfig, storage: storage as never });
+		await expect(
+			ctx.ensureUpload('media' as never, { where: { alt: { equals: 'pdf' } } as never, file: { bytes: new TextEncoder().encode('%PDF-1.4'), filename: 'a.pdf' } }),
+		).rejects.toThrow(/not allowed/);
+		await expect(
+			ctx.ensureUpload('media' as never, { where: { alt: { equals: 'big' } } as never, file: { bytes: new Uint8Array(2000), filename: 'a.png', mimeType: 'image/png' } }),
+		).rejects.toThrow();
+	});
+
+	it('upload fields stay locked for plain seed creates', async () => {
+		const { ctx } = createSeedContext(upApi);
+		const doc = (await ctx.cms.create('media' as never, { alt: 'x', key: 'evil/key', filename: 'f' } as never).catch((e: unknown) => e)) as Record<string, unknown>;
+		expect(doc.key === 'evil/key').toBe(false);
+	});
+});

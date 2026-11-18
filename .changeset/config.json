@@ -8,7 +8,9 @@
 			"@kitcms/ui",
 			"@kitcms/client",
 			"@kitcms/plugin-seo",
-			"create-kitcms"
+			"create-kitcms",
+			"@kitcms/plugin-entitlements",
+			"@kitcms/plugin-enquiries"
 		]
 	],
 	"linked": [],
