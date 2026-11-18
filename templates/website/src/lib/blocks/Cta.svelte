@@ -1,37 +1,86 @@
 <script lang="ts">
 	import '../site.css';
+	import type { DesignId } from '../designs';
 	import Link from '../Link.svelte';
 	import type { BlockOf } from './types';
 
-	let { block }: { block: BlockOf<'cta'> } = $props();
+	// A "Editorial": big heading on the left, text and button on the right. B "Immersive": a
+	// full-width field of the accent colour. C "Structured": a tinted panel.
+	let { block, design = 'a' }: { block: BlockOf<'cta'>; design?: DesignId } = $props();
+	const button = $derived(block.buttonLabel && block.buttonHref);
 </script>
 
-<section class="section">
+<section class="section" data-design={design}>
 	<div class="container">
 		<div class="panel">
 			<h2>{block.heading ?? ''}</h2>
-			{#if block.text}<p>{block.text}</p>{/if}
-			{#if block.buttonLabel && block.buttonHref}
-				<Link href={block.buttonHref} class="btn">{block.buttonLabel}</Link>
-			{/if}
+			<div class="side">
+				{#if block.text}<p class="lead">{block.text}</p>{/if}
+				{#if button}
+					<Link href={block.buttonHref!} class={['btn', design === 'b' && 'inverse']}>{block.buttonLabel}</Link>
+				{/if}
+			</div>
 		</div>
 	</div>
 </section>
 
 <style>
-	.section {
-		padding-block: clamp(2rem, 5vw, 4rem);
-	}
 	.panel {
-		padding: clamp(1.75rem, 5vw, 3.5rem);
-		text-align: center;
-		background: var(--site-surface, #fff);
-		border: 1px solid var(--site-border, #e4e0d8);
-		border-radius: calc(var(--site-radius, 0.75rem) * 1.5);
+		display: grid;
+		gap: var(--s-3);
 	}
-	p {
+	h2 {
+		margin: 0;
+	}
+	.side p {
+		margin-bottom: var(--s-3);
+		color: var(--muted);
+	}
+
+	/* A */
+	.section[data-design='a'] {
+		--font-display: var(--font-serif);
+	}
+	.section[data-design='a'] h2 {
+		font-weight: 600;
+		font-size: clamp(2rem, 1.2rem + 3.4vw, 3.75rem);
+	}
+
+	/* B: full-bleed field */
+	.section[data-design='b'] {
+		background: var(--accent);
+		color: var(--accent-ink);
+		--focus: var(--accent-ink);
+	}
+	.section[data-design='b'] .panel {
+		text-align: center;
+		justify-items: center;
+		gap: var(--s-4);
+	}
+	.section[data-design='b'] .side p {
+		color: inherit;
+		opacity: 0.92;
 		max-width: 34rem;
-		margin: 0 auto 1.5rem;
-		color: var(--site-muted, #6b675f);
+	}
+
+	/* C: panel */
+	.section[data-design='c'] .panel {
+		padding: var(--s-5) var(--s-4);
+		background: var(--surface);
+		border-radius: var(--radius);
+	}
+
+	@media (min-width: 56rem) {
+		.section[data-design='a'] .panel {
+			grid-template-columns: 7fr 5fr;
+			gap: var(--s-6);
+			align-items: end;
+		}
+		.section[data-design='c'] .panel {
+			grid-template-columns: 1fr 1fr;
+			align-items: center;
+			gap: var(--s-6);
+			padding: var(--s-6);
+		}
 	}
 </style>

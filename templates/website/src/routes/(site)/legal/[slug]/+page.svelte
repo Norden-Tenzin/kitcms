@@ -14,7 +14,10 @@
 
 <style>
 	.wrap {
-		padding-block: 3rem;
-		max-width: 48rem;
+		padding-block: var(--s-6) var(--section);
+	}
+	h1 {
+		font-size: var(--step-h2);
+		margin-bottom: var(--s-4);
 	}
 </style>

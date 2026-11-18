@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RenderBlocks from './blocks/RenderBlocks.svelte';
 	import type { BlockExtras, PageBlock } from './blocks/types';
+	import type { DesignId } from './designs';
 	import { asMedia } from './media';
 	import Seo from './Seo.svelte';
 
@@ -11,10 +12,12 @@
 		};
 		blocks: PageBlock[];
 		extras: BlockExtras;
+		/** The resolved design for this page (see `designs.ts`). */
+		design: DesignId;
 		siteName?: string | null;
 		tagline?: string | null;
 	}
-	let { page, blocks, extras, siteName, tagline }: Props = $props();
+	let { page, blocks, extras, design, siteName, tagline }: Props = $props();
 </script>
 
 <Seo
@@ -24,4 +27,4 @@
 	{siteName}
 />
 
-<RenderBlocks {blocks} {extras} />
+<RenderBlocks {blocks} {extras} {design} />

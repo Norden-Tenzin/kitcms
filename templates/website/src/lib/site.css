@@ -1,90 +1,329 @@
-/* Design tokens and base classes for the public site AND the admin live preview.
-   Scoped to `.site` (the public layout) and `.kitcms-preview` (the admin's preview pane), so nothing
-   leaks into the admin UI. Light/dark follows the visitor's system setting. */
+/* Design tokens and base styles for the public site AND the admin live preview.
+   Scoped to `.site` (the public layout) and `.kitcms-preview` (the admin's preview pane), so
+   nothing leaks into the admin UI. Light/dark follows the visitor's system setting.
+
+   Re-brand by editing the tokens below, or from the admin: Site settings > Design > Colours
+   (accent, background, text) set `--accent`, `--bg` and `--ink` inline on `.site`. Everything
+   else (surface, muted text, lines) is derived from those three with `color-mix`, so any
+   palette stays coherent. Use tokens in components; no colour literals. */
 .site,
 .kitcms-preview {
-	--site-bg: #fbfaf8;
-	--site-surface: #ffffff;
-	--site-fg: #1c1b19;
-	--site-muted: #6b675f;
-	--site-border: #e4e0d8;
-	--site-accent: #1f5f4a;
-	--site-accent-fg: #ffffff;
-	--site-radius: 0.75rem;
-	--site-max: 68rem;
-	background: var(--site-bg);
-	color: var(--site-fg);
-	font-family:
-		system-ui,
-		-apple-system,
-		'Segoe UI',
-		Roboto,
-		sans-serif;
+	--bg: #f7f6f3;
+	--ink: #17181a;
+	--accent: #1f4e79;
+	--accent-ink: #ffffff;
+	--surface: color-mix(in srgb, var(--ink) 6%, var(--bg));
+	--surface-2: color-mix(in srgb, var(--ink) 11%, var(--bg));
+	--muted: color-mix(in srgb, var(--ink) 70%, var(--bg));
+	--line: color-mix(in srgb, var(--ink) 22%, var(--bg));
+	--scrim: rgb(10 12 14 / 0.62);
+	--focus: var(--ink);
+
+	--font-sans: 'Hanken Grotesk Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, serif;
+	--font-display: var(--font-sans);
+
+	/* Type: five steps. */
+	--step-small: 0.9375rem;
+	--step-body: 1.0625rem;
+	--step-lead: clamp(1.1875rem, 1.05rem + 0.6vw, 1.4375rem);
+	--step-h2: clamp(1.75rem, 1.35rem + 1.7vw, 2.75rem);
+	--step-display: clamp(2.5rem, 1.5rem + 4.6vw, 5.25rem);
+
+	/* Space and shape. */
+	--s-1: 0.5rem;
+	--s-2: 0.75rem;
+	--s-3: 1rem;
+	--s-4: 1.5rem;
+	--s-5: 2rem;
+	--s-6: 3rem;
+	--s-7: 4.5rem;
+	--section: clamp(3.5rem, 2rem + 7vw, 7.5rem);
+	--gutter: clamp(1rem, 0.4rem + 3vw, 2.5rem);
+	--max: 74rem;
+	--measure: 40rem;
+	--radius: 0.5rem;
+	--header-h: 4.25rem;
+	--ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-sans);
+	font-size: var(--step-body);
 	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+	text-wrap: pretty;
 }
 @media (prefers-color-scheme: dark) {
 	.site,
 	.kitcms-preview {
-		--site-bg: #141412;
-		--site-surface: #1d1c1a;
-		--site-fg: #f1efea;
-		--site-muted: #a5a097;
-		--site-border: #34322e;
-		--site-accent: #6fcfa8;
-		--site-accent-fg: #0d1f18;
+		--bg: #131517;
+		--ink: #eceae6;
+		--accent: #8db8e6;
+		--accent-ink: #0c1620;
+		--scrim: rgb(0 0 0 / 0.6);
 	}
 }
 
+/* ---- Layout ---------------------------------------------------------------------------- */
 :where(.site, .kitcms-preview) :where(.container) {
 	width: 100%;
-	max-width: var(--site-max);
+	max-width: var(--max);
 	margin-inline: auto;
-	padding-inline: 1.25rem;
-	box-sizing: border-box;
+	padding-inline: var(--gutter);
 }
-:where(.site, .kitcms-preview) :where(h1, h2, h3) {
-	line-height: 1.15;
-	letter-spacing: -0.015em;
-	margin: 0 0 0.6em;
+:where(.site, .kitcms-preview) :where(.section) {
+	padding-block: var(--section);
 }
+
+/* ---- Type ------------------------------------------------------------------------------ */
+:where(.site, .kitcms-preview) :where(h1, h2, h3, h4) {
+	font-family: var(--font-display);
+	line-height: 1.12;
+	letter-spacing: -0.02em;
+	margin: 0 0 0.5em;
+	text-wrap: balance;
+	overflow-wrap: anywhere;
+}
+:where(.site, .kitcms-preview) :where(h1) {
+	font-size: var(--step-display);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+	line-height: 1.04;
+}
+:where(.site, .kitcms-preview) :where(h2) {
+	font-size: var(--step-h2);
+	font-weight: 700;
+}
+:where(.site, .kitcms-preview) :where(h3) {
+	font-size: 1.25rem;
+	font-weight: 650;
+}
+:where(.site, .kitcms-preview) :where(p) {
+	margin: 0 0 1em;
+}
+:where(.site, .kitcms-preview) :where(a) {
+	color: inherit;
+	text-underline-offset: 0.2em;
+}
+:where(.site, .kitcms-preview) :where(.muted) {
+	color: var(--muted);
+}
+:where(.site, .kitcms-preview) :where(.lead) {
+	font-size: var(--step-lead);
+	line-height: 1.5;
+}
+:where(.site, .kitcms-preview) :where(.small) {
+	font-size: var(--step-small);
+}
+:where(.site, .kitcms-preview) :where(img, svg, video) {
+	max-width: 100%;
+}
+
+/* ---- Focus ----------------------------------------------------------------------------- */
+:where(.site, .kitcms-preview) :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+	outline: 3px solid var(--focus);
+	outline-offset: 3px;
+	border-radius: 2px;
+}
+
+/* ---- Buttons --------------------------------------------------------------------------- */
 :where(.site, .kitcms-preview) :where(.btn) {
-	display: inline-block;
-	padding: 0.7em 1.3em;
-	border-radius: 999px;
-	background: var(--site-accent);
-	color: var(--site-accent-fg);
-	font-weight: 600;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5em;
+	min-height: 2.875rem;
+	padding: 0.65em 1.4em;
+	border: 2px solid var(--accent);
+	border-radius: var(--radius);
+	background: var(--accent);
+	color: var(--accent-ink);
+	font: 650 1rem/1.2 var(--font-sans);
 	text-decoration: none;
+	cursor: pointer;
+	transition:
+		background-color 0.2s var(--ease),
+		color 0.2s var(--ease),
+		border-color 0.2s var(--ease);
 }
 :where(.site, .kitcms-preview) :where(.btn:hover) {
-	filter: brightness(1.08);
+	background: color-mix(in srgb, var(--accent) 84%, var(--ink));
+	border-color: color-mix(in srgb, var(--accent) 84%, var(--ink));
 }
+/* Outline button, and the inverse button for fields of accent or photographs. */
+:where(.site, .kitcms-preview) :where(.btn.ghost) {
+	background: transparent;
+	color: var(--ink);
+	border-color: currentColor;
+}
+:where(.site, .kitcms-preview) :where(.btn.ghost:hover) {
+	background: var(--ink);
+	color: var(--bg);
+	border-color: var(--ink);
+}
+:where(.site, .kitcms-preview) :where(.btn.inverse) {
+	background: var(--accent-ink);
+	border-color: var(--accent-ink);
+	color: var(--accent);
+}
+:where(.site, .kitcms-preview) :where(.btn.inverse:hover) {
+	background: transparent;
+	color: var(--accent-ink);
+}
+:where(.site, .kitcms-preview) :where(.btn.on-photo) {
+	background: #ffffff;
+	border-color: #ffffff;
+	color: #111111;
+	--focus: #ffffff;
+}
+:where(.site, .kitcms-preview) :where(.btn.on-photo:hover) {
+	background: transparent;
+	color: #ffffff;
+}
+
+/* ---- Chips ----------------------------------------------------------------------------- */
+:where(.site, .kitcms-preview) :where(.tag) {
+	display: inline-block;
+	padding: 0.1em 0.7em;
+	border-radius: 999px;
+	background: var(--surface-2);
+	color: var(--ink);
+	font-size: var(--step-small);
+	line-height: 1.6;
+}
+
+/* ---- Prose (rich text) ----------------------------------------------------------------- */
 :where(.site, .kitcms-preview) :where(.prose) {
-	max-width: 42rem;
+	max-width: var(--measure);
+}
+:where(.site, .kitcms-preview) :where(.prose > :first-child) {
+	margin-top: 0;
+}
+:where(.site, .kitcms-preview) :where(.prose h1) {
+	font-size: var(--step-h2);
+}
+:where(.site, .kitcms-preview) :where(.prose h2) {
+	font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+	margin-top: 1.8em;
+}
+:where(.site, .kitcms-preview) :where(.prose h3) {
+	margin-top: 1.6em;
+}
+:where(.site, .kitcms-preview) :where(.prose ul, .prose ol) {
+	padding-left: 1.3em;
+	margin: 0 0 1em;
+}
+:where(.site, .kitcms-preview) :where(.prose li) {
+	margin-bottom: 0.35em;
 }
 :where(.site, .kitcms-preview) :where(.prose a) {
-	color: var(--site-accent);
+	color: var(--accent);
+	text-decoration-thickness: 0.08em;
 }
 :where(.site, .kitcms-preview) :where(.prose blockquote) {
-	margin-inline: 0;
-	padding-left: 1rem;
-	border-left: 3px solid var(--site-border);
-	color: var(--site-muted);
+	margin: 1.5em 0;
+	padding: var(--s-3) var(--s-4);
+	background: var(--surface);
+	border-radius: var(--radius);
+	font-size: var(--step-lead);
+	line-height: 1.45;
+}
+:where(.site, .kitcms-preview) :where(.prose blockquote p:last-child) {
+	margin-bottom: 0;
 }
 :where(.site, .kitcms-preview) :where(.prose pre) {
 	overflow-x: auto;
-	padding: 1rem;
-	background: var(--site-surface);
-	border: 1px solid var(--site-border);
-	border-radius: 0.5rem;
+	padding: var(--s-3);
+	background: var(--surface);
+	border-radius: var(--radius);
+	font-size: var(--step-small);
 }
-:where(.site, .kitcms-preview) :where(.muted) {
-	color: var(--site-muted);
+:where(.site, .kitcms-preview) :where(.prose img) {
+	height: auto;
+	border-radius: var(--radius);
 }
+
+/* ---- Forms ----------------------------------------------------------------------------- */
+/* The template ships no form plugin; these style any plain form you add (a contact form, a
+   newsletter box). Fields are 48px high, labels are always visible, errors use `[aria-invalid]`. */
+:where(.site, .kitcms-preview) :where(label) {
+	display: block;
+	margin-bottom: 0.35rem;
+	font-weight: 600;
+	font-size: var(--step-small);
+}
+:where(.site, .kitcms-preview) :where(input:not([type='checkbox'], [type='radio'], [type='submit'], [type='button']), select, textarea) {
+	display: block;
+	width: 100%;
+	min-height: 3rem;
+	padding: 0.65rem 0.85rem;
+	border: 1.5px solid color-mix(in srgb, var(--ink) 55%, var(--bg));
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: var(--ink);
+	font: inherit;
+}
+:where(.site, .kitcms-preview) :where(textarea) {
+	min-height: 8rem;
+	resize: vertical;
+}
+:where(.site, .kitcms-preview) :where(input, select, textarea)::placeholder {
+	color: var(--muted);
+}
+:where(.site, .kitcms-preview) :where(input, select, textarea)[aria-invalid='true'] {
+	border-color: #b3261e;
+}
+:where(.site, .kitcms-preview) :where(input[type='checkbox'], input[type='radio']) {
+	width: 1.25rem;
+	height: 1.25rem;
+	accent-color: var(--accent);
+}
+:where(.site, .kitcms-preview) :where(button:not(.btn)):where([type='submit']) {
+	min-height: 2.875rem;
+}
+:where(.site, .kitcms-preview) :where(fieldset) {
+	border: 1.5px solid var(--line);
+	border-radius: var(--radius);
+	padding: var(--s-3);
+	margin: 0 0 var(--s-3);
+}
+
+/* ---- Misc ------------------------------------------------------------------------------ */
 :where(.site, .kitcms-preview) :where(.placeholder) {
 	padding: 2rem 1rem;
-	border: 1px dashed var(--site-border);
-	border-radius: var(--site-radius);
-	color: var(--site-muted);
+	border: 1.5px dashed var(--line);
+	border-radius: var(--radius);
+	color: var(--muted);
 	text-align: center;
+}
+:where(.site, .kitcms-preview) :where(.empty-img) {
+	background: var(--surface-2);
+	border-radius: var(--radius);
+}
+:where(.site, .kitcms-preview) :where(.sr-only) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.site *,
+	.site *::before,
+	.site *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation-duration: 0.25s;
+	}
 }

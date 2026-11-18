@@ -1,4 +1,5 @@
 /* Page-level resets. The tokens and shared classes live in `lib/site.css`. */
+@import '@fontsource-variable/hanken-grotesk';
 @import './lib/site.css';
 
 *,
@@ -9,9 +10,11 @@
 html {
 	-webkit-text-size-adjust: 100%;
 	color-scheme: light dark;
+	scroll-padding-top: 5rem;
 }
 body {
 	margin: 0;
+	overflow-wrap: break-word;
 }
 img {
 	max-width: 100%;

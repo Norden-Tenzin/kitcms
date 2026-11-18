@@ -1,5 +1,32 @@
 import { block, collection, defineConfig, fields as f, global } from '@kitcms/core';
+import { designOptions, isHex, type PageType } from '#lib/designs.ts';
 import { ICONS } from '#lib/icons.ts';
+
+// ---------------------------------------------------------------------------------------------
+// Designs. The registry in `src/lib/designs.ts` lists every page type and its designs; the
+// selects below are built from it, so a new design appears in the admin without touching this file.
+// ---------------------------------------------------------------------------------------------
+
+const DESIGN_HINT =
+	'Leave empty to use the site setting (Site settings > Design). Pick one to override it for this page only.';
+/** Per-page override. Select values can't be empty: unset means "use the site setting". */
+const pageDesign = (type: PageType) =>
+	f.select({
+		label: 'Design',
+		options: designOptions(type),
+		admin: { position: 'sidebar', description: DESIGN_HINT },
+	});
+/** Site-wide default for a page type (the type's first design until changed). */
+const siteDesign = (type: PageType) =>
+	f.select({ options: designOptions(type), defaultValue: designOptions(type)[0]!.value });
+/** Optional brand colour: empty or `#rgb` / `#rrggbb` (it ends up in a CSS variable, validated again at render). */
+const hex = (label: string, placeholder: string) =>
+	f.text({
+		label,
+		maxLength: 7,
+		validate: (value) => !value || isHex(value) || 'Use a hex colour such as #1f4e79.',
+		admin: { placeholder, description: 'Empty uses the default.' },
+	});
 
 // ---------------------------------------------------------------------------------------------
 // Blocks. Each one has a Svelte component of the same name in `src/lib/blocks/`, used by the
@@ -100,6 +127,8 @@ export default defineConfig({
 				title: f.text({ required: true }),
 				// `home` is the page served at `/`. `blog` and `legal` are taken by the routes.
 				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
+				// The home page (slug `home`) uses the `home` designs, every other page the `page` designs.
+				design: pageDesign('page'),
 				content: f.tabs({
 					tabs: [
 						{ label: 'Content', fields: { sections: f.blocks({ blocks: pageBlocks }) } },
@@ -129,6 +158,7 @@ export default defineConfig({
 				title: f.text({ required: true }),
 				slug: f.slug({ from: 'title', unique: true, admin: { position: 'sidebar' } }),
 				publishedAt: f.date({ admin: { position: 'sidebar' } }),
+				design: pageDesign('post'),
 				tags: f.relationship({ relationTo: 'tags', hasMany: true, admin: { position: 'sidebar' } }),
 				excerpt: f.textarea({ maxLength: 300 }),
 				cover: f.upload({ relationTo: 'media' }),
@@ -177,26 +207,61 @@ export default defineConfig({
 			versions: { drafts: true },
 			access: { read: () => true },
 			fields: {
-				siteName: f.text({ required: true }),
-				tagline: f.textarea(),
-				logo: f.upload({ relationTo: 'media' }),
-				// Each item links to a page or, for routes that are not pages (`/blog`), to a path.
-				nav: f.array({
-					labels: { singular: 'Link', plural: 'Navigation' },
-					fields: {
-						label: f.text({ required: true }),
-						page: f.relationship({ relationTo: 'pages' }),
-						href: f.text({ admin: { description: 'Used when no page is chosen, e.g. /blog' } }),
-					},
-				}),
-				footer: f.group({
-					fields: {
-						text: f.textarea(),
-						social: f.array({
-							labels: { singular: 'Link', plural: 'Social links' },
-							fields: { label: f.text({ required: true }), url: f.text({ required: true }) },
-						}),
-					},
+				settings: f.tabs({
+					tabs: [
+						{
+							label: 'General',
+							fields: {
+								siteName: f.text({ required: true }),
+								tagline: f.textarea(),
+								logo: f.upload({ relationTo: 'media' }),
+								// Each item links to a page or, for routes that are not pages (`/blog`), to a path.
+								nav: f.array({
+									labels: { singular: 'Link', plural: 'Navigation' },
+									fields: {
+										label: f.text({ required: true }),
+										page: f.relationship({ relationTo: 'pages' }),
+										href: f.text({ admin: { description: 'Used when no page is chosen, e.g. /blog' } }),
+									},
+								}),
+								footer: f.group({
+									fields: {
+										text: f.textarea(),
+										social: f.array({
+											labels: { singular: 'Link', plural: 'Social links' },
+											fields: { label: f.text({ required: true }), url: f.text({ required: true }) },
+										}),
+									},
+								}),
+							},
+						},
+						{
+							label: 'Design',
+							description:
+								'One design per page type. A page or post can override it in its sidebar. All designs share the same colours and fonts.',
+							fields: {
+								design: f.group({
+									fields: {
+										header: siteDesign('header'),
+										footer: siteDesign('footer'),
+										home: siteDesign('home'),
+										page: siteDesign('page'),
+										blog: siteDesign('blog'),
+										post: siteDesign('post'),
+									},
+								}),
+								// Set all three together: surface, muted text and lines are derived from them.
+								theme: f.group({
+									label: 'Colours',
+									fields: {
+										accent: hex('Accent (buttons, links)', '#1f4e79'),
+										background: hex('Background', '#f7f6f3'),
+										text: hex('Text', '#17181a'),
+									},
+								}),
+							},
+						},
+					],
 				}),
 			},
 		}),

@@ -11,7 +11,11 @@
 		sizes?: string;
 		/** Crop to this width / height ratio (`cover`). */
 		ratio?: number;
+		/** Fill the parent box (`cover`): for backgrounds. The parent sets the size. */
+		fill?: boolean;
 		eager?: boolean;
+		/** Overrides the media's alt text (`""` marks a decorative picture). */
+		alt?: string;
 		class?: string;
 	}
 	let {
@@ -19,7 +23,9 @@
 		widths = [480, 960, 1600],
 		sizes = '100vw',
 		ratio,
+		fill = false,
 		eager = false,
+		alt,
 		class: className,
 	}: Props = $props();
 
@@ -43,11 +49,14 @@
 		src={build(fallback)}
 		{srcset}
 		{sizes}
-		alt={media.alt ?? ''}
+		alt={alt ?? media.alt ?? ''}
 		width={media.width ?? undefined}
 		height={media.height ?? undefined}
 		loading={eager ? 'eager' : 'lazy'}
 		decoding="async"
-		style:aspect-ratio={ratio}
+		style:aspect-ratio={fill ? undefined : ratio}
+		style:width={ratio || fill ? '100%' : undefined}
+		style:height={fill ? '100%' : undefined}
+		style:object-fit={ratio || fill ? 'cover' : undefined}
 	/>
 {/if}

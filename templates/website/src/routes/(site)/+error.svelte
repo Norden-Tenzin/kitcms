@@ -7,7 +7,7 @@
 
 <div class="container wrap">
 	<h1>{page.status === 404 ? 'Page not found' : 'Something went wrong'}</h1>
-	<p class="muted">
+	<p class="muted lead">
 		{page.status === 404 ? 'That page does not exist or is not published.' : page.error?.message}
 	</p>
 	<Link href="/" class="btn">Back to the home page</Link>
@@ -15,6 +15,9 @@
 
 <style>
 	.wrap {
-		padding-block: 5rem;
+		padding-block: var(--section);
+	}
+	h1 {
+		font-size: var(--step-h2);
 	}
 </style>
