@@ -1,49 +1,12 @@
 <script lang="ts">
-	import Link from '#lib/site/Link.svelte';
-	import PageHead from '#lib/site/PageHead.svelte';
-	import Pic from '#lib/site/Pic.svelte';
+	import JournalList from '#lib/site/pages/JournalList.svelte';
 	import Seo from '#lib/site/Seo.svelte';
-	import { fmtDate } from '#lib/site/format.ts';
-	import { asMedia } from '#lib/site/media.ts';
 
-	// Placeholder list (part 2 adds the three journal designs; `data.design` is already resolved).
 	let { data } = $props();
+	const description = 'Notes from the house: altitude, apricots, and the road.';
+	// Filtered and later pages are views of the same list: indexed once, from the first page.
+	const noIndex = $derived(Boolean(data.activeTag) || data.page > 1);
 </script>
 
-<Seo title="Journal" description="Notes from the house: altitude, apricots, and the road." siteName={data.site.siteName} />
-<PageHead title="Journal" lead="Notes from the house: altitude, apricots, and the road." />
-<div class="container">
-	<ul data-design={data.design}>
-		{#each data.posts as p (p.id)}
-			<li>
-				<Link href={`/journal/${p.slug}`}>
-					<Pic media={asMedia(p.cover)} ratio={3 / 2} sizes="(min-width: 56rem) 30vw, 100vw" />
-					<p class="small">{fmtDate(p.publishedAt)}</p>
-					<h3>{p.title}</h3>
-					<p>{p.excerpt}</p>
-				</Link>
-			</li>
-		{/each}
-	</ul>
-</div>
-
-<style>
-	ul {
-		list-style: none;
-		margin: 0;
-		padding: var(--s-5) 0 0;
-		display: grid;
-		gap: var(--s-6);
-	}
-	li :global(a) {
-		display: grid;
-		gap: var(--s-2);
-		text-decoration: none;
-	}
-	@media (min-width: 56rem) {
-		ul {
-			grid-template-columns: repeat(3, 1fr);
-			gap: var(--s-6) var(--s-5);
-		}
-	}
-</style>
+<Seo title={data.activeTag ? `Journal: ${data.activeTag.name}` : 'Journal'} {description} {noIndex} siteName={data.site.siteName} />
+<JournalList posts={data.posts} tags={data.tags} activeTag={data.activeTag} page={data.page} totalPages={data.totalPages} design={data.design} />

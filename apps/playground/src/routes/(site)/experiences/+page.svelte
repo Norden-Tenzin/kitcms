@@ -13,5 +13,6 @@
 <style>
 	.body {
 		padding-top: var(--s-5);
+		padding-bottom: var(--s-7);
 	}
 </style>

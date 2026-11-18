@@ -103,3 +103,22 @@ page's Design select. Then screenshot every width, for example with Playwright f
 every one. The design-taste-frontend skill has `scripts/inspect.mjs` (headline lines, fonts, contrast,
 overflow) and `references/critique.md` for the look-and-fix rounds. Check
 `document.documentElement.scrollWidth <= innerWidth` on every page.
+
+## Part 2 page types (experiences, journal, gallery, generic pages)
+
+Components live in `pages/` (and `lightbox/`); routes in `src/routes/(site)/` only load data and switch on `data.design`.
+In dev, `?design=a|b|c` on any of these routes previews a design without saving (`pages/devDesign.ts`, ignored in production).
+
+| Page type | A | B | C |
+| --- | --- | --- | --- |
+| experiences (`ExperienceCards`) | Trails: 12-column grid, uneven pictures, heading cut into the picture's corner | Postcards: full-bleed photo plus one solid card; on wide screens a band whose hovered panel opens | Itinerary: a table on column lines (time, effort, season) |
+| experience (`ExperienceView`) | Journey: facts in a sticky margin, pictures staggered | Summit: cover as first screen, facts as big numbers on an earth field, call to action on accent | Day sheet: body plus sticky panel (picture, facts table, one button) |
+| journal (`JournalList`) | Field notes: one large entry beside its text, rest staggered | Cover story: newest post is the first screen, rest on a slate field | Archive: dated rows grouped by year, topics in a sticky column |
+| post (`PostView`) | Essay: reading column, byline and share in the margin | Feature: cover first screen, wide measure, next note on a slate field | Letter: sticky sender column (from, written, filed under), signature at the end |
+| gallery (`GalleryPage`) | Wall: uneven mosaic per album | Reel: one edge-to-edge scroll row per album | Contact sheet: equal tiles with captions and credits, sticky album index |
+| page (`PageFrame`) | Notebook: title beside the cover, closing line | Vista: cover (or hero block) first, earth field with the enquiry button | Index: sticky strip of the page's section headings, blocks anchored |
+
+- Journal tag filter and paging are server-side (`?tag=slug&page=n`); filtered and later pages are `noindex`. Page size is 9 (`journal/+page.server.ts`).
+- Posts: reading-progress bar (`ReadingProgress`), share links are plain URLs (`ShareLinks`, WhatsApp first), `BlogPosting` JSON-LD in the route.
+- `lightbox/Lightbox.svelte`: native `<dialog>` (focus trap, Escape, focus returns to the opener), arrow keys/Home/End, swipe, caption and credit. Bind `index` (`null` = closed).
+- Lazy pictures inside horizontally scrolling rows (Reel) only load once scrolled near; screenshots must scroll the rows too.
