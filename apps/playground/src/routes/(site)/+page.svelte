@@ -1,21 +1,21 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { hotelLd } from '#lib/site/jsonld.ts';
+	import PageView from '#lib/site/PageView.svelte';
+	import { asMedia } from '#lib/site/media.ts';
+	import { buildShell } from '#lib/site/shell.ts';
 
 	let { data } = $props();
+	const shell = $derived(buildShell(data.site, data.legal));
+	const ld = $derived([hotelLd(shell, page.url.origin, asMedia(data.page.cover)?.url)]);
 </script>
 
-<h1>kitcms dev</h1>
-<p><a href={resolve('/(kitcms)/admin/[...path]', { path: '' })}>Admin</a></p>
-<h2>Published pages</h2>
-<ul>
-	{#each data.pages as page (page.id)}
-		<li>
-			<strong>{page.title}</strong> <code>/{page.slug}</code>
-			{#if page.cover && typeof page.cover !== 'string'}
-				<img src={page.cover.url} alt={page.cover.alt ?? ''} width="80" />
-			{/if}
-		</li>
-	{:else}
-		<li>No published pages yet.</li>
-	{/each}
-</ul>
+<PageView
+	page={data.page}
+	blocks={data.blocks}
+	design={data.design}
+	extras={{ ...data.extras, site: data.site }}
+	siteName={data.site.siteName}
+	tagline={data.site.tagline}
+	jsonLd={ld}
+/>

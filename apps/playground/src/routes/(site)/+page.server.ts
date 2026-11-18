@@ -1,7 +1,14 @@
+import { error } from '@sveltejs/kit';
+import { designFor, loadPage } from '#lib/site/content.ts';
 import type { PageServerLoad } from './$types';
 
-// A public page reading through the Local API as the anonymous visitor.
-export const load: PageServerLoad = async ({ locals }) => {
-	const { docs } = await locals.cms.find('pages', { sort: '-updatedAt', limit: 20, depth: 1 });
-	return { pages: docs };
+// The home page is the `pages` document with slug `home`. Its design comes from the site's Design tab.
+export const load: PageServerLoad = async ({ locals, parent }) => {
+	const { site } = await parent();
+	const content = await loadPage(locals.cms, 'home');
+	if (!content) error(404, 'The home page has not been created yet. Run `pnpm db:seed`.');
+	const design = designFor('home', site, content.page.design);
+	// Header design C floats over a photograph only when the hero is one (design B).
+	const overHero = design === 'b' && content.blocks[0]?.blockType === 'hero';
+	return { ...content, design, overHero };
 };

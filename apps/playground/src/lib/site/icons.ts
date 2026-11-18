@@ -1,0 +1,58 @@
+// Client-safe (no config import): used by the config's `icon` select, the site and the admin preview.
+// 24x24 stroke icons (round caps), drawn for this site. Add one: extend ICONS and ICON_PATHS.
+export const ICONS = [
+	'wifi',
+	'heater',
+	'hotwater',
+	'tea',
+	'view',
+	'desk',
+	'balcony',
+	'garden',
+	'bath',
+	'bed',
+	'oxygen',
+	'power',
+	'water',
+	'sun',
+	'mountain',
+	'pin',
+	'phone',
+	'mail',
+	'clock',
+	'arrow',
+	'close',
+	'menu',
+	'check',
+	'chevron',
+] as const;
+export type IconName = (typeof ICONS)[number];
+
+export const AMENITY_ICONS = ICONS.slice(0, 15);
+
+export const ICON_PATHS: Record<IconName, string> = {
+	wifi: 'M3 9a14 14 0 0 1 18 0M6 12.5a9.5 9.5 0 0 1 12 0M9 16a5 5 0 0 1 6 0M12 19.5h.01',
+	heater: 'M8 4v9a4 4 0 1 0 8 0V4M8 8h3M8 11h3M12 20v-3',
+	hotwater: 'M12 3c3 4 6 6.5 6 10a6 6 0 0 1-12 0c0-3.5 3-6 6-10zM9.5 14a2.5 2.5 0 0 0 2.5 2.5',
+	tea: 'M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9zM16 10h2a2.5 2.5 0 0 1 0 5h-2M8 3c0 1.5 1.5 1.5 1.5 3M12 3c0 1.5 1.5 1.5 1.5 3',
+	view: 'M3 17l5-7 4 5 3-4 6 6H3zM16.5 6.5h.01',
+	desk: 'M3 8h18M5 8v11M19 8v11M9 12h6v3H9z',
+	balcony: 'M4 10h16M4 10v9h16v-9M8 10v9M12 10v9M16 10v9M7 10V6h10v4',
+	garden: 'M12 21v-9M12 12c0-4 3-6 6-6 0 4-2 6-6 6zM12 15c0-3-2-5-5-5 0 3 2 5 5 5z',
+	bath: 'M4 12h16v2a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-2zM6 12V6a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2',
+	bed: 'M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5M7.5 12.5h.01',
+	oxygen: 'M9 4h6M10 4v3M14 4v3M8 7h8v13a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V7zM11 12.5h2M12 11.5v2',
+	power: 'M13 3L6 13h5l-1 8 7-10h-5l1-8z',
+	water: 'M12 3s6 6 6 10.5a6 6 0 0 1-12 0C6 9 12 3 12 3z',
+	sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4',
+	mountain: 'M2 19l7-12 4 6 2-3 7 9H2z',
+	pin: 'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+	phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z',
+	mail: 'M3 6h18v12H3V6zM3 7l9 6 9-6',
+	clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+	arrow: 'M5 12h14M13 6l6 6-6 6',
+	close: 'M6 6l12 12M18 6L6 18',
+	menu: 'M4 7h16M4 12h16M4 17h16',
+	check: 'M5 12.5l4.5 4.5L19 7.5',
+	chevron: 'M6 9l6 6 6-6',
+};

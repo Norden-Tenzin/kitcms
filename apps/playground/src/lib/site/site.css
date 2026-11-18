@@ -1,0 +1,298 @@
+/*
+ * Dolkar House: shared tokens and base. EVERY design (A/B/C, every page type) uses only these
+ * tokens, so any mix of designs stays coherent (Decision 36). Scoped under `.site` so nothing leaks
+ * into the admin. Read DESIGN.md before adding to this file.
+ */
+html:has(.site) body {
+	margin: 0;
+}
+.site {
+	/* Colour: mud-brick earth. One ground, one ink, one accent; fields are for whole sections. */
+	--bg: #e9e5da; /* whitewash lime */
+	--surface: #ddd8ca; /* a step down: cards, quiet sections */
+	--ink: #2a1d17; /* poplar-dark umber */
+	--muted: #5f5148;
+	--accent: #3d6433; /* willow green: buttons, links, one large block */
+	--accent-ink: #ffffff;
+	--earth: #7d4f2f; /* sun-dried mud brick (field) */
+	--earth-ink: #fbf6ec;
+	--slate: #2b373e; /* Ladakh slate (field) */
+	--slate-ink: #eee9dd;
+	--apricot: #e7a553; /* orchard; highlights on dark fields only */
+	--flag: #a8322b; /* prayer-flag red: sparingly (sale marks, errors) */
+	--scrim: rgb(24 16 12 / 0.55);
+
+	/* Type */
+	--font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+	--font-text: 'Barlow', system-ui, sans-serif;
+	--step-small: clamp(0.875rem, 0.85rem + 0.1vw, 0.9375rem);
+	--step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+	--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+	--step-h2: clamp(2.25rem, 1.3rem + 3.6vw, 4rem);
+	--step-display: clamp(3.25rem, 1rem + 11vw, 9.5rem);
+
+	/* Space */
+	--s-1: 0.25rem;
+	--s-2: 0.5rem;
+	--s-3: 0.75rem;
+	--s-4: 1rem;
+	--s-5: 1.5rem;
+	--s-6: 2.25rem;
+	--s-7: 3.5rem;
+	--section: clamp(4.5rem, 3rem + 7vw, 9.5rem); /* the gap between sections */
+	--gutter: clamp(1rem, 0.4rem + 3.2vw, 3rem); /* page margin */
+	--max: 82rem;
+	--measure: 62ch;
+
+	/* Shape: one radius, one button shape, one transition */
+	--radius: 4px;
+	--ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--header-h: 4.25rem;
+	--hdr-over: 0px; /* the header's height when it floats over the page (header design C) */
+
+	font-family: var(--font-text);
+	font-size: var(--step-body);
+	line-height: 1.55;
+	color: var(--ink);
+	background: var(--bg);
+	min-height: 100svh;
+	display: flex;
+	flex-direction: column;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+	overflow-x: clip;
+}
+.site *,
+.site *::before,
+.site *::after {
+	box-sizing: border-box;
+}
+.site img,
+.site svg,
+.site video {
+	display: block;
+	max-width: 100%;
+}
+.site img {
+	height: auto;
+}
+.site h1,
+.site h2,
+.site h3,
+.site h4 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-weight: 700;
+	line-height: 0.98;
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+}
+.site h1 {
+	font-size: var(--step-display);
+	text-transform: uppercase;
+	line-height: 0.88;
+	letter-spacing: -0.02em;
+}
+.site h2 {
+	font-size: var(--step-h2);
+}
+.site h3 {
+	font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.1rem);
+	line-height: 1.05;
+}
+.site h4 {
+	font-size: var(--step-lead);
+}
+.site p {
+	margin: 0;
+}
+.site a {
+	color: inherit;
+}
+.site main {
+	flex: 1;
+}
+.site .lead {
+	font-size: var(--step-lead);
+	line-height: 1.4;
+	max-width: 36ch;
+}
+.site .small {
+	font-size: var(--step-small);
+	color: var(--muted);
+}
+.site .container {
+	width: 100%;
+	max-width: var(--max);
+	margin-inline: auto;
+	padding-inline: var(--gutter);
+}
+.site .sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* First block of a page without a hero: clears a floating header. */
+.site .pt-hdr {
+	padding-top: calc(var(--hdr-over) + var(--s-6));
+}
+.site[data-header='c'] {
+	--hdr-over: var(--header-h);
+}
+
+/* Focus: always visible, the same ring everywhere. */
+.site :focus-visible {
+	outline: 3px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: 2px;
+}
+.site .on-dark :focus-visible,
+.site [data-tone='accent'] :focus-visible,
+.site [data-tone='earth'] :focus-visible,
+.site [data-tone='slate'] :focus-visible {
+	outline-color: var(--apricot);
+}
+
+/* Buttons: flat, one shape, 48px high (tap target). */
+.site .btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--s-2);
+	min-height: 3rem;
+	padding: 0.7rem 1.4rem;
+	border: 2px solid var(--accent);
+	border-radius: var(--radius);
+	background: var(--accent);
+	color: var(--accent-ink);
+	font: 600 1.0625rem/1.1 var(--font-text);
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		transform 0.2s var(--ease),
+		background-color 0.2s var(--ease),
+		color 0.2s var(--ease);
+}
+.site .btn:hover {
+	transform: translateY(-2px);
+}
+.site .btn:active {
+	transform: translateY(0) scale(0.98);
+}
+.site .btn.ghost {
+	background: transparent;
+	color: inherit;
+	border-color: currentColor;
+}
+.site .btn.light {
+	background: var(--bg);
+	border-color: var(--bg);
+	color: var(--ink);
+}
+.site .link {
+	font-weight: 600;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.25em;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--s-2);
+	min-height: 2.75rem;
+}
+
+/* Tones for whole-section fields. */
+.site [data-tone='surface'] {
+	background: var(--surface);
+}
+.site [data-tone='accent'] {
+	background: var(--accent);
+	color: var(--accent-ink);
+}
+.site [data-tone='earth'] {
+	background: var(--earth);
+	color: var(--earth-ink);
+}
+.site [data-tone='slate'] {
+	background: var(--slate);
+	color: var(--slate-ink);
+}
+.site [data-tone='accent'] .small,
+.site [data-tone='earth'] .small,
+.site [data-tone='slate'] .small {
+	color: inherit;
+	opacity: 0.85;
+}
+
+/* Rich text from the CMS. */
+.site .prose {
+	max-width: var(--measure);
+}
+.site .prose > * + * {
+	margin-top: 1em;
+}
+.site .prose h2,
+.site .prose h3 {
+	margin-top: 1.6em;
+	line-height: 1.05;
+}
+.site .prose h2 {
+	font-size: clamp(1.9rem, 1.4rem + 1.6vw, 2.6rem);
+}
+.site .prose ul,
+.site .prose ol {
+	padding-left: 1.25em;
+}
+.site .prose li + li {
+	margin-top: 0.35em;
+}
+.site .prose a {
+	color: var(--accent);
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.2em;
+}
+.site .prose blockquote {
+	margin-inline: 0;
+	padding-left: 1.2em;
+	border-left: 4px solid var(--apricot);
+	font-size: var(--step-lead);
+	line-height: 1.35;
+}
+[data-tone='accent'] .prose a,
+[data-tone='earth'] .prose a,
+[data-tone='slate'] .prose a {
+	color: inherit;
+}
+
+/* Reveal on scroll: content is visible without script; `.js .reveal` hides until seen. */
+.site .reveal {
+	transition:
+		opacity 0.7s var(--ease),
+		transform 0.7s var(--ease);
+	transition-delay: calc(var(--i, 0) * 70ms);
+}
+.js .site .reveal:not(.in) {
+	opacity: 0;
+	transform: translateY(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.site * {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+		scroll-behavior: auto !important;
+	}
+	.js .site .reveal:not(.in) {
+		opacity: 1;
+		transform: none;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation-duration: 0.28s;
+	}
+}

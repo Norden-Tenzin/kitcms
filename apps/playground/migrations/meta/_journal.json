@@ -57,6 +57,20 @@
       "when": 1794985227254,
       "tag": "0007_drop_tenancy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794994287154,
+      "tag": "0008_drop_old_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794994297934,
+      "tag": "0009_hotel_demo",
+      "breakpoints": true
     }
   ]
 }
