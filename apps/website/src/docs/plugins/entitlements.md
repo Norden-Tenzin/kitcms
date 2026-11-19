@@ -42,7 +42,7 @@ Set the plan in the `KITCMS_ENTITLEMENTS` variable, in `wrangler.jsonc` or as a 
 | Option | What it does |
 |---|---|
 | `addons` | Known add-ons, so the panel can show locked ones too: `{ name: { label, description? } }`. |
-| `manageUrl` | Where the "Manage plan" link points. |
+| `manageUrl` | Where the "Manage plan" link points. A string, or a function of the Worker `env` and the site's content, so each site can link to its own plan page. Core drops anything that is not an `https:` or `/`-relative link. See [Per-request values](../configuration/per-request-values.md). |
 | `variable` | Name of the variable. Default `KITCMS_ENTITLEMENTS`. |
 | `read` | Overrides how the value is read. For tests. |
 

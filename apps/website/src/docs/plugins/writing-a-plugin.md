@@ -128,12 +128,13 @@ The handler gets a context:
 | `body` | `json()`, `form()` or `text()`. Read at most once, and capped. |
 | `email` | The [email sender](../auth/email.md). |
 | `ip` | `cf-connecting-ip`, or `null` in local dev. |
+| `runtime` | `{ env, cms }`: the Worker env and a read-only system Local API. Pass it to `resolveValue()` for [per-request values](../configuration/per-request-values.md). |
 
 Handlers return a `Response`. Throw `ValidationError`, `ForbiddenError` or another kitcms error from `@kitcms/core` and core maps it to the right status.
 
 ## Admin panels
 
-A panel is read-only: it has no actions. `load({ req, cms })` returns serializable content, and core validates it before it reaches the browser.
+A panel is read-only: it has no actions. `load({ req, cms, runtime })` returns serializable content, and core validates it before it reaches the browser.
 
 | Block | Shape |
 |---|---|
@@ -141,10 +142,39 @@ A panel is read-only: it has no actions. `load({ req, cms })` returns serializab
 | `text` | `{ type: 'text', text, tone? }` |
 | `keyValue` | `{ type: 'keyValue', items: [{ label, value, tone? }] }` |
 | `meter` | `{ type: 'meter', label, used, limit, unit? }`. `limit: null` means unlimited. |
-| `list` | `{ type: 'list', items: [{ label, description?, status? }] }`. `status` is `'on'`, `'off'` or `'locked'`. |
+| `list` | `{ type: 'list', items: [{ label, description?, status?, href? }] }`. `status` is `'on'`, `'off'` or `'locked'` for features, or `'done'` or `'todo'` for a checklist. `href` makes the label a link. |
 | `link` | `{ type: 'link', label, href }`. `href` must be `https:` or `/`-relative. |
 
 `tone` is `'default'`, `'ok'`, `'warning'` or `'muted'`. A panel has an `id` (lowercase letters, digits and `-`), a `label`, an optional `group` for navigation and an optional `access` rule. By default, every user with admin access sees it. It is served at `/admin/plugins/<name>/<id>`.
+
+### On the dashboard
+
+Set `dashboard: true` on a panel to also show its content at the top of the admin dashboard, such as an onboarding checklist. A dashboard panel that fails to load is left out, and the dashboard still works. It follows the panel's `access` rule.
+
+```ts
+{
+	id: 'setup',
+	label: 'Getting started',
+	dashboard: true,
+	load: async ({ cms }) => {
+		const { docs } = await cms.find('pages', { limit: 1 });
+		return {
+			blocks: [
+				{
+					type: 'list',
+					items: [
+						{ label: 'Write your first page', status: docs.length ? 'done' : 'todo', href: '/admin/collections/pages' },
+					],
+				},
+			],
+		};
+	},
+},
+```
+
+## Options that can differ per site
+
+If your plugin takes an option that one deployment of the build may want to set differently, type it as `Resolvable<T>` and read it with `resolveValue(option, ctx.runtime)` in an endpoint, or with the `runtime` a panel receives. Both come from `@kitcms/core`. Check constants when the plugin is created, and check a function's result when you use it.
 
 ## One pipeline
 

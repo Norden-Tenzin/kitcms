@@ -46,9 +46,9 @@ The plugin adds a `submissions` collection. Run `pnpm db:generate <name>` and `p
 
 | Option | Default | What it does |
 |---|---|---|
-| `forms` | required | Form name (lowercase letters, digits and `-`, starting with a letter) mapped to `{ label, fields, notify?, subject?, replyTo? }`. |
+| `forms` | required | Form name (lowercase letters, digits and `-`, starting with a letter) mapped to `{ label, fields, notify?, subject?, replyTo? }`. `notify` is a list of addresses or a function returning one. |
 | `collection` | `'submissions'` | Slug of the submissions collection. |
-| `turnstile` | off | `{ siteKey, secret? }`. `secret` is the name of the Worker secret. Default `TURNSTILE_SECRET`. |
+| `turnstile` | off | `{ siteKey, secret? }`. `siteKey` is a string or a function. `secret` is the name of the Worker secret. Default `TURNSTILE_SECRET`. |
 | `rateLimit` | `{ max: 5, window: 600 }` | Per IP address, counted in D1. `window` is in seconds. |
 | `entitlement` | none | Gate the plugin and its collection behind an add-on. |
 
@@ -61,6 +61,18 @@ The plugin adds a `submissions` collection. Run `pnpm db:generate <name>` and `p
 ## Email
 
 Set `email` in the config and add the `send_email` binding. Without them, submissions are stored but not emailed. See [Email](../auth/email.md). An email failure never fails the submission.
+
+`notify` can be a function of the Worker `env` and the site's content, for example to email the address in a settings global. It runs for each submission and returns a list. Addresses that are not valid are skipped, and with none left the submission is stored without a notification:
+
+```ts
+notify: async ({ cms }) => {
+	const site = await cms.findGlobal('site');
+	const email = site?.contactEmail;
+	return typeof email === 'string' && email ? [email] : [];
+},
+```
+
+The same goes for `turnstile.siteKey`: `siteKey: ({ env }) => String(env.TURNSTILE_SITE_KEY)`. See [Per-request values](../configuration/per-request-values.md).
 
 ## Turnstile
 

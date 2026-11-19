@@ -42,6 +42,7 @@ export default defineConfig({
 | Drafts, history and autosave | [Drafts and versions](./drafts-and-versions.md) |
 | Preview components in the admin | [Live preview](./live-preview.md) |
 | Title and logo | [Admin branding](./admin-branding.md) |
+| Values that differ per deployment | [Per-request values](./per-request-values.md) |
 
 ## Top-level options
 
@@ -50,13 +51,14 @@ export default defineConfig({
 | Option | What it does |
 |---|---|
 | `globals` | An array of `global()` definitions. See [Globals](./globals.md). |
-| `admin.title` | Shown in the admin header and browser title. Default `'kitcms'`. |
+| `admin.title` | Shown in the admin header and browser title. Default `'kitcms'`. Can be a function. See [Per-request values](./per-request-values.md). |
 | `admin.branding` | Logo and accent colours. See [Admin branding](./admin-branding.md). |
 | `admin.user` | Slug of the auth collection. Defaults to the collection marked `auth: true`, else a built-in `users` collection. See [Auth and users](../auth/index.md). |
 | `media.publicUrl` | Public base URL of the R2 bucket, such as `https://media.example.com`. Without it, the Worker serves files under `/api/media/`. See [Media](../media/index.md). |
 | `rest` | `false` turns off the REST API under `/api/collections` and `/api/globals`. Default `true`. See [REST](../content/rest.md). |
 | `cache` | `{ ttl: seconds }` turns on the edge cache for anonymous reads. Default off. See [Edge cache](../deploy/edge-cache.md). |
-| `email` | `{ from: { address, name? }, replyTo? }`. The sender for outgoing email. See [Email](../auth/email.md). |
+| `email` | `{ from: { address, name? }, replyTo? }`. The sender for outgoing email. `from` and `replyTo` can be functions. See [Email](../auth/email.md). |
+| `system` | `{ secret?, seeds? }`. Setup endpoints for hosting platforms. Off unless a token is set. See [System setup](../deploy/system-setup.md). |
 | `bindings` | Names of the Worker bindings. Default `{ db: 'DB', bucket: 'BUCKET', email: 'EMAIL' }`. |
 | `plugins` | An array of plugins. See [Plugins](../plugins/index.md). |
 | `entitlements` | A provider that gates add-ons. Set by `@kitcms/plugin-entitlements`. See [Entitlements](../plugins/entitlements.md). |
