@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { pages } from 'virtual:kitcms-docs';
-import paths from 'virtual:kitcms-docs-paths';
+import { docsPaths as paths } from '#lib/docs/paths.ts';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const prerender = true;

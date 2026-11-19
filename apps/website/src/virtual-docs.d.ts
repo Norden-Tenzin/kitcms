@@ -1,4 +1,4 @@
-// Types for the virtual modules served by `build/docs.ts` (Node, build time only).
+// Types for the virtual module served by `build/docs.ts` (Node, build time only).
 declare module 'virtual:kitcms-docs' {
 	export interface DocsNavPage {
 		slug: string;
@@ -33,8 +33,4 @@ declare module 'virtual:kitcms-docs' {
 	}
 	export const nav: DocsNavSection[];
 	export const pages: Record<string, DocsPage>;
-}
-declare module 'virtual:kitcms-docs-paths' {
-	const paths: string[];
-	export default paths;
 }
