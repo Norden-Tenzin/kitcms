@@ -39,6 +39,18 @@ export function toAppName(input: string): string {
 	);
 }
 
+/**
+ * The app name is reused as the Worker, D1 database and R2 bucket name. R2 bucket names need
+ * 3-63 characters; 58 is create-cloudflare's own cap, which keeps every derived name valid.
+ * Returns an error message, or undefined when the (already normalized) name is fine.
+ */
+export function validateAppName(name: string): string | undefined {
+	if (name.length < 3 || name.length > 58) {
+		return `Project names must be 3-58 characters (got "${name}", ${name.length}): it is also used as the Worker, D1 database and R2 bucket name.`;
+	}
+	return undefined;
+}
+
 export function replacePlaceholders(text: string, values: Placeholders): string {
 	let out = text;
 	for (const [k, v] of Object.entries(values)) out = out.split(k).join(v);

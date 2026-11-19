@@ -10,6 +10,7 @@ import {
 	setDatabaseId,
 	templatesDir,
 	toAppName,
+	validateAppName,
 	writeDevVars,
 } from './scaffold.js';
 import { parseDatabaseId } from './wrangler.js';
@@ -96,7 +97,18 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 		return 1;
 	}
 
-	const dirInput = args.dir ?? (await ask('Project name / directory?', 'kitcms-app'));
+	// Prompted names are asked again until valid; a name given as an argument fails fast.
+	let dirInput = args.dir ?? (await ask('Project name / directory?', 'kitcms-app'));
+	let nameError = validateAppName(toAppName(path.basename(path.resolve(deps.cwd, dirInput))));
+	while (nameError && args.dir === undefined && !args.yes && deps.interactive) {
+		log(nameError);
+		dirInput = await deps.ask('Project name / directory?', 'kitcms-app');
+		nameError = validateAppName(toAppName(path.basename(path.resolve(deps.cwd, dirInput))));
+	}
+	if (nameError) {
+		log(`create-kitcms: ${nameError}`);
+		return 1;
+	}
 	const target = path.resolve(deps.cwd, dirInput);
 	if (isNonEmptyDir(target)) {
 		log(`create-kitcms: target directory "${target}" is not empty. Pick another name or empty it first.`);

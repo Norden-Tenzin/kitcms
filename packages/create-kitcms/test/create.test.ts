@@ -59,6 +59,29 @@ describe('run', () => {
 		expect(isNonEmptyDir(path.join(tmp, 'app'))).toBe(true);
 	});
 
+	it('rejects names too short or too long for Cloudflare resource names', async () => {
+		const logs: string[] = [];
+		expect(await run(['t2', '--yes', '--no-install'], deps(logs))).toBe(1);
+		expect(logs.join('\n')).toContain('3-58 characters');
+		expect(await run(['a'.repeat(59), '--yes', '--no-install'], deps())).toBe(1);
+		expect(fs.existsSync(path.join(tmp, 't2'))).toBe(false);
+		expect(await run(['abc', '--yes', '--no-install'], deps())).toBe(0);
+		expect(await run(['b'.repeat(58), '--yes', '--no-install'], deps())).toBe(0);
+	});
+
+	it('asks again for an invalid name when prompting', async () => {
+		const answers = ['t2', 'my-site'];
+		const logs: string[] = [];
+		const d = {
+			...deps(logs),
+			interactive: true,
+			ask: async (q: string, f: string) => (q.startsWith('Project') ? answers.shift()! : f),
+		};
+		expect(await run(['--template', 'blank', '--no-install'], d)).toBe(0);
+		expect(logs.join('\n')).toContain('3-58 characters');
+		expect(fs.existsSync(path.join(tmp, 'my-site'))).toBe(true);
+	});
+
 	it('rejects unknown templates', async () => {
 		expect(await run(['app', '--template', 'zzz'], deps())).toBe(1);
 	});
