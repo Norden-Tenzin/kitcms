@@ -1,0 +1,285 @@
+// Build-time docs renderer (Decision 39). Runs in Node inside Vite, never in the Worker or the
+// browser: it reads `src/docs/**/*.md`, renders HTML with unified + Shiki and serves the result as
+// two virtual modules (`virtual:kitcms-docs`, `virtual:kitcms-docs-paths`).
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+import { unified, type Plugin } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import remarkRehype from 'remark-rehype';
+import rehypeSlug from 'rehype-slug';
+import rehypeAutolinkHeadings from 'rehype-autolink-headings';
+import rehypeShiki from '@shikijs/rehype';
+import rehypeStringify from 'rehype-stringify';
+import { toString } from 'hast-util-to-string';
+import { visit } from 'unist-util-visit';
+import type { Element, Root } from 'hast';
+import type { Plugin as VitePlugin } from 'vite';
+import { sections } from '../src/docs/sections.ts';
+
+const VIRTUAL_DOCS = 'virtual:kitcms-docs';
+const VIRTUAL_PATHS = 'virtual:kitcms-docs-paths';
+const DOCS_DIR = 'src/docs';
+const URL_BASE = '/docs';
+const LANGS = ['ts', 'js', 'svelte', 'sh', 'bash', 'jsonc', 'json', 'sql', 'html', 'css', 'diff'] as const;
+
+interface SourceFile {
+	/** Repo-relative, e.g. `apps/website/src/docs/deploy/index.md`. */
+	repoFile: string;
+	/** Relative to `src/docs`, with `/`, e.g. `deploy/index.md`. */
+	rel: string;
+	section: string;
+	page: string;
+	url: string;
+	title: string;
+	description: string;
+	order: number;
+	body: string;
+}
+
+interface Toc {
+	depth: 2 | 3;
+	id: string;
+	text: string;
+}
+
+function fail(rel: string, message: string): never {
+	throw new Error(`[kitcms-docs] ${rel}: ${message}`);
+}
+
+function walk(dir: string): string[] {
+	const out: string[] = [];
+	for (const name of readdirSync(dir).sort()) {
+		const full = path.join(dir, name);
+		if (statSync(full).isDirectory()) out.push(...walk(full));
+		else if (name.endsWith('.md')) out.push(full);
+	}
+	return out;
+}
+
+function readSources(docsDir: string, repoPrefix: string): SourceFile[] {
+	const known = new Set<string>(sections.map((s) => s.slug));
+	const files: SourceFile[] = [];
+	const urls = new Map<string, string>();
+	for (const full of walk(docsDir)) {
+		const rel = path.relative(docsDir, full).split(path.sep).join('/');
+		const parts = rel.split('/');
+		if (parts.length !== 2) fail(rel, 'docs live in `src/docs/<section>/<page>.md` (one level deep).');
+		const section = parts[0]!;
+		const page = parts[1]!.replace(/\.md$/, '');
+		if (!known.has(section)) fail(rel, `unknown section "${section}". Add it to src/docs/sections.ts.`);
+		const parsed = matter(readFileSync(full, 'utf8'));
+		const data = parsed.data as Record<string, unknown>;
+		if (typeof data.title !== 'string' || !data.title.trim()) fail(rel, 'frontmatter `title` is required.');
+		if (data.order !== undefined && typeof data.order !== 'number') fail(rel, 'frontmatter `order` must be a number.');
+		if (data.description !== undefined && typeof data.description !== 'string') {
+			fail(rel, 'frontmatter `description` must be a string.');
+		}
+		const url = page === 'index' ? `${URL_BASE}/${section}` : `${URL_BASE}/${section}/${page}`;
+		const clash = urls.get(url);
+		if (clash) fail(rel, `duplicate URL ${url} (also ${clash}).`);
+		urls.set(url, rel);
+		files.push({
+			repoFile: `${repoPrefix}/${rel}`,
+			rel,
+			section,
+			page,
+			url,
+			title: data.title.trim(),
+			description: (data.description as string | undefined)?.trim() ?? '',
+			order: (data.order as number | undefined) ?? 1000,
+			body: parsed.content,
+		});
+	}
+	return files;
+}
+
+/** Wraps `<pre>` in `<div class="code-block" data-lang>`, with an optional title from the fence meta. */
+const rehypeCodeBlocks: Plugin<[], Root> = () => (tree) => {
+	visit(tree, 'element', (node: Element, index, parent) => {
+		if (node.tagName !== 'pre' || !parent || index === undefined) return;
+		const code = node.children.find((c): c is Element => c.type === 'element' && c.tagName === 'code');
+		if (!code) return;
+		const classes = Array.isArray(code.properties.className) ? code.properties.className.map(String) : [];
+		const lang = classes.find((c) => c.startsWith('language-'))?.slice('language-'.length) ?? 'text';
+		const meta = typeof code.data === 'object' && code.data && 'meta' in code.data ? String(code.data.meta ?? '') : '';
+		const title = /title="([^"]*)"/.exec(meta)?.[1];
+		const children: Element['children'] = [];
+		if (title) {
+			children.push({
+				type: 'element',
+				tagName: 'div',
+				properties: { className: ['code-title'] },
+				children: [{ type: 'text', value: title }],
+			});
+		}
+		children.push(node);
+		const wrapper: Element = {
+			type: 'element',
+			tagName: 'div',
+			properties: { className: ['code-block'], dataLang: lang },
+			children,
+		};
+		parent.children[index] = wrapper;
+		return 'skip';
+	});
+};
+
+/** Collects h2/h3 for the "On this page" list. Runs after `rehype-slug`, before the anchor links. */
+const rehypeToc: Plugin<[Toc[]], Root> = (toc) => (tree) => {
+	visit(tree, 'element', (node: Element) => {
+		if (node.tagName !== 'h2' && node.tagName !== 'h3') return;
+		const id = node.properties.id;
+		if (typeof id !== 'string') return;
+		toc.push({ depth: node.tagName === 'h2' ? 2 : 3, id, text: toString(node) });
+	});
+};
+
+/** `./foo.md`, `../section/page.md#x` -> `/docs/...`. Fails the build on a missing target. */
+const rehypeDocLinks: Plugin<[{ from: SourceFile; byRel: Map<string, SourceFile> }], Root> = ({ from, byRel }) => (tree) => {
+	visit(tree, 'element', (node: Element) => {
+		if (node.tagName !== 'a' || typeof node.properties.href !== 'string') return;
+		const href = node.properties.href;
+		if (/^[a-z][a-z0-9+.-]*:|^[/#]/i.test(href)) return;
+		const m = /^([^#?]+\.md)(#[^?]*)?$/.exec(href);
+		if (!m) return;
+		const target = path.posix.normalize(path.posix.join(path.posix.dirname(from.rel), m[1]!));
+		const file = byRel.get(target);
+		if (!file) fail(from.rel, `link "${href}" points at a missing file (${target}).`);
+		node.properties.href = file.url + (m[2] ?? '');
+	});
+};
+
+async function render(file: SourceFile, byRel: Map<string, SourceFile>) {
+	const toc: Toc[] = [];
+	const out = await unified()
+		.use(remarkParse)
+		.use(remarkGfm)
+		.use(remarkRehype)
+		.use(rehypeDocLinks, { from: file, byRel })
+		.use(rehypeSlug)
+		.use(rehypeToc, toc)
+		.use(rehypeAutolinkHeadings, {
+			behavior: 'append',
+			test: ['h2', 'h3'],
+			properties: { className: ['anchor'], ariaLabel: 'Link to this section' },
+			content: { type: 'element', tagName: 'span', properties: { ariaHidden: 'true' }, children: [{ type: 'text', value: '#' }] },
+		})
+		.use(rehypeCodeBlocks)
+		.use(rehypeShiki, {
+			themes: { light: 'github-light', dark: 'github-dark' },
+			defaultColor: false,
+			langs: [...LANGS],
+			fallbackLanguage: 'text',
+			// Scrollable code must be reachable by keyboard.
+			transformers: [
+				{
+					pre(node) {
+						node.properties.tabindex = '0';
+					},
+				},
+			],
+		})
+		.use(rehypeStringify)
+		.process(file.body);
+	return { html: String(out), toc };
+}
+
+async function buildDocs(docsDir: string, repoPrefix: string) {
+	const files = readSources(docsDir, repoPrefix);
+	const byRel = new Map(files.map((f) => [f.rel, f]));
+	const rendered = await Promise.all(files.map((f) => render(f, byRel)));
+	const htmlOf = new Map(files.map((f, i) => [f, rendered[i]!]));
+
+	const nav = sections
+		.map((s) => {
+			const pages = files
+				.filter((f) => f.section === s.slug)
+				.sort((a, b) => {
+					if (a.page === 'index') return -1;
+					if (b.page === 'index') return 1;
+					return a.order - b.order || a.title.localeCompare(b.title);
+				});
+			return { s, pages };
+		})
+		.filter((x) => x.pages.length > 0);
+
+	const flat = nav.flatMap((x) => x.pages);
+	const pages: Record<string, unknown> = {};
+	flat.forEach((f, i) => {
+		const prev = flat[i - 1];
+		const next = flat[i + 1];
+		pages[f.url] = {
+			title: f.title,
+			description: f.description,
+			html: htmlOf.get(f)!.html,
+			toc: htmlOf.get(f)!.toc,
+			file: f.repoFile,
+			prev: prev && { path: prev.url, title: prev.title },
+			next: next && { path: next.url, title: next.title },
+		};
+	});
+	return {
+		nav: nav.map(({ s, pages: ps }) => ({
+			slug: s.slug,
+			title: s.title,
+			pages: ps.map((f) => ({ slug: f.page, path: f.url, title: f.title, description: f.description })),
+		})),
+		pages,
+		paths: flat.map((f) => f.url),
+	};
+}
+
+export function kitcmsDocs(): VitePlugin {
+	let root = process.cwd();
+	let repoPrefix = 'apps/website/src/docs';
+	let cache: ReturnType<typeof buildDocs> | undefined;
+	const docsDir = () => path.join(root, DOCS_DIR);
+	const get = () => (cache ??= buildDocs(docsDir(), repoPrefix));
+
+	return {
+		name: 'kitcms-docs',
+		enforce: 'pre',
+		configResolved(config) {
+			root = config.root;
+			// Repo-relative path for "Edit on GitHub": from the git root (a `.git` entry above `root`).
+			let dir = root;
+			while (!statSync(path.join(dir, '.git'), { throwIfNoEntry: false }) && path.dirname(dir) !== dir) {
+				dir = path.dirname(dir);
+			}
+			repoPrefix = `${path.relative(dir, root).split(path.sep).join('/') || '.'}/${DOCS_DIR}`.replace(/^\.\//, '');
+		},
+		configureServer(s) {
+			s.watcher.add(docsDir());
+			const onChange = (file: string) => {
+				const f = path.resolve(file);
+				if (!f.startsWith(docsDir() + path.sep) && f !== path.join(root, 'src/docs/sections.ts')) return;
+				cache = undefined;
+				for (const id of [`\0${VIRTUAL_DOCS}`, `\0${VIRTUAL_PATHS}`]) {
+					const mod = s.moduleGraph.getModuleById(id);
+					if (mod) s.moduleGraph.invalidateModule(mod);
+				}
+				s.ws.send({ type: 'full-reload' });
+			};
+			s.watcher.on('change', onChange).on('add', onChange).on('unlink', onChange);
+		},
+		buildStart() {
+			// Fail the build on bad docs even if no route imports the module.
+			return get().then(() => undefined);
+		},
+		resolveId(id) {
+			if (id === VIRTUAL_DOCS || id === VIRTUAL_PATHS) return `\0${id}`;
+		},
+		async load(id) {
+			if (id === `\0${VIRTUAL_DOCS}`) {
+				const d = await get();
+				return `export const nav = ${JSON.stringify(d.nav)};\nexport const pages = ${JSON.stringify(d.pages)};`;
+			}
+			if (id === `\0${VIRTUAL_PATHS}`) {
+				const d = await get();
+				return `export default ${JSON.stringify(d.paths)};`;
+			}
+		},
+	};
+}

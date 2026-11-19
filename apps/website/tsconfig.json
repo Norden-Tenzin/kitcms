@@ -6,6 +6,6 @@
 		"noUncheckedIndexedAccess": true,
 		"types": ["@cloudflare/workers-types", "$app/types"]
 	},
-	"include": ["src", "*"],
+	"include": ["src", "build", "*"],
 	"exclude": ["src/service-worker"]
 }
