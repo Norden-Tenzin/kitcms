@@ -1,0 +1,166 @@
+/* Structural styles and design tokens for the public site AND the admin live preview.
+   Scoped to `.site` (the public layout) and `.kitcms-preview` (the admin preview pane), so nothing
+   leaks into the admin UI. Light and dark follow the system setting; `:root[data-theme]` forces one.
+   The accent can be overridden from the `site` global (see `theme.ts`), which sets `--accent-light-o`
+   and `--accent-dark-o` inline. Use tokens in components; keep colour literals here. */
+.site,
+.kitcms-preview {
+	--bg: #ffffff;
+	--fg: #1a1a1a;
+	--muted: #5c5c5c;
+	--line: #e2e2e2;
+	--surface: #f5f5f4;
+	--accent: var(--accent-light-o, #c2410c);
+	--accent-ink: #ffffff;
+	--radius: 0.5rem;
+
+	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+	--gutter: clamp(1rem, 0.4rem + 3vw, 2.5rem);
+	--max: 72rem;
+	--measure: 42rem;
+	--section: clamp(3rem, 2rem + 5vw, 6rem);
+
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--font-sans);
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) :where(.site, .kitcms-preview) {
+		--bg: #121212;
+		--fg: #ececec;
+		--muted: #a3a3a3;
+		--line: #2c2c2c;
+		--surface: #1b1b1b;
+		--accent: var(--accent-dark-o, #fb923c);
+		--accent-ink: #111111;
+	}
+}
+:root[data-theme='dark'] :where(.site, .kitcms-preview) {
+	--bg: #121212;
+	--fg: #ececec;
+	--muted: #a3a3a3;
+	--line: #2c2c2c;
+	--surface: #1b1b1b;
+	--accent: var(--accent-dark-o, #fb923c);
+	--accent-ink: #111111;
+}
+
+/* ---- Layout ---------------------------------------------------------------------------- */
+:where(.site, .kitcms-preview) :where(.container) {
+	width: 100%;
+	max-width: var(--max);
+	margin-inline: auto;
+	padding-inline: var(--gutter);
+}
+:where(.site, .kitcms-preview) :where(.section) {
+	padding-block: var(--section);
+}
+
+/* ---- Type ------------------------------------------------------------------------------ */
+:where(.site, .kitcms-preview) :where(h1, h2, h3, h4) {
+	line-height: 1.15;
+	margin: 0 0 0.5em;
+	text-wrap: balance;
+	overflow-wrap: anywhere;
+}
+:where(.site, .kitcms-preview) :where(h1) {
+	font-size: clamp(2.25rem, 1.4rem + 4vw, 4rem);
+}
+:where(.site, .kitcms-preview) :where(h2) {
+	font-size: clamp(1.6rem, 1.3rem + 1.5vw, 2.4rem);
+}
+:where(.site, .kitcms-preview) :where(h3) {
+	font-size: 1.2rem;
+}
+:where(.site, .kitcms-preview) :where(p) {
+	margin: 0 0 1em;
+}
+:where(.site, .kitcms-preview) :where(a) {
+	color: inherit;
+	text-underline-offset: 0.2em;
+}
+:where(.site, .kitcms-preview) :where(.muted) {
+	color: var(--muted);
+}
+:where(.site, .kitcms-preview) :where(.lead) {
+	font-size: 1.1875rem;
+	color: var(--muted);
+}
+:where(.site, .kitcms-preview) :where(code, pre) {
+	font-family: var(--font-mono);
+}
+:where(.site, .kitcms-preview) :where(img, svg, video) {
+	max-width: 100%;
+}
+
+/* ---- Focus ----------------------------------------------------------------------------- */
+:where(.site, .kitcms-preview) :where(a, button, summary, [tabindex]):focus-visible {
+	outline: 3px solid var(--accent);
+	outline-offset: 3px;
+}
+
+/* ---- Buttons --------------------------------------------------------------------------- */
+:where(.site, .kitcms-preview) :where(.btn) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem;
+	padding: 0.5em 1.25em;
+	border: 2px solid var(--accent);
+	border-radius: var(--radius);
+	background: var(--accent);
+	color: var(--accent-ink);
+	font: inherit;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+}
+:where(.site, .kitcms-preview) :where(.btn.secondary) {
+	background: transparent;
+	color: var(--fg);
+	border-color: var(--line);
+}
+:where(.site, .kitcms-preview) :where(.actions) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+/* ---- Prose (rich text) ------------------------------------------------------------------ */
+:where(.site, .kitcms-preview) :where(.prose) {
+	max-width: var(--measure);
+}
+:where(.site, .kitcms-preview) :where(.prose > :first-child) {
+	margin-top: 0;
+}
+:where(.site, .kitcms-preview) :where(.prose h2) {
+	margin-top: 1.8em;
+}
+:where(.site, .kitcms-preview) :where(.prose ul, .prose ol) {
+	padding-left: 1.3em;
+	margin: 0 0 1em;
+}
+:where(.site, .kitcms-preview) :where(.prose a) {
+	color: var(--accent);
+}
+:where(.site, .kitcms-preview) :where(.prose pre) {
+	overflow-x: auto;
+	padding: 1rem;
+	background: var(--surface);
+	border-radius: var(--radius);
+}
+:where(.site, .kitcms-preview) :where(.prose :not(pre) > code) {
+	padding: 0.1em 0.35em;
+	background: var(--surface);
+	border-radius: 0.25rem;
+	font-size: 0.9em;
+}
+:where(.site, .kitcms-preview) :where(.prose img) {
+	height: auto;
+	border-radius: var(--radius);
+}
