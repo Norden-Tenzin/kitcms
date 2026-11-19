@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copies `text` to the clipboard and says so. Works only in the browser (needs a secure context).
-	let { text, label = 'Copy' }: { text: string; label?: string } = $props();
+	let { text, label = 'Copy', describe }: { text: string; label?: string; describe?: string } = $props();
 	let copied = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -16,7 +16,7 @@
 	}
 </script>
 
-<button type="button" class="copy" onclick={copy} aria-label={copied ? 'Copied' : `${label}: ${text}`}>
+<button type="button" class="copy" onclick={copy} aria-label={copied ? 'Copied' : (describe ?? `${label}: ${text}`)}>
 	{copied ? 'Copied' : label}
 </button>
 <span class="sr-only" role="status" aria-live="polite">{copied ? 'Copied to clipboard' : ''}</span>
