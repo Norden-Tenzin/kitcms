@@ -23,6 +23,9 @@
 			"migrations_dir": "migrations",
 		},
 	],
+	// Outgoing email (`email` in kitcms.config.ts): invites and password resets. Sent through Cloudflare
+	// Email Sending, enabled for mail.kitcms.dev. Only that sender may be used. `vite dev` logs instead.
+	"send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["noreply@mail.kitcms.dev"] }],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",

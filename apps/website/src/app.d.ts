@@ -13,6 +13,8 @@ declare global {
 		interface Env {
 			DB: D1Database;
 			BUCKET: R2Bucket;
+			/** Cloudflare Email Sending (`send_email` binding). */
+			EMAIL: SendEmail;
 			/** Better Auth signing secret: `.dev.vars` locally, `wrangler secret put` when deployed. */
 			BETTER_AUTH_SECRET: string;
 		}

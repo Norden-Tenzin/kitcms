@@ -147,6 +147,8 @@ export const pageBlocks = [Hero, Features, CodeShowcase, HowItWorks, Requirement
 
 export default defineConfig({
 	admin: { title: 'kitcms.dev' },
+	// Invites and password-reset links. mail.kitcms.dev is set up for Cloudflare Email Sending.
+	email: { from: { address: 'noreply@mail.kitcms.dev', name: 'kitcms.dev' } },
 	// Edge cache for anonymous published reads (custom domain only; no effect on workers.dev).
 	cache: { ttl: 60 },
 	collections: [
