@@ -29,9 +29,10 @@ You need the [Workers Paid plan](./requirements.md) and `wrangler login`.
    pnpm exec wrangler secret put BETTER_AUTH_SECRET
    ```
 
-4. Deploy:
+4. Build and deploy. `wrangler.jsonc` points at the build output, so build first:
 
    ```sh
+   pnpm build
    pnpm run deploy
    ```
 
