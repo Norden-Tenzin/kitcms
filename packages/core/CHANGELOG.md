@@ -1,5 +1,11 @@
 # @kitcms/core
 
+## 0.1.1
+
+### Patch Changes
+
+- 8dc2324: Fix apps installed from npm: `@kitcms/core/vite` now ships compiled JavaScript (Node can't strip types under `node_modules`, so `svelte-kit sync` failed on a fresh `create-kitcms` app), and `kitcms()` keeps `@kitcms/*` out of Vite's dependency pre-bundling and SSR externals so `vite dev` compiles them as source.
+
 ## 0.1.0
 
 ### Minor Changes
