@@ -48,6 +48,7 @@ import type { WhereInput } from '../config/where';
 import type { DbAdapter, Ref, Row, Stmt, VersionRow } from '../db/adapter';
 import {
 	ForbiddenError,
+	ReadOnlyError,
 	NotFoundError,
 	QueryError,
 	ReferencedError,
@@ -85,6 +86,11 @@ export interface CmsContext {
 	event?: RequestEvent;
 	/** Wait for background work (e.g. R2 cleanup) without delaying the response. */
 	waitUntil?: (promise: Promise<unknown>) => void;
+	/**
+	 * Read-only deployment (`KITCMS_READ_ONLY`): every write throws `ReadOnlyError`, whoever asks,
+	 * `overrideAccess` included. Hooks get the same Local API, so they can't write either.
+	 */
+	readOnly?: boolean;
 }
 
 type Doc = Record<string, unknown>;
@@ -974,24 +980,27 @@ export function createLocalApi(ctx: CmsContext): Cms {
 		return readOne(col, deleted, req, opts.overrideAccess);
 	}
 
+	// Read-only deployments: every write entry point refuses before doing anything.
+	const write = <F extends (...args: never[]) => unknown>(fn: F): F =>
+		ctx.readOnly ? ((() => Promise.reject(new ReadOnlyError())) as unknown as F) : fn;
 	const api = {
 		find,
 		findOne,
 		findByID,
 		count,
-		create,
+		create: write(create),
 		// The public update never takes the internal `_order` extra (only `move` passes it).
-		update: (slug: string, id: string, input: Doc, opts?: Opts) => update(slug, id, input, opts),
-		move,
-		delete: remove,
-		unpublish,
+		update: write((slug: string, id: string, input: Doc, opts?: Opts) => update(slug, id, input, opts)),
+		move: write(move),
+		delete: write(remove),
+		unpublish: write(unpublish),
 		findVersions,
 		findVersionByID,
-		restoreVersion,
+		restoreVersion: write(restoreVersion),
 		findGlobal,
-		updateGlobal,
+		updateGlobal: write(updateGlobal),
 		findGlobalVersions,
-		restoreGlobalVersion,
+		restoreGlobalVersion: write(restoreGlobalVersion),
 	} as unknown as Cms;
 	// Edge cache (§13.9): anonymous published reads are cached; every write bumps the generation.
 	// Hooks keep using the unwrapped `api` through `req.cms` (calls with `req` are never cached).

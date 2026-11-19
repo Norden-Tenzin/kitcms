@@ -125,10 +125,13 @@ function rpcEntryPlugin(options: KitcmsViteOptions): Plugin {
 		// optimizer parses `.svelte.ts` as plain JS, and the SSR optimizer splits core's entries into
 		// separate bundles with separate module state) or externalized (Node can't strip types
 		// under node_modules).
+		// Kit itself stays out of the SSR optimizer too: once the app's own routes import it, Vite
+		// pre-bundles `@sveltejs/kit` for SSR while @kitcms/* (compiled as source) keep importing the
+		// plain copy. Two Kits again: an admin `redirect()` was an unknown object and sign-in a 500.
 		config: () => ({
 			resolve: { dedupe: ['@sveltejs/kit', 'svelte'] },
 			optimizeDeps: { exclude: KITCMS_PACKAGES },
-			ssr: { noExternal: [/^@kitcms\//], optimizeDeps: { exclude: KITCMS_PACKAGES } },
+			ssr: { noExternal: [/^@kitcms\//], optimizeDeps: { exclude: [...KITCMS_PACKAGES, '@sveltejs/kit'] } },
 		}),
 		configResolved(config) {
 			if (options.rpcEntry === false) return;

@@ -1,5 +1,27 @@
 # @kitcms/ui
 
+## 0.1.2
+
+### Patch Changes
+
+- 73cdd61: Plugin panels can also show on the admin dashboard (`dashboard: true`), for things like an onboarding checklist. List items in panels take `done` and `todo` statuses and an optional link (`href`).
+- 73cdd61: Password links by email. "Forgot your password?" on the sign-in page emails a reset link that works for one hour, and admins can create a user with "Email an invite" so the new user chooses their own password (link valid for 7 days). Links are single-use and stored only as hashes; setting a password signs the user out everywhere and cancels their other links. Requests are rate-limited, and the reply never says whether an account exists. Needs `email` in the config.
+- 73cdd61: Read-only deployments: with the Worker var `KITCMS_READ_ONLY=1` (for example a site whose subscription is paused) every content write is refused with a `ReadOnlyError` (403), whoever asks, including system calls and hooks, over the Local API, REST, RPC and uploads. Reading, signing in and signing out keep working, and the admin shows a "paused" notice with no create, save or delete buttons.
+- Updated dependencies [73cdd61]
+- Updated dependencies [73cdd61]
+- Updated dependencies [73cdd61]
+- Updated dependencies [73cdd61]
+- Updated dependencies [73cdd61]
+- Updated dependencies [73cdd61]
+  - @kitcms/core@0.1.2
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [8dc2324]
+  - @kitcms/core@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

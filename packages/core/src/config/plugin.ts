@@ -11,6 +11,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { Cms } from '../api/types';
 import type { Config } from './collection';
 import type { KitcmsReq, KitcmsUser } from './hooks';
+import type { RuntimeContext } from './resolvable';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -105,6 +106,8 @@ export interface PluginEndpointContext {
 	email: EmailSender;
 	/** `cf-connecting-ip`, or `null` (local dev). */
 	ip: string | null;
+	/** For resolvable options (Decision 41): the Worker env and a read-only system Local API. */
+	runtime: RuntimeContext;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -136,13 +139,19 @@ export interface AdminPanelDef {
 	label: string;
 	/** Navigation group. */
 	group?: string;
+	/**
+	 * Also show the panel's content at the top of the admin dashboard (e.g. an onboarding checklist).
+	 * Default `false`. A dashboard panel that fails to load is left out; the dashboard still works.
+	 */
+	dashboard?: boolean;
 	/** Who may see the panel. Default: every user with admin access. */
 	access?: (args: { req: KitcmsReq }) => MaybePromise<boolean>;
 	/** The panel's content for this request. Read-only: there are no actions. */
-	load: (args: { req: KitcmsReq; cms: Cms }) => MaybePromise<PanelContent>;
+	load: (args: { req: KitcmsReq; cms: Cms; runtime: RuntimeContext }) => MaybePromise<PanelContent>;
 }
 
 export type PanelTone = 'default' | 'ok' | 'warning' | 'muted';
+export type PanelListStatus = 'on' | 'off' | 'locked' | 'done' | 'todo';
 
 /** Serializable panel content. Core validates it before it reaches the browser. */
 export interface PanelContent {
@@ -164,7 +173,14 @@ export type PanelBlock =
 	  }
 	| {
 			type: 'list';
-			items: { label: string; description?: string; status?: 'on' | 'off' | 'locked' }[];
+			items: {
+				label: string;
+				description?: string;
+				/** `on`/`off`/`locked` for features and add-ons; `done`/`todo` for checklists. */
+				status?: PanelListStatus;
+				/** Makes the label a link; `https:` or `/`-relative, anything else is dropped. */
+				href?: string;
+			}[];
 	  }
 	/** `href` must be `https:` or `/`-relative; anything else is dropped. */
 	| { type: 'link'; label: string; href: string };

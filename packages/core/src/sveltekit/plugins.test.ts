@@ -150,6 +150,7 @@ function internals(user: KitcmsUser | null): KitcmsInternals {
 		user,
 		cmsFor,
 		email: { enabled: false, send: () => Promise.reject(new EmailNotConfiguredError('test')) },
+		runtime: () => ({ env: { DB: db.d1 }, cms: cmsFor(null) }),
 	};
 }
 
@@ -482,6 +483,38 @@ describe('admin panels', () => {
 			panel: 'status',
 		});
 		expect(matchAdminRoute('plugins/demo')).toBeNull();
+	});
+	it('keeps checklist statuses and safe item links', () => {
+		const out = sanitizePanelContent({
+			blocks: [
+				{
+					type: 'list',
+					items: [
+						{ label: 'Logo', status: 'done', href: '/admin/globals/site' },
+						{ label: 'Room', status: 'todo', href: 'javascript:alert(1)' },
+						{ label: 'Odd', status: 'maybe' },
+					],
+				},
+			],
+		});
+		expect(out.blocks).toEqual([
+			{
+				type: 'list',
+				items: [
+					{ label: 'Logo', status: 'done', href: '/admin/globals/site' },
+					{ label: 'Room', status: 'todo' },
+					{ label: 'Odd' },
+				],
+			},
+		]);
+		expect(() =>
+			sanitizeConfig(
+				defineConfig({
+					collections: [],
+					plugins: [{ name: 'x', admin: { panels: [{ id: 'p', label: 'P', dashboard: 'yes' as never, load: () => ({ blocks: [] }) }] } }],
+				}),
+			),
+		).toThrow(/dashboard/);
 	});
 	it('drops unsafe links and malformed blocks', () => {
 		const out = sanitizePanelContent({

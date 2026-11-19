@@ -939,6 +939,8 @@ function sanitizePlugins(plugins: unknown): SanitizedPlugin[] {
 				throw new ConfigError(`${ppath}.access`, 'must be a function.');
 			if (panel.group !== undefined && typeof panel.group !== 'string')
 				throw new ConfigError(`${ppath}.group`, 'must be a string.');
+			if (panel.dashboard !== undefined && typeof panel.dashboard !== 'boolean')
+				throw new ConfigError(`${ppath}.dashboard`, 'must be a boolean.');
 			return panel as unknown as AdminPanelDef;
 		});
 
@@ -954,13 +956,21 @@ const EMAIL_ADDRESS = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
 
 function sanitizeEmailConfig(raw: unknown): SanitizedConfig['email'] {
 	if (raw === undefined) return null;
-	if (!isObject(raw) || !isObject(raw.from))
-		throw new ConfigError('email.from', 'is required: `{ address, name? }`.');
+	if (!isObject(raw)) throw new ConfigError('email.from', 'is required: `{ address, name? }`.');
+	// Functions (Decision 41) are validated per message, once they have a value.
+	if (typeof raw.from === 'function') {
+		const out: NonNullable<SanitizedConfig['email']> = { from: raw.from as never };
+		if (raw.replyTo !== undefined) out.replyTo = sanitizeReplyTo(raw.replyTo);
+		return out;
+	}
+	if (!isObject(raw.from))
+		throw new ConfigError('email.from', 'is required: `{ address, name? }` or a function returning it.');
 	const address: unknown = raw.from.address;
 	if (typeof address !== 'string' || address.length > 254 || !EMAIL_ADDRESS.test(address)) {
 		throw new ConfigError('email.from.address', 'must be an email address.');
 	}
-	const out: NonNullable<SanitizedConfig['email']> = { from: { address } };
+	const from: { address: string; name?: string } = { address };
+	const out: NonNullable<SanitizedConfig['email']> = { from };
 	const name: unknown = raw.from.name;
 	if (name !== undefined) {
 		if (typeof name !== 'string' || !name.trim() || name.length > 100 || /[\r\n<>"]/.test(name)) {
@@ -969,19 +979,25 @@ function sanitizeEmailConfig(raw: unknown): SanitizedConfig['email'] {
 				'must be a short name without line breaks, `<`, `>` or `"`.',
 			);
 		}
-		out.from.name = name.trim();
+		from.name = name.trim();
 	}
-	if (raw.replyTo !== undefined) {
-		if (
-			typeof raw.replyTo !== 'string' ||
-			raw.replyTo.length > 254 ||
-			!EMAIL_ADDRESS.test(raw.replyTo)
-		) {
-			throw new ConfigError('email.replyTo', 'must be an email address.');
-		}
-		out.replyTo = raw.replyTo;
-	}
+	if (raw.replyTo !== undefined) out.replyTo = sanitizeReplyTo(raw.replyTo);
 	return out;
+}
+
+function sanitizeReplyTo(value: unknown): NonNullable<SanitizedConfig['email']>['replyTo'] {
+	if (typeof value === 'function') return value as never;
+	if (typeof value !== 'string' || value.length > 254 || !EMAIL_ADDRESS.test(value)) {
+		throw new ConfigError('email.replyTo', 'must be an email address.');
+	}
+	return value;
+}
+
+function sanitizeTitle(raw: unknown): SanitizedConfig['admin']['title'] {
+	if (raw === undefined) return 'kitcms';
+	if (typeof raw === 'function') return raw as never;
+	if (typeof raw !== 'string') throw new ConfigError('admin.title', 'must be a string or a function.');
+	return raw;
 }
 
 export function sanitizeConfig(input: Config): SanitizedConfig {
@@ -1120,14 +1136,33 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 			email: bindingName(config.bindings?.email, 'EMAIL', 'bindings.email'),
 		},
 		admin: {
-			title: config.admin?.title ?? 'kitcms',
+			title: sanitizeTitle(config.admin?.title),
 			branding: sanitizeBranding(config.admin?.branding),
 		},
 		media,
 		plugins,
 		...(entitlements !== undefined ? { entitlements: entitlements as EntitlementsProvider } : {}),
 		email: sanitizeEmailConfig(config.email),
+		system: sanitizeSystem(config.system),
 	};
+}
+
+function sanitizeSystem(raw: unknown): SanitizedConfig['system'] {
+	if (raw === undefined) return { secret: 'KITCMS_SYSTEM_TOKEN', seeds: {} };
+	if (!isObject(raw)) throw new ConfigError('system', 'must be `{ secret?, seeds? }`.');
+	if (raw.secret !== undefined && (typeof raw.secret !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(raw.secret)))
+		throw new ConfigError('system.secret', 'must be a Worker secret name.');
+	const secret = (raw.secret as string | undefined) ?? 'KITCMS_SYSTEM_TOKEN';
+	const seeds: Record<string, (input: unknown) => unknown> = {};
+	if (raw.seeds !== undefined) {
+		if (!isObject(raw.seeds)) throw new ConfigError('system.seeds', 'must be an object of functions.');
+		for (const [name, fn] of Object.entries(raw.seeds)) {
+			if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new ConfigError(`system.seeds.${name}`, 'names are lowercase letters, digits and `-`.');
+			if (typeof fn !== 'function') throw new ConfigError(`system.seeds.${name}`, 'must be a function.');
+			seeds[name] = fn as (input: unknown) => unknown;
+		}
+	}
+	return { secret, seeds };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1181,6 +1216,10 @@ export function toClientConfig(config: SanitizedConfig): ClientConfig {
 		collections: config.collections.map(toClientCollection),
 		globals: config.globals.map(toClientCollection),
 		authCollection: config.authCollection,
-		admin: config.admin,
+		// A per-request title (Decision 41) is resolved by the admin load; never send a function.
+		admin: {
+			title: typeof config.admin.title === 'string' ? config.admin.title : 'kitcms',
+			branding: config.admin.branding,
+		},
 	};
 }

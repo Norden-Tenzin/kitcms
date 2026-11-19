@@ -2,7 +2,7 @@
 // Security-critical: the admin guard and the CSRF origin check live here.
 
 /** The admin views the guard cares about (a subset of `AdminRoute['view']`). */
-export type GuardView = 'login' | 'create-first-user' | (string & {});
+export type GuardView = 'login' | 'create-first-user' | 'forgot-password' | 'reset-password' | (string & {});
 
 export type GuardDecision =
 	| { kind: 'allow' }
@@ -28,6 +28,11 @@ export function decideAdminAccess(input: {
 
 	if (view === 'login') {
 		if (allowed) return { kind: 'redirect', to: 'dashboard' };
+		return userCount === 0 ? { kind: 'redirect', to: 'create-first-user' } : { kind: 'allow' };
+	}
+	// Password links (Decision 42) work signed out and signed in (an invite opened in a browser where
+	// someone else is signed in). They change nothing until a valid token is posted.
+	if (view === 'forgot-password' || view === 'reset-password') {
 		return userCount === 0 ? { kind: 'redirect', to: 'create-first-user' } : { kind: 'allow' };
 	}
 	if (view === 'create-first-user') {

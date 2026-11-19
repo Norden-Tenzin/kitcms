@@ -62,6 +62,9 @@ function internals(user: KitcmsUser | null): KitcmsInternals {
 		cmsFor,
 		storage,
 		email: { enabled: false, send: () => Promise.reject(new Error('no email')) },
+		runtime: () => {
+			throw new Error('no runtime');
+		},
 	};
 }
 

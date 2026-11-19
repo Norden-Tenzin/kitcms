@@ -73,6 +73,7 @@ export async function setup(options?: Partial<EnquiriesOptions>): Promise<Env> {
 		user,
 		cmsFor,
 		email: { get enabled() { return email.enabled; }, send },
+		runtime: () => ({ env: { DB: db.d1 }, cms: cmsFor(null) }),
 	} as unknown as KitcmsInternals);
 
 	return {

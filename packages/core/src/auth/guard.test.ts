@@ -89,3 +89,23 @@ describe('isSameOrigin', () => {
 		expect(isSameOrigin(req(''), url)).toBe(false);
 	});
 });
+
+describe('password link views (Decision 42)', () => {
+	for (const view of ['forgot-password', 'reset-password'] as const) {
+		it(`${view}: open signed out and signed in, but not before the first user`, () => {
+			expect(decideAdminAccess({ view, user: null, canUseAdmin: false, userCount: 3 })).toEqual({ kind: 'allow' });
+			expect(decideAdminAccess({ view, user: {}, canUseAdmin: true, userCount: 3 })).toEqual({ kind: 'allow' });
+			expect(decideAdminAccess({ view, user: {}, canUseAdmin: false, userCount: 3 })).toEqual({ kind: 'allow' });
+			expect(decideAdminAccess({ view, user: null, canUseAdmin: false, userCount: 0 })).toEqual({
+				kind: 'redirect',
+				to: 'create-first-user',
+			});
+		});
+	}
+	it('other views are unaffected', () => {
+		expect(decideAdminAccess({ view: 'dashboard', user: null, canUseAdmin: false, userCount: 3 })).toEqual({
+			kind: 'redirect',
+			to: 'login',
+		});
+	});
+});

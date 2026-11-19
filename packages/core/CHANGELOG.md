@@ -1,5 +1,22 @@
 # @kitcms/core
 
+## 0.1.2
+
+### Patch Changes
+
+- 73cdd61: Plugin panels can also show on the admin dashboard (`dashboard: true`), for things like an onboarding checklist. List items in panels take `done` and `todo` statuses and an optional link (`href`).
+- 73cdd61: Password links by email. "Forgot your password?" on the sign-in page emails a reset link that works for one hour, and admins can create a user with "Email an invite" so the new user chooses their own password (link valid for 7 days). Links are single-use and stored only as hashes; setting a password signs the user out everywhere and cancels their other links. Requests are rate-limited, and the reply never says whether an account exists. Needs `email` in the config.
+- 73cdd61: Read-only deployments: with the Worker var `KITCMS_READ_ONLY=1` (for example a site whose subscription is paused) every content write is refused with a `ReadOnlyError` (403), whoever asks, including system calls and hooks, over the Local API, REST, RPC and uploads. Reading, signing in and signing out keep working, and the admin shows a "paused" notice with no create, save or delete buttons.
+- 73cdd61: Settings that differ per deployment can be functions resolved per request, from the Worker env and the site's own content: `email.from`, `email.replyTo` and `admin.title` in the config, the enquiry forms' `notify` and `turnstile.siteKey`, and the entitlements panel's `manageUrl`. Plugin endpoints and panels get a `runtime` context (`{ env, cms }`, where `cms` reads as the system and cannot write) to resolve their own options. `resolveValue`, `Resolvable` and `RuntimeContext` are exported from `@kitcms/core`.
+- 73cdd61: Fix sign-in answering 500 in apps installed from npm after Vite discovered `@sveltejs/kit` during `vite dev`: `kitcms()` now also keeps Kit out of the SSR dependency optimizer, so the app and kitcms share one copy and the admin's redirects are recognized.
+- 73cdd61: Server-to-server setup for hosting platforms: `POST /api/system/seed/:name` runs a seed from `config.system.seeds` with a JSON `input`, and `POST /api/system/users` creates a user (an admin by default) and emails them a set-password invite. Both are idempotent and need `Authorization: Bearer <token>` matching the Worker secret `KITCMS_SYSTEM_TOKEN` (at least 32 characters); without it they return 404.
+
+## 0.1.1
+
+### Patch Changes
+
+- 8dc2324: Fix apps installed from npm: `@kitcms/core/vite` now ships compiled JavaScript (Node can't strip types under `node_modules`, so `svelte-kit sync` failed on a fresh `create-kitcms` app), and `kitcms()` keeps `@kitcms/*` out of Vite's dependency pre-bundling and SSR externals so `vite dev` compiles them as source.
+
 ## 0.1.0
 
 ### Minor Changes

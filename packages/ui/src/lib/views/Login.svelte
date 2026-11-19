@@ -1,8 +1,14 @@
 <script lang="ts">
 	// Sign-in form. Posts to the admin `login` action (same-origin checked on the server).
 	import { enhance } from '$app/forms';
+	import { adminHref } from '../links';
 
-	let { title, logo, message }: { title: string; logo?: string; message?: string } = $props();
+	let {
+		title,
+		logo,
+		message,
+		emailEnabled = false,
+	}: { title: string; logo?: string; message?: string; emailEnabled?: boolean } = $props();
 </script>
 
 <main class="auth">
@@ -26,6 +32,8 @@
 			/>
 		</label>
 		<button class="kc-btn kc-btn--primary">Sign in</button>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- adminHref calls resolve() -->
+		{#if emailEnabled}<a class="kc-muted forgot" href={adminHref('forgot-password')}>Forgot your password?</a>{/if}
 	</form>
 </main>
 
@@ -49,6 +57,10 @@
 	}
 	p {
 		margin: 0;
+	}
+	.forgot {
+		justify-self: start;
+		font-size: 0.9rem;
 	}
 	.logo {
 		height: 2.5rem;
