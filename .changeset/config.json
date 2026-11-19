@@ -19,6 +19,7 @@
 	"updateInternalDependencies": "patch",
 	"ignore": [
 		"playground",
-		"playground-consumer"
+		"playground-consumer",
+		"website"
 	]
 }

@@ -1,0 +1,21 @@
+/* Page-level resets. Tokens and shared classes live in `lib/site.css`. */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+html {
+	-webkit-text-size-adjust: 100%;
+	color-scheme: light dark;
+}
+html[data-theme='light'] {
+	color-scheme: light;
+}
+html[data-theme='dark'] {
+	color-scheme: dark;
+}
+body {
+	margin: 0;
+	overflow-wrap: break-word;
+}

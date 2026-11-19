@@ -1,0 +1,3 @@
+# Copy to .dev.vars (gitignored) and set a random secret of 32+ characters:
+#   openssl rand -base64 32
+BETTER_AUTH_SECRET=
