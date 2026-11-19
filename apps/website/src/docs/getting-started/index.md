@@ -4,30 +4,35 @@ description: A lightweight, Payload-style CMS for SvelteKit that runs only on Cl
 order: 1
 ---
 
-kitcms is a CMS that installs into a SvelteKit app and runs only on **Cloudflare Workers, D1 and R2**. You define collections in code; kitcms creates the D1 schema from that code and serves them through `locals.cms` and an admin UI.
+This page explains what kitcms is, how it is put together and where to go next.
 
-It works in two ways:
+kitcms is a CMS that installs into a SvelteKit app and runs only on **Cloudflare Workers, D1 and R2**. You define collections in code. kitcms creates the D1 schema from that code and serves your content through `locals.cms` and an admin UI.
 
-- **Full app.** The admin and your site run in one Worker.
-- **Headless.** Other Workers read content through Service Binding RPC with `@kitcms/client`.
+## How it works
 
-## Create a project
+- **Schema is code.** Collections, globals, fields and blocks live in `src/kitcms.config.ts`. No admin screen creates or edits them, so the schema is reviewed, versioned and deployed like the rest of your app.
+- **One pipeline.** The Local API, Service Binding RPC, the REST API and the admin all run every operation through the same steps: access, hooks, validation, D1, hooks. There is no side door. See [Access control and hooks](../access/index.md).
+- **Cloudflare only.** kitcms reaches D1 and R2 through Worker bindings. It does not run on Node and supports no other database or storage. That keeps it small and lets it use platform features such as the Workers Cache API and D1 read replication.
+- **Plain data.** Documents are rows in D1. Nested data (groups, arrays, blocks, JSON, rich text) is stored as JSON in text columns. IDs are ULIDs.
 
-```sh
-pnpm create kitcms@latest my-site
-```
+## Two ways to run it
 
-Then start it:
+- **Full app.** The admin and your site run in one Worker. Your routes call `locals.cms` and read content as the visitor.
+- **Headless.** Other Workers read content through Service Binding RPC with `@kitcms/client`. See [Headless over RPC](../content/rpc.md).
 
-```sh
-cd my-site
-pnpm dev
-```
+## What you get
 
-The scaffolder has two templates: `blank` (the admin plus one minimal `pages` collection) and `website` (a small business site with blocks, a blog, a team page, legal pages and site settings). Choose one with `--template`.
+- An admin with list and edit views, drag-and-drop ordering, drafts, version history and live preview.
+- Fields from `text` to `blocks` and rich text, with access rules and hooks at every level.
+- R2 uploads with a media library.
+- Email and password sign-in through Better Auth, with a first-user setup screen.
+- A `kitcms` CLI for migrations, seeding and generated types.
+- Plugins for SEO, contact forms and plan-based add-ons.
 
-## Where to go next
+## Start here
 
-- [Requirements](./requirements.md): what you need on your machine and on Cloudflare.
-- [Configuration](../configuration/index.md): the config file that defines your content.
-- [Deploy & operate](../deploy/index.md): putting it on Cloudflare.
+1. [Requirements](./requirements.md): what you need on your machine and on Cloudflare.
+2. [Installation](./installation.md): scaffold a project.
+3. [Project tour](./project-tour.md): what the scaffold contains.
+4. [Your first collection](./first-collection.md): add content to the schema and read it.
+5. [Deploy in 5 minutes](./deploy-in-5-minutes.md): put it on Cloudflare.
