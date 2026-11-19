@@ -1,10 +1,10 @@
 ---
 title: Auth and users
-description: How the first admin is created, how roles and the users collection work, and how sign-in is protected.
+description: How the first admin is created, how roles and the users collection work, how users get passwords and how sign-in is protected.
 order: 1
 ---
 
-This page covers users in kitcms: the first admin, the users collection, roles, creating users, passwords and sign-in security.
+This page covers users in kitcms: the first admin, the users collection, roles, creating users, passwords and sign-in security. Emailed invites and password resets have [their own page](./passwords-and-invites.md).
 
 kitcms uses [Better Auth](https://www.better-auth.com) for email and password sign-in. You never call it directly. kitcms wraps it so users go through the same pipeline as every other document.
 
@@ -75,12 +75,13 @@ A signed-in user who is not allowed into the admin is refused, never redirected 
 
 There is no public sign-up. Better Auth's sign-up route is turned off, so nobody can register through `/api/auth`.
 
-Admins create users in the admin, in the users collection, by entering a name, an email and a password. The new user can then sign in with those details.
+Admins create users in the admin, in the users collection, by entering a name, an email and a password. The new user can then sign in with those details. With [email](./email.md) set up, the form can instead **email an invite**, and the user chooses their own password.
 
 Passwords:
 
 - **Changing a password.** Admins can set anyone's password. Anyone else can change only their own, and must enter the current password.
 - **Sessions.** After a password change, the target's other sessions are revoked.
+- **Forgot your password.** With email set up, the sign-in page links to a reset flow. See [Passwords and invites](./passwords-and-invites.md).
 
 ## Sign-in security
 
@@ -96,7 +97,7 @@ Secrets and variables:
 | Name | Where | What it does |
 |---|---|---|
 | `BETTER_AUTH_SECRET` | `.dev.vars` locally, `wrangler secret put BETTER_AUTH_SECRET` when deployed | Signs sessions. Required. |
-| `BETTER_AUTH_URL` | Optional variable | The public origin of your site. Set it when Better Auth cannot work out the origin from the request. Only the origin is used. |
+| `BETTER_AUTH_URL` | Optional variable | The public origin of your site. Set it when Better Auth cannot work out the origin from the request. Only the origin is used. Also the origin of password and invite links. |
 
 Session options go to `kitcms()` in `hooks.server.ts`:
 
