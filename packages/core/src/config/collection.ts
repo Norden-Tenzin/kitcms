@@ -5,6 +5,7 @@ import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { EntitlementsProvider, KitcmsPlugin } from './plugin';
 import type { Resolvable } from './resolvable';
+import type { SeedFn } from '../seed';
 import type { InferFields, InferInput, Simplify } from './infer';
 import type { Sort } from './where';
 
@@ -306,6 +307,22 @@ export interface ConfigOptions {
 		from: Resolvable<{ address: string; name?: string }>;
 		/** Default reply-to address. A function is resolved per message; `undefined` = none. */
 		replyTo?: Resolvable<string | undefined>;
+	};
+	/**
+	 * Trusted server-to-server setup (Decision 38): a hosting platform provisioning a deployment
+	 * calls `POST /api/system/seed/:name` and `POST /api/system/users` with
+	 * `Authorization: Bearer <token>`. Off (404) unless the Worker secret holds a token of at least
+	 * 32 characters.
+	 */
+	system?: {
+		/** Worker secret holding the token. Default `'KITCMS_SYSTEM_TOKEN'`. */
+		secret?: string;
+		/**
+		 * Seeds the system may run by name, built from the request's JSON `input` (validate it):
+		 * `{ starter: (input) => starterSeed(parse(input)) }`. They run inside the Worker, so
+		 * `ensureUpload` needs bytes, not file paths.
+		 */
+		seeds?: Record<string, (input: unknown) => SeedFn<Config> | Promise<SeedFn<Config>>>;
 	};
 	/**
 	 * Runtime add-on gating (Decision 34). Set by `@kitcms/plugin-entitlements`; collections, globals

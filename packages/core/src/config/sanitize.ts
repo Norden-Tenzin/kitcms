@@ -1143,7 +1143,26 @@ export function sanitizeConfig(input: Config): SanitizedConfig {
 		plugins,
 		...(entitlements !== undefined ? { entitlements: entitlements as EntitlementsProvider } : {}),
 		email: sanitizeEmailConfig(config.email),
+		system: sanitizeSystem(config.system),
 	};
+}
+
+function sanitizeSystem(raw: unknown): SanitizedConfig['system'] {
+	if (raw === undefined) return { secret: 'KITCMS_SYSTEM_TOKEN', seeds: {} };
+	if (!isObject(raw)) throw new ConfigError('system', 'must be `{ secret?, seeds? }`.');
+	if (raw.secret !== undefined && (typeof raw.secret !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(raw.secret)))
+		throw new ConfigError('system.secret', 'must be a Worker secret name.');
+	const secret = (raw.secret as string | undefined) ?? 'KITCMS_SYSTEM_TOKEN';
+	const seeds: Record<string, (input: unknown) => unknown> = {};
+	if (raw.seeds !== undefined) {
+		if (!isObject(raw.seeds)) throw new ConfigError('system.seeds', 'must be an object of functions.');
+		for (const [name, fn] of Object.entries(raw.seeds)) {
+			if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new ConfigError(`system.seeds.${name}`, 'names are lowercase letters, digits and `-`.');
+			if (typeof fn !== 'function') throw new ConfigError(`system.seeds.${name}`, 'must be a function.');
+			seeds[name] = fn as (input: unknown) => unknown;
+		}
+	}
+	return { secret, seeds };
 }
 
 // ---------------------------------------------------------------------------------------------

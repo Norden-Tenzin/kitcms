@@ -29,9 +29,9 @@ import type { Cms } from '../api/types';
 import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import type { ClientCollection, ClientConfig, SanitizedCollection, SanitizedConfig } from '../config/sanitized';
 import { toClientConfig } from '../config/sanitize';
-import { resolveValue } from '../config/resolvable';
+import { adminTitle } from './title';
+import { passwordLink } from './password-link';
 import { isReadOnly } from '../runtime';
-import { parseBaseOrigin } from '../auth/cookies';
 import type { WhereInput } from '../config/where';
 import { isKitcmsError, ReferencedError, ValidationError } from '../errors';
 import { getKitcms, type KitcmsInternals } from './index';
@@ -80,15 +80,6 @@ function sysReq(k: KitcmsInternals, user: KitcmsUser | null): KitcmsReq {
 }
 
 const auth = () => import('../auth/module-admin');
-
-/**
- * Builds password links (Decision 37) on the configured origin (`BETTER_AUTH_URL`) or, without one,
- * the request's own: a Worker is only reachable on its own hostnames.
- */
-function passwordLink(k: KitcmsInternals, url: URL): (token: string) => string {
-	const origin = parseBaseOrigin(k.env.BETTER_AUTH_URL)?.origin ?? url.origin;
-	return (token) => new URL(`${adminUrl('reset-password')}?token=${encodeURIComponent(token)}`, origin).href;
-}
 
 /**
  * The guard shared by load and actions. Returns the user and an admin-sourced Local API, or
@@ -260,19 +251,6 @@ async function versionCount(
 /** Top-level fields hidden by `admin.condition` for this document. */
 function hiddenFields(col: SanitizedCollection, doc: Record<string, unknown>): string[] {
 	return col.fields.filter((f) => f.admin.condition && !f.admin.condition(doc, doc)).map((f) => f.name);
-}
-
-/** `admin.title`, resolved for this request (Decision 36). A failing or empty function shows `'kitcms'`. */
-async function adminTitle(k: KitcmsInternals): Promise<string> {
-	const raw = k.config.admin.title;
-	if (typeof raw === 'string') return raw;
-	try {
-		const value = await resolveValue(raw, k.runtime());
-		return typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : 'kitcms';
-	} catch (err) {
-		console.error('kitcms: admin.title failed', err);
-		return 'kitcms';
-	}
 }
 
 // Explicit param/return types (not `ServerLoad`): SvelteKit infers the generated route's

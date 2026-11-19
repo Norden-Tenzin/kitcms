@@ -230,6 +230,8 @@ export interface SanitizedConfig {
 	entitlements?: EntitlementsProvider;
 	/** Decision 35. `null` = email disabled. */
 	email: SanitizedEmail | null;
+	/** Decision 38. */
+	system: { secret: string; seeds: Record<string, (input: unknown) => unknown> };
 }
 
 /** Decision 35. Static values are validated at sanitize time, functions (Decision 36) when sending. */

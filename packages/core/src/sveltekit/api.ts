@@ -12,6 +12,7 @@
 //   GET  /api/media/<key>                         (when `media.publicUrl` is unset)
 // The REST fallback API (/api/collections/*, /api/globals/*; plan §13.7) lives in ./rest.
 // Plugin endpoints (/api/plugins/<plugin>/*; Decision 33) live in ./plugins.
+// Server-to-server setup (POST /api/system/*; Decision 38) lives in ./system.
 
 import type { RequestEvent } from '@sveltejs/kit';
 import { adminAccess } from '../access/engine';
@@ -172,6 +173,11 @@ export async function POST(event: RequestEvent): Promise<Response> {
 	return handle(event, async () => {
 		const r = (await rest(event, 'POST')) ?? (await plugins(event, 'POST'));
 		if (r) return r;
+		if (a === 'system') {
+			// Server-to-server setup (Decision 38): bearer token, no session or Origin.
+			const { handleSystem } = await import('./system');
+			return handleSystem(event, getKitcms(event.locals), [b, ...rest_].filter((s): s is string => Boolean(s)));
+		}
 		if (a === 'upload' && b && rest_.length === 0) {
 			const origin = event.request.headers.get('origin');
 			if (!origin || origin !== event.url.origin) return errorResponse(403, 'Cross-origin request blocked.');
