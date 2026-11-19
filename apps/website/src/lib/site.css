@@ -2,52 +2,84 @@
    Scoped to `.site` (the public layout) and `.kitcms-preview` (the admin preview pane), so nothing
    leaks into the admin UI. Light and dark follow the system setting; `:root[data-theme]` forces one.
    The accent can be overridden from the `site` global (see `theme.ts`), which sets `--accent-light-o`
-   and `--accent-dark-o` inline. Use tokens in components; keep colour literals here. */
+   and `--accent-dark-o` inline. Use tokens in components; keep colour literals here.
+
+   Art direction: calm and exact. One typeface (Hanken Grotesk) plus JetBrains Mono for code only.
+   Flat fields of tone separate sections (no rules, no shadows, no gradients). One accent, a deep
+   teal on light and a mint on dark. Code colours follow GitHub light/dark, like the docs' Shiki. */
+@import '@fontsource-variable/hanken-grotesk/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+/* Metric-adjusted system fallback, so the swap to the web font barely moves the layout. */
+@font-face {
+	font-family: 'Hanken Fallback';
+	src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+	size-adjust: 101%;
+	ascent-override: 96%;
+	descent-override: 24%;
+	line-gap-override: 0%;
+}
+@font-face {
+	font-family: 'Mono Fallback';
+	src: local('Menlo'), local('Consolas'), local('Courier New');
+	size-adjust: 100%;
+	ascent-override: 100%;
+	descent-override: 26%;
+	line-gap-override: 0%;
+}
+
+/* Tokens are `light-dark(light, dark)`, resolved by `color-scheme`: the system setting by default,
+   `:root[data-theme]` (see `app.css`) when forced, and `.tone-dark` flips one section to dark. */
 .site,
 .kitcms-preview {
-	--bg: #ffffff;
-	--fg: #1a1a1a;
-	--muted: #5c5c5c;
-	--line: #e2e2e2;
-	--surface: #f5f5f4;
-	--accent: var(--accent-light-o, #c2410c);
-	--accent-ink: #ffffff;
-	--radius: 0.5rem;
+	--bg: light-dark(#f5f6f4, #0c1110);
+	--fg: light-dark(#0f1714, #e9f0ed);
+	--muted: light-dark(#4a5651, #9fb0aa);
+	--line: light-dark(#d3d9d5, #26302d);
+	--surface: light-dark(#e9ece8, #141b19);
+	--surface-2: light-dark(#dce1dd, #1d2623);
+	--code-bg: light-dark(#ffffff, #0a0e0d);
+	--accent: light-dark(var(--accent-light-o, #0a6b5a), var(--accent-dark-o, #3fd2b0));
+	--accent-ink: light-dark(#ffffff, #07130f);
+	/* the accent as it reads on the inverted slab (install command) */
+	--accent-alt: light-dark(var(--accent-dark-o, #3fd2b0), var(--accent-light-o, #0a6b5a));
+	--accent-alt-ink: light-dark(#07130f, #ffffff);
 
-	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	/* code colours: GitHub light / dark, like the docs' Shiki themes */
+	--tok-comment: light-dark(#5a626b, #8b949e);
+	--tok-keyword: light-dark(#cf222e, #ff7b72);
+	--tok-string: light-dark(#0a3069, #a5d6ff);
+	--tok-fn: light-dark(#8250df, #d2a8ff);
+	--tok-num: light-dark(#0550ae, #79c0ff);
+	--tok-key: light-dark(#0550ae, #79c0ff);
+	--tok-type: light-dark(#953800, #ffa657);
+	--tok-punct: light-dark(#24292f, #e6edf3);
+	--tok-tag: light-dark(#116329, #7ee787);
+
+	--radius: 0.5rem;
+	--font-sans: 'Hanken Grotesk Variable', 'Hanken Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', 'Mono Fallback', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
 	--gutter: clamp(1rem, 0.4rem + 3vw, 2.5rem);
 	--max: 72rem;
 	--measure: 42rem;
-	--section: clamp(3rem, 2rem + 5vw, 6rem);
+	--section: clamp(4rem, 2.5rem + 7vw, 8.5rem);
+	--header-h: 3.5rem;
 
 	background: var(--bg);
 	color: var(--fg);
 	font-family: var(--font-sans);
 	font-size: 1.0625rem;
 	line-height: 1.6;
+	font-weight: 400;
 	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
 }
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) :where(.site, .kitcms-preview) {
-		--bg: #121212;
-		--fg: #ececec;
-		--muted: #a3a3a3;
-		--line: #2c2c2c;
-		--surface: #1b1b1b;
-		--accent: var(--accent-dark-o, #fb923c);
-		--accent-ink: #111111;
-	}
-}
-:root[data-theme='dark'] :where(.site, .kitcms-preview) {
-	--bg: #121212;
-	--fg: #ececec;
-	--muted: #a3a3a3;
-	--line: #2c2c2c;
-	--surface: #1b1b1b;
-	--accent: var(--accent-dark-o, #fb923c);
-	--accent-ink: #111111;
+/* A section that is always dark, whatever the theme. */
+:where(.site, .kitcms-preview) :where(.tone-dark) {
+	color-scheme: dark;
+	background: var(--bg);
+	color: var(--fg);
 }
 
 /* ---- Layout ---------------------------------------------------------------------------- */
@@ -63,39 +95,55 @@
 
 /* ---- Type ------------------------------------------------------------------------------ */
 :where(.site, .kitcms-preview) :where(h1, h2, h3, h4) {
-	line-height: 1.15;
+	font-weight: 650;
+	line-height: 1.08;
+	letter-spacing: -0.025em;
 	margin: 0 0 0.5em;
 	text-wrap: balance;
 	overflow-wrap: anywhere;
 }
 :where(.site, .kitcms-preview) :where(h1) {
-	font-size: clamp(2.25rem, 1.4rem + 4vw, 4rem);
+	font-size: clamp(2.5rem, 1rem + 6.2vw, 5.75rem);
+	line-height: 1;
+	letter-spacing: -0.04em;
+	font-weight: 700;
 }
 :where(.site, .kitcms-preview) :where(h2) {
-	font-size: clamp(1.6rem, 1.3rem + 1.5vw, 2.4rem);
+	font-size: clamp(1.9rem, 1.2rem + 3.2vw, 3.5rem);
+	line-height: 1.04;
+	letter-spacing: -0.035em;
 }
 :where(.site, .kitcms-preview) :where(h3) {
-	font-size: 1.2rem;
+	font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem);
+	letter-spacing: -0.015em;
+	line-height: 1.2;
 }
 :where(.site, .kitcms-preview) :where(p) {
 	margin: 0 0 1em;
 }
 :where(.site, .kitcms-preview) :where(a) {
 	color: inherit;
-	text-underline-offset: 0.2em;
+	text-underline-offset: 0.22em;
+	text-decoration-thickness: 0.08em;
 }
 :where(.site, .kitcms-preview) :where(.muted) {
 	color: var(--muted);
 }
 :where(.site, .kitcms-preview) :where(.lead) {
-	font-size: 1.1875rem;
+	font-size: clamp(1.1875rem, 1.05rem + 0.6vw, 1.4rem);
+	line-height: 1.5;
 	color: var(--muted);
 }
 :where(.site, .kitcms-preview) :where(code, pre) {
 	font-family: var(--font-mono);
+	font-feature-settings: 'calt' 0;
 }
 :where(.site, .kitcms-preview) :where(img, svg, video) {
 	max-width: 100%;
+}
+:where(.site, .kitcms-preview) ::selection {
+	background: var(--accent);
+	color: var(--accent-ink);
 }
 
 /* ---- Focus ----------------------------------------------------------------------------- */
@@ -109,21 +157,24 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 2.75rem;
-	padding: 0.5em 1.25em;
-	border: 2px solid var(--accent);
-	border-radius: var(--radius);
+	min-height: 3rem;
+	padding: 0.5em 1.5em;
+	border: 0;
+	border-radius: 999px;
 	background: var(--accent);
 	color: var(--accent-ink);
 	font: inherit;
-	font-weight: 600;
+	font-weight: 650;
 	text-decoration: none;
 	cursor: pointer;
+	transition: filter 0.15s ease;
+}
+:where(.site, .kitcms-preview) :where(.btn:hover) {
+	filter: brightness(1.12);
 }
 :where(.site, .kitcms-preview) :where(.btn.secondary) {
-	background: transparent;
+	background: var(--surface-2);
 	color: var(--fg);
-	border-color: var(--line);
 }
 :where(.site, .kitcms-preview) :where(.actions) {
 	display: flex;
@@ -139,28 +190,65 @@
 	margin-top: 0;
 }
 :where(.site, .kitcms-preview) :where(.prose h2) {
+	font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
 	margin-top: 1.8em;
+}
+:where(.site, .kitcms-preview) :where(.prose h3) {
+	margin-top: 1.5em;
 }
 :where(.site, .kitcms-preview) :where(.prose ul, .prose ol) {
 	padding-left: 1.3em;
 	margin: 0 0 1em;
+}
+:where(.site, .kitcms-preview) :where(.prose li) {
+	margin-bottom: 0.35em;
 }
 :where(.site, .kitcms-preview) :where(.prose a) {
 	color: var(--accent);
 }
 :where(.site, .kitcms-preview) :where(.prose pre) {
 	overflow-x: auto;
-	padding: 1rem;
-	background: var(--surface);
+	padding: 1rem 1.25rem;
+	background: var(--code-bg);
 	border-radius: var(--radius);
 }
 :where(.site, .kitcms-preview) :where(.prose :not(pre) > code) {
-	padding: 0.1em 0.35em;
+	padding: 0.12em 0.4em;
 	background: var(--surface);
-	border-radius: 0.25rem;
-	font-size: 0.9em;
+	border-radius: 0.3rem;
+	font-size: 0.88em;
 }
 :where(.site, .kitcms-preview) :where(.prose img) {
 	height: auto;
 	border-radius: var(--radius);
+}
+
+/* ---- Code tokens (output of `highlight.ts`) ------------------------------------------------ */
+:where(.site, .kitcms-preview) :where(.tok-comment) {
+	color: var(--tok-comment);
+	font-style: italic;
+}
+:where(.site, .kitcms-preview) :where(.tok-keyword) {
+	color: var(--tok-keyword);
+}
+:where(.site, .kitcms-preview) :where(.tok-string) {
+	color: var(--tok-string);
+}
+:where(.site, .kitcms-preview) :where(.tok-fn) {
+	color: var(--tok-fn);
+}
+:where(.site, .kitcms-preview) :where(.tok-number) {
+	color: var(--tok-num);
+}
+:where(.site, .kitcms-preview) :where(.tok-key) {
+	color: var(--tok-key);
+}
+:where(.site, .kitcms-preview) :where(.tok-type) {
+	color: var(--tok-type);
+}
+:where(.site, .kitcms-preview) :where(.tok-tag) {
+	color: var(--tok-tag);
+}
+:where(.site, .kitcms-preview) :where(.tok-punct) {
+	color: var(--tok-punct);
 }

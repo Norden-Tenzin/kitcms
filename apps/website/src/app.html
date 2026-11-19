@@ -3,6 +3,18 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// Runs before first paint: apply a saved light/dark choice (none = follow the system) and
+			// mark the page as scripted, so the mobile menu only collapses when it can be opened.
+			(function () {
+				var d = document.documentElement;
+				d.classList.add('js');
+				try {
+					var t = localStorage.getItem('theme');
+					if (t === 'light' || t === 'dark') d.setAttribute('data-theme', t);
+				} catch (e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
