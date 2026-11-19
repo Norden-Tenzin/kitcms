@@ -2,9 +2,10 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "kitcms-website",
 	// Local dev and `pnpm preview` use local D1/R2 under .wrangler/state. There is no database_id and no
-	// account_id, so nothing here points at a Cloudflare account. After `wrangler d1 create kitcms-website`
-	// add the database_id. The custom domain (kitcms.dev) is attached after the first deploy: sign up as
-	// the first admin on the workers.dev URL first, then add `routes` with `custom_domain: true`.
+	// account_id, so nothing here points at a Cloudflare account. Deployed by Workers Builds (Cloudflare's
+	// Git integration, Decision 44): the first `wrangler deploy` creates the D1 database and R2 bucket from
+	// the names below, later deploys reuse them. The custom domain (kitcms.dev) is attached after the first
+	// admin has signed up on the workers.dev URL (plan §18.6).
 	"compatibility_date": "2026-11-01",
 	"compatibility_flags": ["nodejs_als"],
 	// Smart Placement runs the Worker near its D1 primary when that beats running near the visitor
