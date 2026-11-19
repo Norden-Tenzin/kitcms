@@ -16,3 +16,4 @@ export type {
 	Mode,
 } from './config/sanitized';
 export type { FieldError } from './errors';
+export type { PanelBlock, PanelContent, PanelListStatus, PanelTone } from './config/plugin';

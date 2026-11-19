@@ -1,9 +1,9 @@
 // Validation of plugin panel content (Decision 33) before it reaches the browser. Browser-safe.
 // Anything malformed is dropped rather than rendered; links must be `https:` or `/`-relative.
-import type { PanelBlock, PanelContent, PanelTone } from '../config/plugin';
+import type { PanelBlock, PanelContent, PanelListStatus, PanelTone } from '../config/plugin';
 
 const TONES = new Set<PanelTone>(['default', 'ok', 'warning', 'muted']);
-const STATUSES = new Set(['on', 'off', 'locked']);
+const STATUSES = new Set<string>(['on', 'off', 'locked', 'done', 'todo'] satisfies PanelListStatus[]);
 const MAX_BLOCKS = 50;
 const MAX_ITEMS = 100;
 
@@ -66,12 +66,14 @@ function block(raw: unknown): PanelBlock | null {
 				const o = obj(i);
 				const label = str(o?.label);
 				if (label === null) return [];
-				const item: { label: string; description?: string; status?: 'on' | 'off' | 'locked' } = {
+				const item: { label: string; description?: string; status?: PanelListStatus; href?: string } = {
 					label,
 				};
 				const d = str(o?.description, 1000);
 				if (d !== null) item.description = d;
-				if (STATUSES.has(o?.status as string)) item.status = o?.status as 'on' | 'off' | 'locked';
+				if (STATUSES.has(o?.status as string)) item.status = o?.status as PanelListStatus;
+				const href = safePanelHref(o?.href);
+				if (href !== null) item.href = href;
 				return [item];
 			});
 			return { type: 'list', items };

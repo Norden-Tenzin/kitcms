@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AdminDataOf } from '@kitcms/core/client';
 	import { collectionHref, createHref, globalHref } from '../links';
+	import PanelBlocks from './PanelBlocks.svelte';
 
 	let { data }: { data: AdminDataOf<'dashboard'> } = $props();
 </script>
@@ -8,6 +9,12 @@
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href comes from ../links, which calls resolve() -->
 
 <h1>Dashboard</h1>
+{#each data.dashboardPanels ?? [] as p (`${p.plugin}/${p.id}`)}
+	<section class="dash-panel" aria-label={p.label} data-testid="dashboard-panel">
+		<h2>{p.label}</h2>
+		<PanelBlocks content={p.content} />
+	</section>
+{/each}
 <div class="grid">
 	{#each data.collections as c (c.slug)}
 		<section class="kc-card">
@@ -30,6 +37,9 @@
 </div>
 
 <style>
+	.dash-panel {
+		margin-top: 1rem;
+	}
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));

@@ -30,6 +30,8 @@ import { needsSession, stripBase } from './paths';
 import { entitled } from '../access/entitlements';
 import type { EmailSender } from '../config/plugin';
 import { emailFor } from '../email';
+import { systemReader } from '../api/system-reader';
+import type { RuntimeContext } from '../config/resolvable';
 
 export type { KitcmsUser } from '../config/hooks';
 
@@ -80,6 +82,8 @@ export interface KitcmsInternals {
 	storage?: StorageAdapter;
 	/** Outgoing email (Decision 35). */
 	email: EmailSender;
+	/** For resolvable config values (Decision 36): the env and a read-only system Local API. */
+	runtime(): RuntimeContext;
 }
 
 const internals = new WeakMap<App.Locals, KitcmsInternals>();
@@ -112,6 +116,8 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 
 			event.locals.user = null;
 			event.locals.session = null;
+			let system: Cms | undefined;
+			const runtime = (): RuntimeContext => ({ env, cms: (system ??= systemReader(cmsFor(null))) });
 			let k: KitcmsInternals = {
 				config,
 				options,
@@ -121,7 +127,8 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 				user: null,
 				cmsFor,
 				storage: storage as StorageAdapter | undefined,
-				email: emailFor(config, env, dev),
+				email: emailFor(config, env, dev, () => runtime().cms),
+				runtime,
 			};
 			internals.set(event.locals, k);
 			event.locals.cms = k.cms as unknown as LocalAPI;

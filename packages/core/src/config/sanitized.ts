@@ -10,6 +10,7 @@
 // - Upload and auth collections include their built-in fields as ordinary sanitized fields.
 
 import type { AdminPanelDef, EntitlementsProvider, PluginEndpoint, PluginHandle } from './plugin';
+import type { Resolvable } from './resolvable';
 import type { BlockAdmin, DataFieldType, FieldAdmin } from './fields';
 import type {
 	CollectionAccess,
@@ -221,14 +222,20 @@ export interface SanitizedConfig {
 	/** Slug of the `auth: true` collection (added as `users` when the config has none). */
 	authCollection: string;
 	bindings: { db: string; bucket: string; email: string };
-	admin: { title: string; branding: SanitizedBranding };
+	admin: { title: Resolvable<string>; branding: SanitizedBranding };
 	media: { publicUrl?: string };
 	/** Plugins that contribute server code (Decision 33), in config order. */
 	plugins: SanitizedPlugin[];
 	/** Decision 34. Present whenever anything has an `entitlement`. */
 	entitlements?: EntitlementsProvider;
 	/** Decision 35. `null` = email disabled. */
-	email: { from: { address: string; name?: string }; replyTo?: string } | null;
+	email: SanitizedEmail | null;
+}
+
+/** Decision 35. Static values are validated at sanitize time, functions (Decision 36) when sending. */
+export interface SanitizedEmail {
+	from: Resolvable<{ address: string; name?: string }>;
+	replyTo?: Resolvable<string | undefined>;
 }
 
 /** A plugin's runtime parts (Decision 33), validated. */

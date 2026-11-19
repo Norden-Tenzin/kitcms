@@ -95,6 +95,8 @@ export type AdminData =
 	| (Base & { route: { view: 'create-first-user' } })
 	| (SignedIn & {
 			route: { view: 'dashboard' };
+			/** Plugin panels marked `dashboard: true`, loaded and validated. */
+			dashboardPanels: { plugin: string; id: string; label: string; content: PanelContent }[];
 			collections: (AdminNavItem & { description?: string; totalDocs: number })[];
 			globals: (AdminNavItem & { description?: string })[];
 	  })

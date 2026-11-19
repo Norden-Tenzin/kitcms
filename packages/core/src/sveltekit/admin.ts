@@ -29,6 +29,7 @@ import type { Cms } from '../api/types';
 import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import type { ClientCollection, ClientConfig, SanitizedCollection, SanitizedConfig } from '../config/sanitized';
 import { toClientConfig } from '../config/sanitize';
+import { resolveValue } from '../config/resolvable';
 import type { WhereInput } from '../config/where';
 import { isKitcmsError, ReferencedError, ValidationError } from '../errors';
 import { getKitcms, type KitcmsInternals } from './index';
@@ -248,13 +249,26 @@ function hiddenFields(col: SanitizedCollection, doc: Record<string, unknown>): s
 	return col.fields.filter((f) => f.admin.condition && !f.admin.condition(doc, doc)).map((f) => f.name);
 }
 
+/** `admin.title`, resolved for this request (Decision 36). A failing or empty function shows `'kitcms'`. */
+async function adminTitle(k: KitcmsInternals): Promise<string> {
+	const raw = k.config.admin.title;
+	if (typeof raw === 'string') return raw;
+	try {
+		const value = await resolveValue(raw, k.runtime());
+		return typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : 'kitcms';
+	} catch (err) {
+		console.error('kitcms: admin.title failed', err);
+		return 'kitcms';
+	}
+}
+
 // Explicit param/return types (not `ServerLoad`): SvelteKit infers the generated route's
 // `PageData` from the re-exported `load`'s return type.
 export const load = async (event: RequestEvent): Promise<AdminData> => {
 	const route = matchAdminRoute(event.params.path ?? '');
 	if (!route) error(404, 'Not found');
 	const { k, user, cms } = await requireAdmin(event, route.view);
-	const title = k.config.admin.title;
+	const title = await adminTitle(k);
 	const branding = k.config.admin.branding;
 	if (route.view === 'login') return { route, title, branding };
 	if (route.view === 'create-first-user') return { route, title, branding };
@@ -278,11 +292,26 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 	if (route.view === 'panel') {
 		const found = panels.find((p) => p.plugin === route.plugin && p.panel.id === route.panel);
 		if (!found) error(404, 'Not found');
-		const content = sanitizePanelContent(await found.panel.load({ req, cms }));
+		const content = sanitizePanelContent(await found.panel.load({ req, cms, runtime: k.runtime() }));
 		return { ...base, route, panel: { label: found.panel.label, content } };
 	}
 
 	if (route.view === 'dashboard') {
+		const dashboardPanels = (
+			await Promise.all(
+				panels
+					.filter(({ panel }) => panel.dashboard === true)
+					.map(async ({ plugin, panel }) => {
+						try {
+							const content = sanitizePanelContent(await panel.load({ req, cms, runtime: k.runtime() }));
+							return [{ plugin, id: panel.id, label: panel.label, content }];
+						} catch (err) {
+							console.error(`kitcms: dashboard panel ${plugin}/${panel.id} failed`, err);
+							return [];
+						}
+					}),
+			)
+		).flat();
 		const visible = await visibleCollections(k);
 		const counts = await Promise.all(
 			visible.map((c) => cms.count(c.slug, { draft: true }).catch(() => -1)), // -1: not readable
@@ -290,6 +319,7 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		return {
 			...base,
 			route,
+			dashboardPanels,
 			collections: visible.map((c, i) => ({
 				slug: c.slug,
 				label: c.labels.plural,

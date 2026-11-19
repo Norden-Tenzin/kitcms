@@ -82,6 +82,9 @@ function internalsFor(cfg: typeof config, d1: D1Database, u: KitcmsUser | null, 
 		user: u,
 		cmsFor,
 		email: { enabled: false, send: () => Promise.reject(new Error('no email')) },
+		runtime: () => {
+			throw new Error('no runtime');
+		},
 	};
 }
 

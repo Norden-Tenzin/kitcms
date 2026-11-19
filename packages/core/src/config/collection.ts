@@ -4,6 +4,7 @@
 import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { EntitlementsProvider, KitcmsPlugin } from './plugin';
+import type { Resolvable } from './resolvable';
 import type { InferFields, InferInput, Simplify } from './infer';
 import type { Sort } from './where';
 
@@ -297,10 +298,14 @@ export interface ConfigOptions {
 	 * binding) features that send email are disabled. In `vite dev` messages are logged, not sent.
 	 */
 	email?: {
-		/** The sender. The domain must be set up for Cloudflare Email Service. */
-		from: { address: string; name?: string };
-		/** Default reply-to address. */
-		replyTo?: string;
+		/**
+		 * The sender. The domain must be set up for Cloudflare Email Service. A function (Decision 36)
+		 * is resolved per message, e.g. the address from a Worker var and the name from a global; its
+		 * result is validated when the message is sent.
+		 */
+		from: Resolvable<{ address: string; name?: string }>;
+		/** Default reply-to address. A function is resolved per message; `undefined` = none. */
+		replyTo?: Resolvable<string | undefined>;
 	};
 	/**
 	 * Runtime add-on gating (Decision 34). Set by `@kitcms/plugin-entitlements`; collections, globals
@@ -310,8 +315,12 @@ export interface ConfigOptions {
 	admin?: {
 		/** Slug of the `auth: true` collection. Default: the one marked `auth: true`, else a built-in `users`. */
 		user?: string;
-		/** Shown in the admin header and the browser title. Default: `'kitcms'`. */
-		title?: string;
+		/**
+		 * Shown in the admin header and the browser title. Default: `'kitcms'`. A function (Decision 36)
+		 * is resolved per admin page, e.g. the site's name from a global; when it throws or returns an
+		 * empty value the admin shows `'kitcms'`.
+		 */
+		title?: Resolvable<string>;
 		branding?: Branding;
 	};
 	media?: {

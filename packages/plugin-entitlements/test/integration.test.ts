@@ -227,7 +227,7 @@ describe('plan panel', () => {
 	const load = (user: KitcmsUser | null = admin) => {
 		const cms = cmsFor(user);
 		const req = { user, context: {}, cms, source: 'admin' } as KitcmsReq;
-		return plugin.admin!.panels![0]!.load({ req, cms });
+		return plugin.admin!.panels![0]!.load({ req, cms, runtime: { env: {}, cms } });
 	};
 
 	it('shows the plan, on/locked add-ons, usage and the manage link', async () => {

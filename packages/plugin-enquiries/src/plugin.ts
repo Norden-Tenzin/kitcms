@@ -1,5 +1,5 @@
 import type { CollectionDef, Config, KitcmsPlugin, PluginEndpoint, PluginEndpointContext } from '@kitcms/core';
-import { collection, fields as f, ValidationError } from '@kitcms/core';
+import { collection, fields as f, resolveValue, ValidationError } from '@kitcms/core';
 import { deps } from './deps';
 import { renderEmail, renderSubject } from './email';
 import { jsonError, pageTarget, redirectWith } from './respond';
@@ -65,8 +65,11 @@ function validateOptions(options: EnquiriesOptions): void {
 		}
 		if (form.replyTo !== undefined && form.fields[form.replyTo]?.type !== 'email')
 			fail(`form "${name}": replyTo "${form.replyTo}" must be an email field of the form.`);
-		for (const addr of form.notify ?? [])
-			if (!isEmail(addr)) fail(`form "${name}": "${addr}" is not a valid notify address.`);
+		if (form.notify !== undefined && typeof form.notify !== 'function') {
+			if (!Array.isArray(form.notify)) fail(`form "${name}": notify must be a list of addresses or a function.`);
+			for (const addr of form.notify)
+				if (!isEmail(addr)) fail(`form "${name}": "${addr}" is not a valid notify address.`);
+		}
 		if (form.subject !== undefined) {
 			if (/[\r\n]/.test(form.subject)) fail(`form "${name}": subject must be a single line.`);
 			for (const m of form.subject.matchAll(/\{field:([^}]+)\}/g))
@@ -184,7 +187,11 @@ export function enquiries(options: EnquiriesOptions): KitcmsPlugin {
 	validateOptions(options);
 	const slug = options.collection ?? 'submissions';
 	const forms = new Map(Object.entries(options.forms));
-	const siteKey = options.turnstile?.siteKey ?? null;
+	const siteKeyOf = async (ctx: PluginEndpointContext): Promise<string | null> => {
+		if (!options.turnstile) return null;
+		const key = await resolveValue(options.turnstile.siteKey, ctx.runtime);
+		return typeof key === 'string' && key ? key : null;
+	};
 	const secretName = options.turnstile?.secret ?? 'TURNSTILE_SECRET';
 
 	const submit: PluginEndpoint = {
@@ -267,7 +274,7 @@ export function enquiries(options: EnquiriesOptions): KitcmsPlugin {
 				{ overrideAccess: true },
 			)) as unknown as { id: string };
 
-			if (form.notify?.length && ctx.email.enabled) {
+			if (form.notify !== undefined && ctx.email.enabled) {
 				const task = notify(ctx, slug, doc.id, form, data, pagePath);
 				if (!(await deps.waitUntil(task))) await task;
 			}
@@ -279,11 +286,11 @@ export function enquiries(options: EnquiriesOptions): KitcmsPlugin {
 		method: 'GET',
 		path: 'forms/:form',
 		access: 'public',
-		handler(ctx) {
+		async handler(ctx) {
 			const name = ctx.params.form!;
 			const form = forms.get(name);
 			if (!form) return jsonError(404, 'Unknown form.');
-			return Response.json(publicForm(name, form, siteKey), {
+			return Response.json(publicForm(name, form, await siteKeyOf(ctx)), {
 				headers: { 'cache-control': 'public, max-age=300' },
 			});
 		},
@@ -312,10 +319,13 @@ async function notify(
 	page: string | null,
 ): Promise<void> {
 	try {
+		const resolved = await resolveValue(form.notify ?? [], ctx.runtime);
+		const to = (Array.isArray(resolved) ? resolved : []).filter((a): a is string => typeof a === 'string' && isEmail(a));
+		if (!to.length) return; // nobody to tell: stored only (`notified` stays false)
 		const { text, html } = renderEmail(form, data, { page, id });
 		const reply = form.replyTo ? data[form.replyTo] : undefined;
 		await ctx.email.send({
-			to: form.notify!,
+			to: [...new Set(to)].slice(0, 50),
 			subject: renderSubject(form, data),
 			text,
 			html,
