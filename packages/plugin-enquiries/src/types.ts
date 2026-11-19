@@ -1,4 +1,5 @@
 // Public option types of @kitcms/plugin-enquiries.
+import type { Resolvable } from '@kitcms/core';
 
 export type EnquiryField =
 	| { type: 'text' | 'textarea'; label?: string; required?: boolean; maxLength?: number }
@@ -18,8 +19,12 @@ export type EnquiryField =
 export interface EnquiryForm {
 	label: string;
 	fields: Record<string, EnquiryField>;
-	/** Notification recipients (sent with core's email adapter). Empty/omitted = store only. */
-	notify?: string[];
+	/**
+	 * Notification recipients (sent with core's email adapter). Empty/omitted = store only. A function
+	 * (Decision 41) is resolved per submission, e.g. the contact email from a global; addresses it
+	 * returns that aren't valid are skipped.
+	 */
+	notify?: Resolvable<string[]>;
 	/** Subject template; `{form}` (the form label) and `{field:name}` placeholders, single line. Default `New {form} enquiry`. */
 	subject?: string;
 	/** Field whose value becomes the email reply-to (must be an `email` field). */
@@ -32,7 +37,12 @@ export interface EnquiriesOptions {
 	/** Submissions collection slug. Default `'submissions'`. */
 	collection?: string;
 	/** Cloudflare Turnstile. When set, every submission must carry a valid token. */
-	turnstile?: { siteKey: string; /** Worker secret name. Default `'TURNSTILE_SECRET'`. */ secret?: string };
+	turnstile?: {
+		/** The widget's site key. A function (Decision 41) is resolved per request, e.g. from a Worker var. */
+		siteKey: Resolvable<string | undefined>;
+		/** Worker secret name. Default `'TURNSTILE_SECRET'`. */
+		secret?: string;
+	};
 	/** Per-IP limit for the submit endpoint. Default `{ max: 5, window: 600 }` (seconds). */
 	rateLimit?: { max: number; window: number };
 	/** Optional add-on gate (Decision 34) for the plugin AND its collection. */

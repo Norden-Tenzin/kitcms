@@ -164,6 +164,7 @@ export async function handlePluginEndpoint(
 			cms: k.cmsFor(user, 'rest'),
 			body: cappedBody(event.request, endpoint.maxBodyBytes),
 			email: k.email,
+			runtime: k.runtime(),
 			ip,
 		});
 	} catch (err) {

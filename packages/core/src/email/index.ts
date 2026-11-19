@@ -1,8 +1,10 @@
 // Outgoing email (Decision 35, plan §17.3). Like `DbAdapter`/`StorageAdapter`: an internal adapter
 // interface with one implementation, the Workers `send_email` binding (Cloudflare Email Service).
 // Runtime-agnostic: no Node APIs.
+import type { Cms } from '../api/types';
 import type { EmailMessageInput, EmailSender } from '../config/plugin';
-import type { SanitizedConfig } from '../config/sanitized';
+import { resolveValue, type RuntimeContext } from '../config/resolvable';
+import type { SanitizedConfig, SanitizedEmail } from '../config/sanitized';
 import { KitcmsError, ValidationError } from '../errors';
 
 /** @internal The adapter behind `EmailSender`. */
@@ -36,11 +38,38 @@ const MAX_BODY = 1024 * 1024;
 const isAddress = (v: unknown): v is string =>
 	typeof v === 'string' && v.length <= 254 && ADDRESS.test(v);
 
+/** The sender settings for one message, with any functions (Decision 41) resolved. */
+export interface ResolvedEmailSettings {
+	from: { address: string; name?: string };
+	replyTo?: string;
+}
+
+/**
+ * Resolves `email.from` / `email.replyTo` for one message. A resolved sender must be a valid address
+ * (else `EmailNotConfiguredError`); its name is cleaned (no line breaks, `<`, `>` or `"`, at most
+ * 100 characters) since it often comes from content. An invalid resolved default reply-to is dropped:
+ * it usually comes from a site setting, and a typo there must not stop email.
+ */
+export async function resolveEmailSettings(settings: SanitizedEmail, ctx: RuntimeContext): Promise<ResolvedEmailSettings> {
+	const raw = await resolveValue(settings.from, ctx);
+	const address = (raw as { address?: unknown } | null)?.address;
+	if (!isAddress(address)) throw new EmailNotConfiguredError('`email.from` did not resolve to an email address.');
+	const name = String((raw as { name?: unknown }).name ?? '')
+		.replace(/[\r\n<>"]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, 100)
+		.trim();
+	const out: ResolvedEmailSettings = { from: name ? { address, name } : { address } };
+	if (settings.replyTo !== undefined) {
+		const replyTo = await resolveValue(settings.replyTo, ctx);
+		if (isAddress(replyTo)) out.replyTo = replyTo;
+	}
+	return out;
+}
+
 /** Validates a message (no header injection: no CR/LF in addresses or subject). Throws `ValidationError`. */
-export function toOutgoing(
-	config: NonNullable<SanitizedConfig['email']>,
-	message: EmailMessageInput,
-): OutgoingEmail {
+export function toOutgoing(config: ResolvedEmailSettings, message: EmailMessageInput): OutgoingEmail {
 	const errors: { path: string; message: string }[] = [];
 	const to = Array.isArray(message.to) ? message.to : [message.to];
 	if (to.length === 0 || to.length > MAX_RECIPIENTS)
@@ -121,12 +150,14 @@ export function createConsoleEmail(log: (...args: unknown[]) => void = console.i
 
 /**
  * The `EmailSender` for a request. Dev → console. No `config.email` or no binding → disabled
- * (`send` throws `EmailNotConfiguredError`).
+ * (`send` throws `EmailNotConfiguredError`). `systemCms` (the Local API acting as the system) feeds
+ * a function-valued sender (Decision 41); it is only called when one is configured.
  */
 export function emailFor(
 	config: SanitizedConfig,
 	env: Record<string, unknown>,
 	dev: boolean,
+	systemCms?: () => Cms,
 ): EmailSender {
 	const settings = config.email;
 	const binding = env[config.bindings.email] as SendEmailBinding | undefined;
@@ -141,7 +172,12 @@ export function emailFor(
 		enabled: adapter !== null,
 		async send(message) {
 			if (!adapter || !settings) throw new EmailNotConfiguredError(reason);
-			return adapter.send(toOutgoing(settings, message));
+			const needsContext = typeof settings.from === 'function' || typeof settings.replyTo === 'function';
+			if (needsContext && !systemCms) throw new EmailNotConfiguredError('no runtime context for `email.from`.');
+			const resolved = needsContext
+				? await resolveEmailSettings(settings, { env, cms: systemCms!() })
+				: (settings as ResolvedEmailSettings);
+			return adapter.send(toOutgoing(resolved, message));
 		},
 	};
 }

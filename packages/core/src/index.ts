@@ -2,6 +2,8 @@
 export { fields } from './config/fields';
 export { block, collection, defineConfig, global } from './config/collection';
 export { defineSeed } from './seed';
+export { resolveValue } from './config/resolvable';
+export type { Resolvable, RuntimeContext } from './config/resolvable';
 export type { SeedContext, SeedFn } from './seed';
 
 export type * from './config/fields';
@@ -43,6 +45,7 @@ export {
 	isKitcmsError,
 	KitcmsError,
 	NotFoundError,
+	ReadOnlyError,
 	UnauthorizedError,
 	ValidationError,
 } from './errors';

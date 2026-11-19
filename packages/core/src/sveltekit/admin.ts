@@ -29,6 +29,9 @@ import type { Cms } from '../api/types';
 import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import type { ClientCollection, ClientConfig, SanitizedCollection, SanitizedConfig } from '../config/sanitized';
 import { toClientConfig } from '../config/sanitize';
+import { adminTitle } from './title';
+import { passwordLink } from './password-link';
+import { isReadOnly } from '../runtime';
 import type { WhereInput } from '../config/where';
 import { isKitcmsError, ReferencedError, ValidationError } from '../errors';
 import { getKitcms, type KitcmsInternals } from './index';
@@ -40,6 +43,8 @@ export function matchAdminRoute(path: string): AdminRoute | null {
 	if (parts.length === 0) return { view: 'dashboard' };
 	if (parts.length === 1 && parts[0] === 'login') return { view: 'login' };
 	if (parts.length === 1 && parts[0] === 'create-first-user') return { view: 'create-first-user' };
+	if (parts.length === 1 && parts[0] === 'forgot-password') return { view: 'forgot-password' };
+	if (parts.length === 1 && parts[0] === 'reset-password') return { view: 'reset-password' };
 	if (parts[0] === 'globals' && parts.length === 2 && parts[1]) return { view: 'global', global: parts[1] };
 	if (parts[0] === 'globals' && parts.length === 3 && parts[1] && parts[2] === 'versions') {
 		return { view: 'versions', global: parts[1] };
@@ -251,13 +256,28 @@ function hiddenFields(col: SanitizedCollection, doc: Record<string, unknown>): s
 // Explicit param/return types (not `ServerLoad`): SvelteKit infers the generated route's
 // `PageData` from the re-exported `load`'s return type.
 export const load = async (event: RequestEvent): Promise<AdminData> => {
+	const data = await loadView(event);
+	if (!isReadOnly(getKitcms(event.locals).env)) return data;
+	// Read-only deployment: say so, and offer no create/save/delete (the writes would be refused anyway).
+	const none = { create: false, update: false, delete: false };
+	return { ...data, readOnly: true, ...('permissions' in data ? { permissions: none } : {}) } as AdminData;
+};
+
+const loadView = async (event: RequestEvent): Promise<AdminData> => {
 	const route = matchAdminRoute(event.params.path ?? '');
 	if (!route) error(404, 'Not found');
 	const { k, user, cms } = await requireAdmin(event, route.view);
-	const title = k.config.admin.title;
+	const title = await adminTitle(k);
 	const branding = k.config.admin.branding;
-	if (route.view === 'login') return { route, title, branding };
+	if (route.view === 'login') return { route, title, branding, emailEnabled: k.email.enabled };
 	if (route.view === 'create-first-user') return { route, title, branding };
+	if (route.view === 'forgot-password') return { route, title, branding, emailEnabled: k.email.enabled };
+	if (route.view === 'reset-password') {
+		const token = (event.url.searchParams.get('token') ?? '').slice(0, 100);
+		const { peekPasswordToken } = await auth();
+		const link = token ? await peekPasswordToken(k, token) : null;
+		return { route, title, branding, token, link };
+	}
 	if (!user) error(401, 'Unauthorized'); // unreachable: requireAdmin redirects
 	const req = sysReq(k, user);
 	const panels = await visiblePanels(k, req);
@@ -278,11 +298,26 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 	if (route.view === 'panel') {
 		const found = panels.find((p) => p.plugin === route.plugin && p.panel.id === route.panel);
 		if (!found) error(404, 'Not found');
-		const content = sanitizePanelContent(await found.panel.load({ req, cms }));
+		const content = sanitizePanelContent(await found.panel.load({ req, cms, runtime: k.runtime() }));
 		return { ...base, route, panel: { label: found.panel.label, content } };
 	}
 
 	if (route.view === 'dashboard') {
+		const dashboardPanels = (
+			await Promise.all(
+				panels
+					.filter(({ panel }) => panel.dashboard === true)
+					.map(async ({ plugin, panel }) => {
+						try {
+							const content = sanitizePanelContent(await panel.load({ req, cms, runtime: k.runtime() }));
+							return [{ plugin, id: panel.id, label: panel.label, content }];
+						} catch (err) {
+							console.error(`kitcms: dashboard panel ${plugin}/${panel.id} failed`, err);
+							return [];
+						}
+					}),
+			)
+		).flat();
 		const visible = await visibleCollections(k);
 		const counts = await Promise.all(
 			visible.map((c) => cms.count(c.slug, { draft: true }).catch(() => -1)), // -1: not readable
@@ -290,6 +325,7 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		return {
 			...base,
 			route,
+			dashboardPanels,
 			collections: visible.map((c, i) => ({
 				slug: c.slug,
 				label: c.labels.plural,
@@ -423,7 +459,7 @@ export const load = async (event: RequestEvent): Promise<AdminData> => {
 		for (const f of col.fields) {
 			if (f.defaultValue !== undefined && typeof f.defaultValue !== 'function') doc[f.name] = f.defaultValue;
 		}
-		return { ...base, route, collection: client, permissions: perms, doc };
+		return { ...base, route, collection: client, permissions: perms, doc, ...(col.auth && k.email.enabled ? { canInvite: true } : {}) };
 	}
 
 	const doc = await cms.findByID(col.slug, route.id, { draft: true }).catch((err: unknown) => {
@@ -519,6 +555,38 @@ export const actions: Actions = {
 		redirect(303, adminUrl(''));
 	},
 
+	forgotPassword: async (event) => {
+		checkOrigin(event);
+		const k = getKitcms(event.locals);
+		const form = await event.request.formData();
+		const { forgotPassword } = await auth();
+		const result = await forgotPassword(k, {
+			email: formString(form, 'email'),
+			ip: event.request.headers.get('cf-connecting-ip'),
+			link: passwordLink(k, event.url),
+			title: await adminTitle(k),
+		});
+		if (!result.ok) return fail(result.status, { message: result.message } satisfies AdminActionData);
+		return { resetRequested: true } satisfies AdminActionData;
+	},
+
+	resetPassword: async (event) => {
+		checkOrigin(event);
+		const k = getKitcms(event.locals);
+		const form = await event.request.formData();
+		const password = formString(form, 'password');
+		if (password !== formString(form, 'confirm')) {
+			return fail(400, { message: 'The two passwords are not the same.' } satisfies AdminActionData);
+		}
+		const { resetPassword, signIn } = await auth();
+		const ip = event.request.headers.get('cf-connecting-ip');
+		const result = await resetPassword(k, { token: formString(form, 'token'), newPassword: password, ip });
+		if (!result.ok) return fail(result.status, { message: result.message } satisfies AdminActionData);
+		// Sign in with the new password (all earlier sessions were revoked).
+		const signedIn = await signIn(k, { email: result.email, password, headers: event.request.headers });
+		redirect(303, adminUrl(signedIn.ok ? '' : 'login'));
+	},
+
 	logout: async (event) => {
 		checkOrigin(event);
 		const k = getKitcms(event.locals);
@@ -566,7 +634,10 @@ export const actions: Actions = {
 		if (route.view === 'create') {
 			let id: string;
 			try {
-				if (col.auth) {
+				if (col.auth && formString(form, FORM.invite) === 'on') {
+					const { createUserWithInvite } = await auth();
+					id = (await createUserWithInvite(k, data, { link: passwordLink(k, event.url), title: await adminTitle(k) })).id;
+				} else if (col.auth) {
 					const { createUserWithPassword } = await auth();
 					const doc = await createUserWithPassword(k, {
 						...data,

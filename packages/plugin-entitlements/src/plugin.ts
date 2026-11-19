@@ -5,7 +5,7 @@ import type {
 	KitcmsPlugin,
 	PanelBlock,
 } from '@kitcms/core';
-import { ForbiddenError } from '@kitcms/core';
+import { ForbiddenError, resolveValue, type Resolvable } from '@kitcms/core';
 import { parseEntitlements, type Entitlements } from './parse';
 
 export interface EntitlementsOptions {
@@ -16,7 +16,7 @@ export interface EntitlementsOptions {
 	/** Known add-ons, so the panel can show locked ones too: `{ booking: { label: 'Booking', description? } }`. */
 	addons?: Record<string, { label: string; description?: string }>;
 	/** Shown as a "Manage plan" link in the panel (https only; core drops anything else). */
-	manageUrl?: string;
+	manageUrl?: Resolvable<string | undefined>;
 }
 
 const DEFAULT_VARIABLE = 'KITCMS_ENTITLEMENTS';
@@ -178,7 +178,7 @@ export function entitlements(options: EntitlementsOptions = {}): KitcmsPlugin {
 				{
 					id: 'plan',
 					label: 'Plan & add-ons',
-					async load({ cms }) {
+					async load({ cms, runtime }) {
 						const ent = await provider.get();
 						const blocks: PanelBlock[] = [
 							{ type: 'heading', text: ent.valid ? `Plan: ${ent.plan}` : 'Plan unknown' },
@@ -223,8 +223,8 @@ export function entitlements(options: EntitlementsOptions = {}): KitcmsPlugin {
 							}
 						}
 
-						if (options.manageUrl)
-							blocks.push({ type: 'link', label: 'Manage plan', href: options.manageUrl });
+						const manageUrl = options.manageUrl === undefined ? undefined : await resolveValue(options.manageUrl, runtime);
+						if (manageUrl) blocks.push({ type: 'link', label: 'Manage plan', href: manageUrl });
 						return { blocks };
 					},
 				},

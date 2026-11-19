@@ -4,6 +4,8 @@
 import type { BlockAdmin, BlockDef, Fields } from './fields';
 import type { CollectionAccess, CollectionHooks, KitcmsReq } from './hooks';
 import type { EntitlementsProvider, KitcmsPlugin } from './plugin';
+import type { Resolvable } from './resolvable';
+import type { SeedFn } from '../seed';
 import type { InferFields, InferInput, Simplify } from './infer';
 import type { Sort } from './where';
 
@@ -297,10 +299,32 @@ export interface ConfigOptions {
 	 * binding) features that send email are disabled. In `vite dev` messages are logged, not sent.
 	 */
 	email?: {
-		/** The sender. The domain must be set up for Cloudflare Email Service. */
-		from: { address: string; name?: string };
-		/** Default reply-to address. */
-		replyTo?: string;
+		/**
+		 * The sender. The domain must be set up for Cloudflare Email Service. A function (Decision 41)
+		 * is resolved per message, e.g. the address from a Worker var and the name from a global; its
+		 * result is validated when the message is sent.
+		 */
+		from: Resolvable<{ address: string; name?: string }>;
+		/** Default reply-to address. A function is resolved per message; `undefined` = none. */
+		replyTo?: Resolvable<string | undefined>;
+	};
+	/**
+	 * Trusted server-to-server setup (Decision 43): a hosting platform provisioning a deployment
+	 * calls `POST /api/system/seed/:name` and `POST /api/system/users` with
+	 * `Authorization: Bearer <token>`. Off (404) unless the Worker secret holds a token of at least
+	 * 32 characters.
+	 */
+	system?: {
+		/** Worker secret holding the token. Default `'KITCMS_SYSTEM_TOKEN'`. */
+		secret?: string;
+		/**
+		 * Seeds the system may run by name, built from the request's JSON `input` (validate it):
+		 * `{ starter: (input) => starterSeed(parse(input)) }`. They run inside the Worker, so
+		 * `ensureUpload` needs bytes, not file paths. Type a seed used here as `SeedFn<Config>`
+		 * (not the default, registered config): the config refers to it, so the registered type
+		 * would refer to itself.
+		 */
+		seeds?: Record<string, (input: unknown) => SeedFn<Config> | Promise<SeedFn<Config>>>;
 	};
 	/**
 	 * Runtime add-on gating (Decision 34). Set by `@kitcms/plugin-entitlements`; collections, globals
@@ -310,8 +334,12 @@ export interface ConfigOptions {
 	admin?: {
 		/** Slug of the `auth: true` collection. Default: the one marked `auth: true`, else a built-in `users`. */
 		user?: string;
-		/** Shown in the admin header and the browser title. Default: `'kitcms'`. */
-		title?: string;
+		/**
+		 * Shown in the admin header and the browser title. Default: `'kitcms'`. A function (Decision 41)
+		 * is resolved per admin page, e.g. the site's name from a global; when it throws or returns an
+		 * empty value the admin shows `'kitcms'`.
+		 */
+		title?: Resolvable<string>;
 		branding?: Branding;
 	};
 	media?: {
