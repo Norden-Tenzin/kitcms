@@ -14,7 +14,7 @@ kitcms runs only on Workers, D1 and R2. There is no Node server, other database 
 
 ## On your machine
 
-- **Node.js 22 or newer** and **pnpm**, for the `create-kitcms` scaffolder and the `kitcms` CLI.
+- **Node.js 22.12 or newer** and **pnpm**, for the `create-kitcms` scaffolder and the `kitcms` CLI.
 - A Cloudflare account and `wrangler login`, only when you create resources or deploy. Local development uses a local D1 and R2 and needs no account.
 
 ## Stack
