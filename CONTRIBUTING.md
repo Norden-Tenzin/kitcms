@@ -4,7 +4,7 @@ Thanks for helping. This guide covers how to run kitcms locally, how to test a c
 
 ## Requirements
 
-- Node 22 or newer
+- Node 22.18 or newer (the workspace imports TypeScript sources directly)
 - pnpm (the version is pinned in `package.json` → `packageManager`, so `corepack enable` picks it up)
 - No Cloudflare account. Everything runs locally against Miniflare's D1 and R2.
 
