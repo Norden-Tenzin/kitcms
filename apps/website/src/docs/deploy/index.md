@@ -63,11 +63,10 @@ Optionally set `BETTER_AUTH_URL` to your public origin, for example `https://exa
 ## 4. Build and deploy
 
 ```sh
-pnpm build
 pnpm run deploy
 ```
 
-`wrangler.jsonc` points `main` at the build output, so build before you deploy. Wrangler prints the `workers.dev` URL.
+The `deploy` script runs `pnpm build`, then `wrangler deploy` (`wrangler.jsonc` points `main` at the build output). Wrangler prints the `workers.dev` URL.
 
 ## 5. Seed content (optional)
 
@@ -108,6 +107,6 @@ For each release of your app:
 
 1. If the schema changed: `pnpm db:generate <name>`, review the SQL and commit it.
 2. `pnpm exec kitcms migrate --remote`
-3. `pnpm build && pnpm run deploy`
+3. `pnpm run deploy`
 
 Migrate first. The old code keeps working against the added columns for the short time before the new code goes live. For breaking schema changes such as a renamed field, plan a two-step change: add the new field and deploy, copy the data, then drop the old one.

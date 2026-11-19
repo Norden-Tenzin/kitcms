@@ -43,7 +43,7 @@ Open <http://localhost:5173> for the site and <http://localhost:5173/admin> for 
 | `pnpm db:seed` / `pnpm db:seed:remote` | Run `src/kitcms.seed.ts` against the local / production D1. |
 | `pnpm types` | Regenerate the typed config declarations. |
 | `pnpm check` | `svelte-check`. |
-| `pnpm run deploy` | `wrangler deploy`. |
+| `pnpm run deploy` | `pnpm build`, then `wrangler deploy`. |
 
 ## Where things live
 

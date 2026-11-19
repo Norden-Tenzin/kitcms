@@ -8,7 +8,7 @@
 		"build": "vite build",
 		"preview": "pnpm build && wrangler dev",
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"deploy": "wrangler deploy",
+		"deploy": "pnpm build && wrangler deploy",
 		"db:generate": "kitcms migrate:create",
 		"db:migrate": "kitcms migrate",
 		"db:migrate:remote": "kitcms migrate --remote",

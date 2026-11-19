@@ -35,7 +35,7 @@ The full promise is in the [semver and upgrade policy](../reference/semver.md).
 
    ```sh
    pnpm exec kitcms migrate --remote
-   pnpm build && pnpm run deploy
+   pnpm run deploy
    ```
 
 ## Before 1.0
