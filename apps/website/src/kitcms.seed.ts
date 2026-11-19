@@ -2,6 +2,7 @@
 // Idempotent: every document is created only when it does not exist yet, so running it again never
 // overwrites what the editor changed. No media is seeded (blocks handle missing images).
 import { defineSeed, type RichTextDoc, type RichTextNode } from '@kitcms/core';
+import { GITHUB, siteDefaults } from '#lib/site-defaults.ts';
 
 // ---- Tiptap JSON helpers ----------------------------------------------------------------------
 
@@ -23,8 +24,6 @@ const doc = (...content: RichTextNode[]): RichTextDoc => ({ type: 'doc', content
 
 // ---- Copy -------------------------------------------------------------------------------------
 
-const GITHUB = 'https://github.com/Norden-Tenzin/kitcms';
-const NPM = 'https://www.npmjs.com/package/create-kitcms';
 const INSTALL = 'pnpm create kitcms@latest my-site';
 
 const CONFIG_SAMPLE = `import { collection, defineConfig, fields as f } from '@kitcms/core';
@@ -206,36 +205,6 @@ export default defineSeed(async ({ ensure, ensureGlobal, log }) => {
 	});
 
 	// Site settings
-	await ensureGlobal('site', {
-		siteName: 'kitcms',
-		tagline: 'The CMS for SvelteKit on Cloudflare.',
-		githubUrl: GITHUB,
-		npmUrl: NPM,
-		nav: [
-			{ label: 'Docs', href: '/docs' },
-			{ label: 'Changelog', href: '/blog' },
-			{ label: 'GitHub', href: GITHUB },
-		],
-		footerColumns: [
-			{
-				title: 'Docs',
-				links: [
-					{ label: 'Getting started', href: '/docs/getting-started' },
-					{ label: 'Configuration', href: '/docs/configuration' },
-					{ label: 'Deploy', href: '/docs/deploy' },
-				],
-			},
-			{
-				title: 'Project',
-				links: [
-					{ label: 'GitHub', href: GITHUB },
-					{ label: 'npm', href: NPM },
-					{ label: 'Changelog', href: '/blog' },
-					{ label: 'License', href: `${GITHUB}/blob/main/LICENSE` },
-				],
-			},
-		],
-		footerNote: 'MIT licensed. This site is a kitcms app running on Cloudflare Workers.',
-	});
+	await ensureGlobal('site', siteDefaults);
 	log('Seed done. Open /admin to edit it.');
 });
