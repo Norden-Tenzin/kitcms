@@ -1,5 +1,13 @@
 # @kitcms/plugin-enquiries
 
+## 0.1.3
+
+### Patch Changes
+
+- e85389c: READMEs link to their pages on kitcms.dev/docs. `create-kitcms` ends with a link to the deploy guide and a reminder to create the admin account right after the first deploy.
+- Updated dependencies [e85389c]
+  - @kitcms/core@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
