@@ -35,6 +35,9 @@
 
 {#if imageId}<ResolveMedia id={imageId} {onresolve} />{/if}
 
+<!-- The preview pane resets inherited styles (`all: initial`), so the page's base type is set here. -->
+<div class="pv">
+
 {#if block.blockType === 'hero'}
 	<Hero block={block as unknown as BlockOf<'hero'>} />
 {:else if block.blockType === 'features'}
@@ -50,3 +53,15 @@
 {:else if block.blockType === 'richText'}
 	<RichTextBlock block={block as unknown as BlockOf<'richText'>} />
 {/if}
+</div>
+
+<style>
+	.pv {
+		background: var(--bg);
+		color: var(--fg);
+		color-scheme: light dark;
+		font-family: var(--font-sans);
+		font-size: 1.0625rem;
+		line-height: 1.6;
+	}
+</style>

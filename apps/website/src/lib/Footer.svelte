@@ -77,6 +77,6 @@
 		overflow: hidden;
 		color: var(--surface-2);
 		user-select: none;
-		translate: 0 0.12em;
+		translate: 0 0.04em;
 	}
 </style>

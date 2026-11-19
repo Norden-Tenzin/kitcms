@@ -252,3 +252,48 @@
 :where(.site, .kitcms-preview) :where(.tok-punct) {
 	color: var(--tok-punct);
 }
+
+/* In the admin preview the pane is narrower than the viewport, so size by the pane instead. */
+.kitcms-preview {
+	container-type: inline-size;
+	--gutter: clamp(1rem, 0.4rem + 3cqi, 2.5rem);
+	--section: clamp(3rem, 2rem + 6cqi, 8.5rem);
+}
+.kitcms-preview :where(h1) {
+	font-size: clamp(2.25rem, 1rem + 6.2cqi, 5.75rem);
+}
+.kitcms-preview :where(h2) {
+	font-size: clamp(1.9rem, 1.2rem + 3.2cqi, 3.5rem);
+}
+
+/* The admin sets element-level styles (a, h1, ...) that beat the zero-specificity rules above, so
+   the few that matter in the preview are repeated with a class. */
+.kitcms-preview :is(h1, h2, h3, h4, p, li, a, button, summary) {
+	font-family: inherit;
+}
+.kitcms-preview a {
+	color: inherit;
+}
+.kitcms-preview .btn {
+	color: var(--accent-ink);
+}
+.kitcms-preview .btn.secondary {
+	color: var(--fg);
+}
+.kitcms-preview .prose a {
+	color: var(--accent);
+}
+.kitcms-preview :is(h1, h2, h3, h4) {
+	color: inherit;
+	font-weight: 650;
+	letter-spacing: -0.025em;
+	line-height: 1.08;
+}
+.kitcms-preview h1 {
+	font-weight: 700;
+	letter-spacing: -0.04em;
+	line-height: 1;
+}
+.kitcms-preview :is(code, pre) {
+	font-family: var(--font-mono);
+}
