@@ -10,6 +10,7 @@ vi.mock('$app/server', () => ({
 }));
 vi.mock('$app/env', () => ({ dev: false, building: false }));
 
+import type { RuntimeContext } from '@kitcms/core';
 import { booking, json, setup, validBooking, type Env } from './harness';
 
 let env: Env | undefined;
@@ -32,7 +33,7 @@ describe('notify as a function', () => {
 			forms: {
 				booking: {
 					...booking,
-					notify: async ({ env: workerEnv, cms }) => {
+					notify: async ({ env: workerEnv, cms }: RuntimeContext) => {
 						seen.push(Boolean(workerEnv.DB), typeof cms.find);
 						return ['owner@hotel.test', 'not an email', 'owner@hotel.test'];
 					},
