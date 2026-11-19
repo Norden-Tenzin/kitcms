@@ -180,6 +180,8 @@ async function render(file: SourceFile, byRel: Map<string, SourceFile>) {
 		.use(rehypeShiki, {
 			themes: { light: 'github-light', dark: 'github-dark' },
 			defaultColor: false,
+			// github-dark comments (#6a737d) are ~3.9:1 on the dark code background; lift them to AA.
+			colorReplacements: { 'github-dark': { '#6a737d': '#8b949e' } },
 			langs: [...LANGS],
 			fallbackLanguage: 'text',
 			// Scrollable code must be reachable by keyboard.
