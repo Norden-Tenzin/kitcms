@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('cloudflare:workers', () => ({ WorkerEntrypoint: class {} }));
-vi.mock('../runtime', () => ({ dbFor: vi.fn(), storageFor: vi.fn() }));
+vi.mock('../runtime', () => ({ dbFor: vi.fn(), storageFor: vi.fn(), isReadOnly: () => false }));
 
 const { readRpcOptions } = await import('./index');
 const ALL = ['where', 'sort', 'limit', 'page', 'depth', 'pagination', 'as'] as const;

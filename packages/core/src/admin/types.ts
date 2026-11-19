@@ -60,6 +60,8 @@ interface Base {
 	title: string;
 	/** `admin.branding` from the config (§13.6): logo and accent colours, already validated. */
 	branding: SanitizedBranding;
+	/** The deployment is read-only (`KITCMS_READ_ONLY`): show it, and offer no writes. */
+	readOnly?: boolean;
 }
 
 interface SignedIn extends Base {

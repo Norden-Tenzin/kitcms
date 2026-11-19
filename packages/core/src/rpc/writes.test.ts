@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('cloudflare:workers', () => ({ WorkerEntrypoint: class {} }));
 const dbFor = vi.fn<(...a: unknown[]) => object>(() => ({}));
-vi.mock('../runtime', () => ({ dbFor, storageFor: vi.fn(() => undefined) }));
+vi.mock('../runtime', () => ({ dbFor, storageFor: vi.fn(() => undefined), isReadOnly: () => false }));
 
 const calls: { method: string; args: unknown[] }[] = [];
 vi.mock('../api/local', () => ({

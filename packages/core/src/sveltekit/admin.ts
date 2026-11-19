@@ -30,6 +30,7 @@ import type { KitcmsReq, KitcmsUser } from '../config/hooks';
 import type { ClientCollection, ClientConfig, SanitizedCollection, SanitizedConfig } from '../config/sanitized';
 import { toClientConfig } from '../config/sanitize';
 import { resolveValue } from '../config/resolvable';
+import { isReadOnly } from '../runtime';
 import type { WhereInput } from '../config/where';
 import { isKitcmsError, ReferencedError, ValidationError } from '../errors';
 import { getKitcms, type KitcmsInternals } from './index';
@@ -265,6 +266,14 @@ async function adminTitle(k: KitcmsInternals): Promise<string> {
 // Explicit param/return types (not `ServerLoad`): SvelteKit infers the generated route's
 // `PageData` from the re-exported `load`'s return type.
 export const load = async (event: RequestEvent): Promise<AdminData> => {
+	const data = await loadView(event);
+	if (!isReadOnly(getKitcms(event.locals).env)) return data;
+	// Read-only deployment: say so, and offer no create/save/delete (the writes would be refused anyway).
+	const none = { create: false, update: false, delete: false };
+	return { ...data, readOnly: true, ...('permissions' in data ? { permissions: none } : {}) } as AdminData;
+};
+
+const loadView = async (event: RequestEvent): Promise<AdminData> => {
 	const route = matchAdminRoute(event.params.path ?? '');
 	if (!route) error(404, 'Not found');
 	const { k, user, cms } = await requireAdmin(event, route.view);

@@ -45,6 +45,7 @@ export {
 	isKitcmsError,
 	KitcmsError,
 	NotFoundError,
+	ReadOnlyError,
 	UnauthorizedError,
 	ValidationError,
 } from './errors';

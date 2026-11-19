@@ -54,6 +54,17 @@ export class ForbiddenError extends KitcmsError {
 	}
 }
 
+/**
+ * Thrown by every write while the deployment is read-only (`KITCMS_READ_ONLY`, e.g. a site whose
+ * subscription is paused). Reads, sign-in and sign-out keep working.
+ */
+export class ReadOnlyError extends ForbiddenError {
+	constructor(message = 'This website is paused, so changes are switched off.') {
+		super(message);
+		this.name = 'ReadOnlyError';
+	}
+}
+
 export class UnauthorizedError extends KitcmsError {
 	constructor(message = 'Sign in to continue.') {
 		super('UNAUTHORIZED', 401, message);

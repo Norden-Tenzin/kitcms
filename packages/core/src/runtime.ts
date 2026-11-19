@@ -61,3 +61,12 @@ export function storageFor(
 ): PipelineStorage | undefined {
 	return storageAdapterFor(config, env, base);
 }
+
+/** The Worker var that makes a deployment read-only (e.g. a paused site): `1` or `true`. */
+export const READ_ONLY_VAR = 'KITCMS_READ_ONLY';
+
+/** Whether this deployment is read-only (`KITCMS_READ_ONLY=1`). Every content write is refused. */
+export function isReadOnly(env: Record<string, unknown>): boolean {
+	const v = env[READ_ONLY_VAR];
+	return v === true || (typeof v === 'string' && ['1', 'true', 'yes'].includes(v.trim().toLowerCase()));
+}

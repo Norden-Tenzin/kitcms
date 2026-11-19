@@ -182,6 +182,9 @@
 				{/each}
 			</nav>
 			<main class="content">
+				{#if data.readOnly}
+					<p class="kc-alert read-only" role="status" data-testid="read-only">This website is paused, so changes are switched off. You can still look around.</p>
+				{/if}
 				{#if dashboard}
 					<Dashboard data={dashboard} />
 				{:else if list}

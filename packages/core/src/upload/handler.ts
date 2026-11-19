@@ -4,7 +4,8 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { markUploadWrite, UPLOAD_FIELDS } from '../access/engine';
 import { parseFormData } from '../admin/form';
 import type { KitcmsReq } from '../config/hooks';
-import { isKitcmsError, ValidationError, type FieldError } from '../errors';
+import { isKitcmsError, ReadOnlyError, ValidationError, type FieldError } from '../errors';
+import { isReadOnly } from '../runtime';
 import type { KitcmsInternals } from '../sveltekit/index';
 import { ulid } from '../ulid';
 import {
@@ -38,6 +39,8 @@ export async function handleUpload(
 	const col = k.config.collectionsBySlug[slug];
 	if (!col) return fail(404, `Unknown collection "${slug}".`);
 	if (!col.upload) return fail(400, `Collection "${slug}" does not accept uploads.`);
+	// Refuse before touching R2 (the write itself would be refused too, after the upload).
+	if (isReadOnly(k.env)) return fail(403, new ReadOnlyError().message);
 	const storage = k.storage;
 	if (!storage || !k.user) return fail(500, 'File storage is not configured.');
 	const { mimeTypes, maxFileSize } = col.upload;

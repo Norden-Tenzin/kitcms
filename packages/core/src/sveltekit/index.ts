@@ -24,7 +24,7 @@ import type { DbAdapter } from '../db/adapter';
 import { dev } from '$app/env';
 import { parseBaseOrigin, useSecureCookies } from '../auth/cookies';
 import { readBookmarkCookie, serializeBookmarkCookie, sessionStartFor } from '../db/session';
-import { dbFor, storageFor } from '../runtime';
+import { dbFor, isReadOnly, storageFor } from '../runtime';
 import type { StorageAdapter } from '../storage/adapter';
 import { needsSession, stripBase } from './paths';
 import { entitled } from '../access/entitlements';
@@ -110,9 +110,10 @@ export function kitcms(options: KitcmsOptions): { handle: Handle; config: Saniti
 			let db = dbFor(config, env, 'first-unconstrained');
 			const pathname = stripBase(event.url.pathname, basePath(event.url));
 			const storage = storageFor(config, env, basePath);
+			const readOnly = isReadOnly(env);
 
 			const cmsFor = (user: KitcmsUser | null, source: 'local' | 'admin' | 'rest' = 'local') =>
-				createLocalApi({ config, db, storage, user, source, event, waitUntil });
+				createLocalApi({ config, db, storage, user, source, event, waitUntil, readOnly });
 
 			event.locals.user = null;
 			event.locals.session = null;

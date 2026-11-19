@@ -32,7 +32,7 @@ import { sanitizeConfig } from '../config/sanitize';
 import type { SanitizedConfig } from '../config/sanitized';
 import type { WhereInput } from '../config/where';
 import { ForbiddenError, isKitcmsError, QueryError } from '../errors';
-import { dbFor, storageFor } from '../runtime';
+import { dbFor, isReadOnly, storageFor } from '../runtime';
 
 /** Options a consumer may pass to `find` / `findOne`. */
 export interface RpcFindOptions {
@@ -189,6 +189,7 @@ function rpcCms(
 		user: null,
 		source: 'rpc',
 		waitUntil: (p) => ctx.waitUntil(p),
+		readOnly: isReadOnly(env),
 	});
 }
 
