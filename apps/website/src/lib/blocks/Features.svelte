@@ -6,16 +6,20 @@
 	let { block }: { block: BlockOf<'features'> } = $props();
 </script>
 
-<section class="section">
-	<div class="container">
-		{#if block.title}<h2>{block.title}</h2>{/if}
-		{#if block.intro}<p class="lead intro">{block.intro}</p>{/if}
-		<ul class="grid">
+<section class="section features">
+	<div class="container layout">
+		<header>
+			{#if block.title}<h2>{block.title}</h2>{/if}
+			{#if block.intro}<p class="lead">{block.intro}</p>{/if}
+		</header>
+		<ul class="items">
 			{#each block.items ?? [] as item, i (item?.id ?? i)}
 				<li>
-					<span class="icon"><Icon name={item?.icon} /></span>
-					<h3>{item?.title ?? ''}</h3>
-					{#if item?.text}<p class="muted">{item.text}</p>{/if}
+					<h3>
+						<span class="icon"><Icon name={item?.icon} size={22} /></span>
+						{item?.title ?? ''}
+					</h3>
+					{#if item?.text}<p class="text">{item.text}</p>{/if}
 				</li>
 			{/each}
 		</ul>
@@ -23,34 +27,53 @@
 </section>
 
 <style>
-	.intro {
-		max-width: var(--measure);
+	.features {
+		background: var(--surface);
 	}
-	.grid {
+	.layout {
 		display: grid;
-		gap: 1.5rem;
-		margin: 2rem 0 0;
+		gap: 2.5rem;
+	}
+	header :global(.lead) {
+		max-width: 28rem;
+	}
+	.items {
+		display: grid;
+		gap: 2.25rem 3rem;
+		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
-	li {
-		padding: 1.25rem;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
+	h3 {
+		display: flex;
+		align-items: baseline;
+		gap: 0.6rem;
+		margin-bottom: 0.4rem;
 	}
 	.icon {
 		display: inline-flex;
-		margin-bottom: 0.75rem;
+		flex: none;
+		align-self: center;
 		color: var(--accent);
 	}
+	.text {
+		margin: 0;
+		color: var(--muted);
+	}
 	@media (min-width: 40rem) {
-		.grid {
-			grid-template-columns: repeat(2, 1fr);
+		.items {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 	}
 	@media (min-width: 64rem) {
-		.grid {
-			grid-template-columns: repeat(3, 1fr);
+		.layout {
+			grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+			gap: 4rem;
+			align-items: start;
+		}
+		header {
+			position: sticky;
+			top: calc(var(--header-h) + 2rem);
 		}
 	}
 </style>

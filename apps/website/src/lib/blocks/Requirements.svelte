@@ -6,15 +6,17 @@
 	let { block }: { block: BlockOf<'requirements'> } = $props();
 </script>
 
-<section class="section">
+<section class="section requirements">
 	<div class="container">
-		{#if block.title}<h2>{block.title}</h2>{/if}
-		{#if block.intro}<p class="lead intro">{block.intro}</p>{/if}
+		<header>
+			{#if block.title}<h2>{block.title}</h2>{/if}
+			{#if block.intro}<p class="lead">{block.intro}</p>{/if}
+		</header>
 		<ul class="list">
 			{#each block.items ?? [] as item, i (item?.id ?? i)}
 				<li>
 					<h3>{item?.name ?? ''}</h3>
-					{#if item?.why}<p class="muted">{item.why}</p>{/if}
+					{#if item?.why}<p class="why">{item.why}</p>{/if}
 					{#if item?.href}<Link href={item.href} class="more">Learn more</Link>{/if}
 				</li>
 			{/each}
@@ -23,30 +25,40 @@
 </section>
 
 <style>
-	.intro {
-		max-width: var(--measure);
+	.requirements {
+		background: var(--surface);
+	}
+	header {
+		margin-bottom: clamp(2rem, 1rem + 3vw, 3.5rem);
+	}
+	header :global(.lead) {
+		max-width: 36rem;
 	}
 	.list {
 		display: grid;
-		gap: 1rem;
-		margin: 2rem 0 0;
+		gap: 2.5rem 3rem;
+		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
-	li {
-		padding: 1.25rem;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
+	h3 {
+		font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.2rem);
+		letter-spacing: -0.03em;
+	}
+	.why {
+		margin-bottom: 0.5rem;
+		color: var(--muted);
 	}
 	li :global(.more) {
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
 		color: var(--accent);
+		font-weight: 650;
 	}
 	@media (min-width: 48rem) {
 		.list {
-			grid-template-columns: repeat(3, 1fr);
+			grid-template-columns: repeat(3, minmax(0, 1fr));
 		}
 	}
 </style>

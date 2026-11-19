@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../../app.css';
+	import '#lib/site.css';
 	import Footer from '#lib/Footer.svelte';
 	import Header from '#lib/Header.svelte';
 	import { buildShell } from '#lib/shell.ts';
@@ -30,11 +31,11 @@
 		left: var(--gutter);
 		top: -4rem;
 		z-index: 50;
-		padding: 0.75rem 1rem;
+		padding: 0.75rem 1.25rem;
 		background: var(--fg);
 		color: var(--bg);
-		border-radius: var(--radius);
-		font-weight: 600;
+		border-radius: 999px;
+		font-weight: 650;
 		text-decoration: none;
 	}
 	.skip:focus {

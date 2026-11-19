@@ -9,7 +9,7 @@
 
 <section class="hero">
 	<div class="container">
-		{#if block.eyebrow}<p class="eyebrow muted">{block.eyebrow}</p>{/if}
+		{#if block.eyebrow}<p class="note">{block.eyebrow}</p>{/if}
 		<h1>{block.heading ?? ''}</h1>
 		{#if block.subheading}<p class="lead sub">{block.subheading}</p>{/if}
 		{#if block.installCommand}<div class="cmd"><InstallCommand command={block.installCommand} /></div>{/if}
@@ -26,19 +26,27 @@
 
 <style>
 	.hero {
-		padding-block: var(--section);
+		padding-block: clamp(3rem, 1.5rem + 7vw, 8rem) clamp(4rem, 2.5rem + 7vw, 8rem);
 	}
-	.eyebrow {
-		font-family: var(--font-mono);
-		font-size: 0.875rem;
+	.note {
+		display: inline-block;
+		margin-bottom: 1.5rem;
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		background: var(--surface);
+		color: var(--muted);
+		font-size: 0.9375rem;
 	}
 	h1 {
-		max-width: 20ch;
+		max-width: 21ch;
+		margin-bottom: 0.35em;
 	}
 	.sub {
-		max-width: 44rem;
+		max-width: 38rem;
+		margin-bottom: 2rem;
+		color: var(--fg);
 	}
 	.cmd {
-		margin-block: 1.5rem;
+		margin-bottom: 1.25rem;
 	}
 </style>

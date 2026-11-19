@@ -1,5 +1,6 @@
 <script lang="ts">
 	// Copies `text` to the clipboard and says so. Works only in the browser (needs a secure context).
+	// Colours come from `--copy-bg` / `--copy-fg` so a parent can theme it.
 	let { text, label = 'Copy', describe }: { text: string; label?: string; describe?: string } = $props();
 	let copied = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -24,15 +25,20 @@
 <style>
 	.copy {
 		min-height: 2.75rem;
-		min-width: 2.75rem;
-		padding: 0 0.9rem;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		background: var(--surface);
-		color: var(--fg);
+		min-width: 4.5rem;
+		padding: 0 1rem;
+		border: 0;
+		border-radius: 999px;
+		background: var(--copy-bg, var(--surface-2));
+		color: var(--copy-fg, var(--fg));
 		font: inherit;
-		font-size: 0.875rem;
+		font-size: 0.9375rem;
+		font-weight: 650;
 		cursor: pointer;
+		transition: filter 0.15s ease;
+	}
+	.copy:hover {
+		filter: brightness(1.1);
 	}
 	.sr-only {
 		position: absolute;
