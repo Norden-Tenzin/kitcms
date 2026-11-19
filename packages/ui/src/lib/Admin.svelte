@@ -6,6 +6,8 @@
 	import { adminHref, collectionHref, globalHref, panelHref } from './links';
 	import Login from './views/Login.svelte';
 	import FirstUser from './views/FirstUser.svelte';
+	import ForgotPassword from './views/ForgotPassword.svelte';
+	import ResetPassword from './views/ResetPassword.svelte';
 	import Dashboard from './views/Dashboard.svelte';
 	import List from './views/List.svelte';
 	import type { AdminClientConfig } from './preview/types';
@@ -19,7 +21,8 @@
 		admin,
 	}: { data: AdminData; form?: AdminActionData | null; admin?: AdminClientConfig } = $props();
 
-	type Signed = Exclude<AdminData, { route: { view: 'login' | 'create-first-user' } }>;
+	type PublicView = 'login' | 'create-first-user' | 'forgot-password' | 'reset-password';
+	type Signed = Exclude<AdminData, { route: { view: PublicView } }>;
 	// TypeScript doesn't narrow `data` from `data.route.view`, so views get a typed accessor.
 	const as = <V extends AdminData['route']['view']>(v: V) =>
 		data.route.view === v ? (data as AdminDataOf<V>) : null;
@@ -29,7 +32,10 @@
 	const versions = $derived(as('versions'));
 	const panel = $derived(as('panel'));
 	const signed = $derived(
-		data.route.view === 'login' || data.route.view === 'create-first-user'
+		data.route.view === 'login' ||
+			data.route.view === 'create-first-user' ||
+			data.route.view === 'forgot-password' ||
+			data.route.view === 'reset-password'
 			? null
 			: (data as Signed),
 	);
@@ -110,7 +116,23 @@
 	style:--kc-accent-text={data.branding.colors.accentText}
 >
 	{#if data.route.view === 'login'}
-		<Login title={data.title} logo={data.branding.logo} message={form?.message} />
+		<Login title={data.title} logo={data.branding.logo} message={form?.message} emailEnabled={as('login')?.emailEnabled} />
+	{:else if data.route.view === 'forgot-password'}
+		<ForgotPassword
+			title={data.title}
+			logo={data.branding.logo}
+			message={form?.message}
+			sent={form?.resetRequested === true}
+			emailEnabled={as('forgot-password')?.emailEnabled ?? false}
+		/>
+	{:else if data.route.view === 'reset-password'}
+		<ResetPassword
+			title={data.title}
+			logo={data.branding.logo}
+			message={form?.message}
+			token={as('reset-password')?.token ?? ''}
+			link={as('reset-password')?.link ?? null}
+		/>
 	{:else if data.route.view === 'create-first-user'}
 		<FirstUser title={data.title} logo={data.branding.logo} message={form?.message} />
 	{:else if signed}

@@ -99,7 +99,7 @@
 				!path.includes('.') &&
 				(hidden.has(field.name) || readOnly || Boolean(field.admin.readOnly || field.admin.hidden)),
 		});
-		if (mode === 'create' && collection.auth && !password) {
+		if (mode === 'create' && collection.auth && !password && !invite) {
 			list.push({ path: FORM.password, message: 'Password is required.' });
 		}
 		setErrors(list);
@@ -115,6 +115,9 @@
 	}
 
 	let password = $state('');
+	// Auth create: email a set-password invite instead (Decision 37), when the server says email works.
+	const canInvite = $derived(data.route.view === 'create' && (data as AdminDataOf<'create'>).canInvite === true);
+	let invite = $state(false);
 
 	// ----- autosave ---------------------------------------------------------------------------------
 	let lastSnap = untrack(() => JSON.stringify($state.snapshot(values)));
@@ -295,7 +298,13 @@
 			bind:values
 			position="main"
 		/>
-		{#if mode === 'create' && collection.auth}
+		{#if mode === 'create' && collection.auth && canInvite}
+			<label class="invite">
+				<input type="checkbox" name={FORM.invite} bind:checked={invite} />
+				Email an invite: they choose their own password
+			</label>
+		{/if}
+		{#if mode === 'create' && collection.auth && !invite}
 			<div class="kc-field" data-path={FORM.password}>
 				<label for="kc-password">Password<span aria-hidden="true">*</span></label>
 				<input
@@ -421,6 +430,12 @@
 {/if}
 
 <style>
+	.invite {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+		font-weight: 500;
+	}
 	.crumbs {
 		display: flex;
 		gap: 0.4rem;

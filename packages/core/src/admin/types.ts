@@ -8,6 +8,10 @@ import type { PanelContent } from '../config/plugin';
 export type AdminRoute =
 	| { view: 'login' }
 	| { view: 'create-first-user' }
+	/** "Forgot password": asks for an email and sends a reset link (Decision 37). */
+	| { view: 'forgot-password' }
+	/** Opened from a reset or invite link: `?token=...`. */
+	| { view: 'reset-password' }
 	| { view: 'dashboard' }
 	| { view: 'list'; collection: string }
 	| { view: 'create'; collection: string }
@@ -93,8 +97,16 @@ export interface ListQuery {
 
 /** What the admin `load` returns, discriminated by `route.view`. */
 export type AdminData =
-	| (Base & { route: { view: 'login' } })
+	| (Base & { route: { view: 'login' }; /** Email is set up, so "forgot password" can work. */ emailEnabled?: boolean })
 	| (Base & { route: { view: 'create-first-user' } })
+	| (Base & { route: { view: 'forgot-password' }; emailEnabled: boolean })
+	| (Base & {
+			route: { view: 'reset-password' };
+			/** The token from the link (posted back with the form); `''` when missing. */
+			token: string;
+			/** `null`: the link is invalid, used or expired. */
+			link: { kind: 'reset' | 'invite'; email: string } | null;
+	  })
 	| (SignedIn & {
 			route: { view: 'dashboard' };
 			/** Plugin panels marked `dashboard: true`, loaded and validated. */
@@ -117,6 +129,8 @@ export type AdminData =
 			permissions: AdminPermissions;
 			/** Initial form values (static defaults applied on the server). */
 			doc: Record<string, unknown>;
+			/** Auth collection + email set up: a new user can be invited by email instead of given a password. */
+			canInvite?: boolean;
 	  })
 	| (SignedIn & {
 			route: { view: 'edit'; collection: string; id: string };
@@ -175,6 +189,8 @@ export interface AdminActionData {
 	saved?: boolean;
 	/** `setPassword` succeeded. */
 	passwordChanged?: boolean;
+	/** `forgotPassword` finished: show the neutral "if the account exists" message. */
+	resetRequested?: boolean;
 	/** A message for the whole form (auth errors, forbidden, referenced). */
 	message?: string;
 	/** Field errors, by dot path (`sections.0.heading`). */
@@ -194,6 +210,8 @@ export const FORM = {
 	marker: (path: string) => `${path}.__present`,
 	/** The form field carrying the auth collection's password on create and in setPassword. */
 	password: '__password',
+	/** Auth collection create: email a set-password invite instead of setting a password. */
+	invite: '__invite',
 	currentPassword: '__currentPassword',
 	/** Bulk delete: repeated, one per selected id. */
 	ids: '__ids',

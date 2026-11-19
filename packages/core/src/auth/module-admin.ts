@@ -7,6 +7,13 @@ import { ForbiddenError, isKitcmsError, ValidationError } from '../errors';
 import type { KitcmsInternals } from '../sveltekit/index';
 import { decideAdminAccess as decide, type GuardDecision } from './guard';
 import {
+	PasswordTokenError,
+	requestPasswordReset,
+	resetPasswordWithToken,
+	sendInvite,
+	type PasswordLink,
+} from './password-tokens';
+import {
 	authContext,
 	countUsers,
 	createFirstAdmin as createFirst,
@@ -116,4 +123,59 @@ export async function setPassword(
 		}
 		throw err;
 	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Password links (Decision 37)
+// ---------------------------------------------------------------------------------------------
+
+export { peekPasswordToken } from './password-tokens';
+
+export async function forgotPassword(
+	k: KitcmsInternals,
+	input: { email: string; ip: string | null; link: PasswordLink; title: string },
+): Promise<Result> {
+	const outcome = await requestPasswordReset(k, input);
+	if (outcome === 'rate-limited') return { ok: false, status: 429, message: 'Too many requests. Try again later.' };
+	if (outcome === 'email-off') return { ok: false, status: 503, message: 'Email is not set up for this site, so a reset link cannot be sent. Ask an admin to set a new password.' };
+	return { ok: true };
+}
+
+export async function resetPassword(
+	k: KitcmsInternals,
+	input: { token: string; newPassword: string; ip: string | null },
+): Promise<{ ok: true; email: string } | { ok: false; status: number; message: string }> {
+	try {
+		const { email } = await resetPasswordWithToken(k, input);
+		return { ok: true, email };
+	} catch (err) {
+		if (err instanceof ValidationError) return { ok: false, status: 400, message: err.errors[0]?.message ?? err.message };
+		if (err instanceof PasswordTokenError) return { ok: false, status: err.code === 'RATE_LIMITED' ? 429 : 400, message: err.message };
+		throw err;
+	}
+}
+
+/**
+ * The admin "create user" flow with an invite instead of a password: the row is created with the
+ * CALLER's access (as in `createUserWithPassword`), then a set-password link is emailed. If the
+ * email can't be sent the new user is deleted again, so nobody is left without a way in.
+ */
+export async function createUserWithInvite(
+	k: KitcmsInternals,
+	data: Record<string, unknown>,
+	opts: { link: PasswordLink; title: string },
+): Promise<{ id: string }> {
+	if (!k.email.enabled) {
+		throw new ValidationError([{ path: FORM.invite, message: 'Email is not set up, so invites cannot be sent. Set a password instead.' }]);
+	}
+	const doc = (await k.cms.create(k.config.authCollection, { ...data, email: String(data.email ?? '').trim().toLowerCase() })) as {
+		id: string;
+	};
+	try {
+		await sendInvite(k, doc.id, opts);
+	} catch (err) {
+		await k.cmsFor(null).delete(k.config.authCollection, doc.id, { overrideAccess: true }).catch(() => {});
+		throw err;
+	}
+	return { id: doc.id };
 }
