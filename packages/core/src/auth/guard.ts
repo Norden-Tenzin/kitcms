@@ -30,7 +30,7 @@ export function decideAdminAccess(input: {
 		if (allowed) return { kind: 'redirect', to: 'dashboard' };
 		return userCount === 0 ? { kind: 'redirect', to: 'create-first-user' } : { kind: 'allow' };
 	}
-	// Password links (Decision 37) work signed out and signed in (an invite opened in a browser where
+	// Password links (Decision 42) work signed out and signed in (an invite opened in a browser where
 	// someone else is signed in). They change nothing until a valid token is posted.
 	if (view === 'forgot-password' || view === 'reset-password') {
 		return userCount === 0 ? { kind: 'redirect', to: 'create-first-user' } : { kind: 'allow' };

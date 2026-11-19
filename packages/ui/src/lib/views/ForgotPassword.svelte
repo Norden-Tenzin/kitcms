@@ -1,5 +1,5 @@
 <script lang="ts">
-	// "Forgot password" (Decision 37): emails a reset link. The answer is the same whether or not
+	// "Forgot password" (Decision 42): emails a reset link. The answer is the same whether or not
 	// the account exists.
 	import { enhance } from '$app/forms';
 	import { adminHref } from '../links';

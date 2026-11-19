@@ -1,4 +1,4 @@
-// Config values resolved per request (Decision 36). One build of an app can serve many deployments
+// Config values resolved per request (Decision 41). One build of an app can serve many deployments
 // (one Worker per site, each with its own D1 and Worker vars), so a few settings that differ per
 // deployment may be functions of the Worker's env and the site's own content instead of constants:
 // the email sender, the admin title, a plugin's notify addresses or a Turnstile site key.

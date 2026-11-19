@@ -90,7 +90,7 @@ describe('isSameOrigin', () => {
 	});
 });
 
-describe('password link views (Decision 37)', () => {
+describe('password link views (Decision 42)', () => {
 	for (const view of ['forgot-password', 'reset-password'] as const) {
 		it(`${view}: open signed out and signed in, but not before the first user`, () => {
 			expect(decideAdminAccess({ view, user: null, canUseAdmin: false, userCount: 3 })).toEqual({ kind: 'allow' });

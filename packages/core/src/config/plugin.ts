@@ -106,7 +106,7 @@ export interface PluginEndpointContext {
 	email: EmailSender;
 	/** `cf-connecting-ip`, or `null` (local dev). */
 	ip: string | null;
-	/** For resolvable options (Decision 36): the Worker env and a read-only system Local API. */
+	/** For resolvable options (Decision 41): the Worker env and a read-only system Local API. */
 	runtime: RuntimeContext;
 }
 

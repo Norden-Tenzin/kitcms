@@ -115,7 +115,7 @@
 	}
 
 	let password = $state('');
-	// Auth create: email a set-password invite instead (Decision 37), when the server says email works.
+	// Auth create: email a set-password invite instead (Decision 42), when the server says email works.
 	const canInvite = $derived(data.route.view === 'create' && (data as AdminDataOf<'create'>).canInvite === true);
 	let invite = $state(false);
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Opened from a reset or invite link (Decision 37): choose a password, then you're signed in.
+	// Opened from a reset or invite link (Decision 42): choose a password, then you're signed in.
 	import { enhance } from '$app/forms';
 	import { adminHref } from '../links';
 

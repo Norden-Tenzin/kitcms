@@ -1,4 +1,4 @@
-// Decision 36: `notify` and `turnstile.siteKey` may be functions resolved per request.
+// Decision 41: `notify` and `turnstile.siteKey` may be functions resolved per request.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('cloudflare:workers', () => ({ env: {}, waitUntil: undefined }));

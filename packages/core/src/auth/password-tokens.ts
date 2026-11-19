@@ -1,4 +1,4 @@
-// Password reset and invite links (plan §8 of the platform; kitcms Decision 37). SECURITY-CRITICAL.
+// Password reset and invite links (plan §8 of the platform; kitcms Decision 42). SECURITY-CRITICAL.
 //
 // A link carries a random 256-bit token. Only its SHA-256 lands in `auth_verifications` (identifier
 // `kitcms-pw:<hex>`), so a database leak reveals no usable link. A token is single-use (deleted

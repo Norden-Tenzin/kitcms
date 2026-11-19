@@ -1,4 +1,4 @@
-// Trusted server-to-server setup (Decision 38). SECURITY-CRITICAL.
+// Trusted server-to-server setup (Decision 43). SECURITY-CRITICAL.
 //
 // A hosting platform that provisions one deployment per customer calls these right after it uploads
 // the Worker, to fill the new database without a browser:

@@ -21,7 +21,7 @@ export interface EnquiryForm {
 	fields: Record<string, EnquiryField>;
 	/**
 	 * Notification recipients (sent with core's email adapter). Empty/omitted = store only. A function
-	 * (Decision 36) is resolved per submission, e.g. the contact email from a global; addresses it
+	 * (Decision 41) is resolved per submission, e.g. the contact email from a global; addresses it
 	 * returns that aren't valid are skipped.
 	 */
 	notify?: Resolvable<string[]>;
@@ -38,7 +38,7 @@ export interface EnquiriesOptions {
 	collection?: string;
 	/** Cloudflare Turnstile. When set, every submission must carry a valid token. */
 	turnstile?: {
-		/** The widget's site key. A function (Decision 36) is resolved per request, e.g. from a Worker var. */
+		/** The widget's site key. A function (Decision 41) is resolved per request, e.g. from a Worker var. */
 		siteKey: Resolvable<string | undefined>;
 		/** Worker secret name. Default `'TURNSTILE_SECRET'`. */
 		secret?: string;

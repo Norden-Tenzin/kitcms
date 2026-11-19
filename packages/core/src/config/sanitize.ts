@@ -957,7 +957,7 @@ const EMAIL_ADDRESS = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
 function sanitizeEmailConfig(raw: unknown): SanitizedConfig['email'] {
 	if (raw === undefined) return null;
 	if (!isObject(raw)) throw new ConfigError('email.from', 'is required: `{ address, name? }`.');
-	// Functions (Decision 36) are validated per message, once they have a value.
+	// Functions (Decision 41) are validated per message, once they have a value.
 	if (typeof raw.from === 'function') {
 		const out: NonNullable<SanitizedConfig['email']> = { from: raw.from as never };
 		if (raw.replyTo !== undefined) out.replyTo = sanitizeReplyTo(raw.replyTo);
@@ -1216,7 +1216,7 @@ export function toClientConfig(config: SanitizedConfig): ClientConfig {
 		collections: config.collections.map(toClientCollection),
 		globals: config.globals.map(toClientCollection),
 		authCollection: config.authCollection,
-		// A per-request title (Decision 36) is resolved by the admin load; never send a function.
+		// A per-request title (Decision 41) is resolved by the admin load; never send a function.
 		admin: {
 			title: typeof config.admin.title === 'string' ? config.admin.title : 'kitcms',
 			branding: config.admin.branding,

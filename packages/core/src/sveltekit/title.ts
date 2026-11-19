@@ -1,4 +1,4 @@
-// `admin.title`, resolved for a request (Decision 36). Used by the admin pages and in emails.
+// `admin.title`, resolved for a request (Decision 41). Used by the admin pages and in emails.
 import { resolveValue } from '../config/resolvable';
 import type { KitcmsInternals } from './index';
 

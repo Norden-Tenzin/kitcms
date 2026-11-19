@@ -126,7 +126,7 @@ export async function setPassword(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Password links (Decision 37)
+// Password links (Decision 42)
 // ---------------------------------------------------------------------------------------------
 
 export { peekPasswordToken } from './password-tokens';

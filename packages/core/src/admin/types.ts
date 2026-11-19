@@ -8,7 +8,7 @@ import type { PanelContent } from '../config/plugin';
 export type AdminRoute =
 	| { view: 'login' }
 	| { view: 'create-first-user' }
-	/** "Forgot password": asks for an email and sends a reset link (Decision 37). */
+	/** "Forgot password": asks for an email and sends a reset link (Decision 42). */
 	| { view: 'forgot-password' }
 	/** Opened from a reset or invite link: `?token=...`. */
 	| { view: 'reset-password' }

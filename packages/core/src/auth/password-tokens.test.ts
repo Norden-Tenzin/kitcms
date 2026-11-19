@@ -1,4 +1,4 @@
-// Password reset and invite links (Decision 37). SECURITY-CRITICAL. Real Better Auth + Drizzle +
+// Password reset and invite links (Decision 42). SECURITY-CRITICAL. Real Better Auth + Drizzle +
 // kitcms pipeline on a Miniflare D1 (harness copied from users.test.ts).
 // SvelteKit-only modules are mocked; `sveltekitCookies` needs a request event, so the sign-in
 // success path is tested with an event whose `cookies.set` we capture.

@@ -300,7 +300,7 @@ export interface ConfigOptions {
 	 */
 	email?: {
 		/**
-		 * The sender. The domain must be set up for Cloudflare Email Service. A function (Decision 36)
+		 * The sender. The domain must be set up for Cloudflare Email Service. A function (Decision 41)
 		 * is resolved per message, e.g. the address from a Worker var and the name from a global; its
 		 * result is validated when the message is sent.
 		 */
@@ -309,7 +309,7 @@ export interface ConfigOptions {
 		replyTo?: Resolvable<string | undefined>;
 	};
 	/**
-	 * Trusted server-to-server setup (Decision 38): a hosting platform provisioning a deployment
+	 * Trusted server-to-server setup (Decision 43): a hosting platform provisioning a deployment
 	 * calls `POST /api/system/seed/:name` and `POST /api/system/users` with
 	 * `Authorization: Bearer <token>`. Off (404) unless the Worker secret holds a token of at least
 	 * 32 characters.
@@ -335,7 +335,7 @@ export interface ConfigOptions {
 		/** Slug of the `auth: true` collection. Default: the one marked `auth: true`, else a built-in `users`. */
 		user?: string;
 		/**
-		 * Shown in the admin header and the browser title. Default: `'kitcms'`. A function (Decision 36)
+		 * Shown in the admin header and the browser title. Default: `'kitcms'`. A function (Decision 41)
 		 * is resolved per admin page, e.g. the site's name from a global; when it throws or returns an
 		 * empty value the admin shows `'kitcms'`.
 		 */

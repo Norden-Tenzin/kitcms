@@ -38,7 +38,7 @@ const MAX_BODY = 1024 * 1024;
 const isAddress = (v: unknown): v is string =>
 	typeof v === 'string' && v.length <= 254 && ADDRESS.test(v);
 
-/** The sender settings for one message, with any functions (Decision 36) resolved. */
+/** The sender settings for one message, with any functions (Decision 41) resolved. */
 export interface ResolvedEmailSettings {
 	from: { address: string; name?: string };
 	replyTo?: string;
@@ -151,7 +151,7 @@ export function createConsoleEmail(log: (...args: unknown[]) => void = console.i
 /**
  * The `EmailSender` for a request. Dev → console. No `config.email` or no binding → disabled
  * (`send` throws `EmailNotConfiguredError`). `systemCms` (the Local API acting as the system) feeds
- * a function-valued sender (Decision 36); it is only called when one is configured.
+ * a function-valued sender (Decision 41); it is only called when one is configured.
  */
 export function emailFor(
 	config: SanitizedConfig,

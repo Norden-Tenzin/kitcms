@@ -82,7 +82,7 @@ export interface KitcmsInternals {
 	storage?: StorageAdapter;
 	/** Outgoing email (Decision 35). */
 	email: EmailSender;
-	/** For resolvable config values (Decision 36): the env and a read-only system Local API. */
+	/** For resolvable config values (Decision 41): the env and a read-only system Local API. */
 	runtime(): RuntimeContext;
 }
 

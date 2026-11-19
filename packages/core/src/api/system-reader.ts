@@ -1,4 +1,4 @@
-// The Local API handed to resolvable config values (Decision 36) and other trusted read-only code:
+// The Local API handed to resolvable config values (Decision 41) and other trusted read-only code:
 // every READ runs as the system (`overrideAccess: true`), and every write throws, so a value computed
 // from the site's content can never change it.
 import type { Cms } from './types';

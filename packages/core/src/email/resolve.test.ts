@@ -1,4 +1,4 @@
-// Decision 36: a function-valued `email.from` / `email.replyTo`, and `admin.title`.
+// Decision 41: a function-valued `email.from` / `email.replyTo`, and `admin.title`.
 import { describe, expect, it, vi } from 'vitest';
 import { defineConfig } from '../config/collection';
 import { sanitizeConfig, toClientConfig } from '../config/sanitize';
