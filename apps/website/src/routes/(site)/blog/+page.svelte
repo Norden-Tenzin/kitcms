@@ -43,38 +43,55 @@
 
 <style>
 	.wrap {
-		padding-block: var(--section);
+		padding-block: clamp(3rem, 2rem + 5vw, 6rem) var(--section);
+	}
+	h1 {
+		margin-bottom: clamp(2rem, 1rem + 3vw, 4rem);
 	}
 	.posts {
-		margin: 2rem 0 0;
+		margin: 0;
 		padding: 0;
 		list-style: none;
-		max-width: var(--measure);
+		display: grid;
+		gap: 0.75rem;
 	}
 	.posts li {
-		padding-block: 1.25rem;
-		border-top: 1px solid var(--line);
+		padding: clamp(1.25rem, 0.5rem + 2vw, 2rem);
+		border-radius: 1rem;
+		background: var(--surface);
+	}
+	.posts article {
+		display: grid;
+		gap: 0.25rem 2rem;
 	}
 	h2 {
-		font-size: 1.5rem;
+		margin: 0 0 0.25rem;
+		font-size: clamp(1.5rem, 1.1rem + 1.5vw, 2.25rem);
 	}
 	h2 :global(a) {
 		text-decoration: none;
+	}
+	h2 :global(a:hover) {
+		color: var(--accent);
+		text-decoration: underline;
+	}
+	.posts p {
+		margin: 0;
 	}
 	.meta {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		margin: 0 0 0.25rem;
 		font-size: 0.9375rem;
 	}
 	.badge {
-		padding: 0.1em 0.6em;
-		border: 1px solid var(--line);
+		padding: 0.1em 0.7em;
 		border-radius: 999px;
+		background: var(--accent);
+		color: var(--accent-ink);
 		font-family: var(--font-mono);
 		font-size: 0.8125rem;
-		color: var(--fg);
+		font-weight: 600;
 	}
 	.pager {
 		display: flex;
@@ -86,5 +103,19 @@
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
+		font-weight: 650;
+	}
+	@media (min-width: 48rem) {
+		.posts article {
+			grid-template-columns: 11rem minmax(0, 1fr);
+		}
+		.posts .meta {
+			grid-row: 1 / span 2;
+			align-self: start;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.4rem;
+			padding-top: 0.6rem;
+		}
 	}
 </style>

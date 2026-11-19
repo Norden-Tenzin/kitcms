@@ -73,7 +73,7 @@
 				aria-controls="docs-sidebar"
 				onclick={show}
 			>
-				Menu
+				Browse docs
 			</button>
 		</div>
 	</div>
@@ -117,14 +117,13 @@
 
 <style>
 	.docs {
-		--code-bg: var(--surface);
+		--code-bg-docs: var(--code-bg);
 	}
 
 	/* ---- Mobile bar + drawer ---- */
 	.menu-bar {
-		border-bottom: 1px solid var(--line);
 		position: sticky;
-		top: 0;
+		top: var(--header-h);
 		z-index: 20;
 		background: var(--bg);
 	}
@@ -132,17 +131,18 @@
 	.close {
 		min-height: 2.75rem;
 		min-width: 2.75rem;
-		padding: 0 1rem;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		background: var(--surface);
+		padding: 0 1.25rem;
+		border: 0;
+		border-radius: 999px;
+		background: var(--surface-2);
 		color: var(--fg);
 		font: inherit;
 		font-size: 0.9375rem;
+		font-weight: 650;
 		cursor: pointer;
 	}
 	.menu-bar .container {
-		padding-block: 0.375rem;
+		padding-block: 0.5rem;
 	}
 	.grid {
 		display: block;
@@ -155,8 +155,7 @@
 		width: min(20rem, 85vw);
 		overflow-y: auto;
 		padding: 1rem var(--gutter) 2rem;
-		background: var(--bg);
-		border-right: 1px solid var(--line);
+		background: var(--surface);
 		visibility: hidden;
 		transform: translateX(-100%);
 		transition:
@@ -173,7 +172,7 @@
 		inset: 0;
 		z-index: 30;
 		border: 0;
-		background: rgb(0 0 0 / 0.5);
+		background: rgb(0 0 0 / 0.55);
 		cursor: default;
 	}
 	.sidebar-head {
@@ -192,12 +191,12 @@
 
 	/* ---- Sidebar nav ---- */
 	.nav-title {
-		margin: 1.25rem 0 0.25rem;
-		font-size: 0.8125rem;
+		margin: 1.5rem 0 0.25rem;
+		padding-inline: 0.75rem;
+		font-size: 0.9375rem;
 		font-weight: 700;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--muted);
+		letter-spacing: -0.005em;
+		line-height: 1.3;
 	}
 	.sidebar ul {
 		margin: 0;
@@ -209,17 +208,19 @@
 		align-items: center;
 		min-height: 2.75rem;
 		padding: 0 0.75rem;
-		border-radius: var(--radius);
+		border-radius: 0.6rem;
+		color: var(--muted);
 		text-decoration: none;
 		overflow-wrap: anywhere;
 	}
 	.sidebar li :global(a:hover) {
-		background: var(--surface);
+		background: var(--surface-2);
+		color: var(--fg);
 	}
 	.sidebar li :global(a[aria-current='page']) {
-		background: var(--surface);
-		color: var(--accent);
-		font-weight: 600;
+		background: var(--surface-2);
+		color: var(--fg);
+		font-weight: 650;
 	}
 
 	.content {
@@ -237,51 +238,57 @@
 		.grid {
 			display: grid;
 			grid-template-columns: 15rem minmax(0, 1fr);
-			gap: 0 clamp(1.5rem, 4vw, 3.5rem);
+			gap: 0 clamp(2rem, 5vw, 4.5rem);
 			align-items: start;
 		}
 		.sidebar {
 			position: sticky;
-			top: 0;
+			top: var(--header-h);
 			z-index: auto;
 			width: auto;
-			max-height: 100svh;
-			padding: 1.5rem 0 2rem;
-			border-right: 0;
+			max-height: calc(100svh - var(--header-h));
+			padding: 1rem 0 2rem;
+			background: transparent;
 			visibility: visible;
 			transform: none;
 		}
 		.sidebar-head {
 			display: none;
 		}
+		.nav-title:first-child {
+			margin-top: 0;
+		}
 		.content {
-			padding-block: 2.5rem 5rem;
+			padding-block: 3rem 6rem;
 		}
 	}
 
 	/* ---- Article prose (the HTML is rendered at build time) ---- */
 	.content :global(.doc) {
-		max-width: 70ch;
+		max-width: 72ch;
 		font-size: 1.0625rem;
+		line-height: 1.7;
 	}
 	.content :global(.doc > :first-child) {
 		margin-top: 0;
 	}
 	.content :global(.doc h1) {
-		font-size: clamp(2rem, 1.4rem + 3vw, 2.75rem);
-		margin-bottom: 0.5rem;
+		font-size: clamp(2.25rem, 1.3rem + 4vw, 3.75rem);
+		letter-spacing: -0.04em;
+		margin-bottom: 0.4em;
+	}
+	.content :global(.doc .lead) {
+		margin-bottom: 2rem;
 	}
 	.content :global(.doc h2) {
-		font-size: clamp(1.4rem, 1.2rem + 1vw, 1.75rem);
-		margin: 2.25em 0 0.6em;
-		padding-top: 1.25em;
-		border-top: 1px solid var(--line);
-		scroll-margin-top: 4.5rem;
+		font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+		margin: 2.5em 0 0.6em;
+		scroll-margin-top: calc(var(--header-h) + 4rem);
 	}
 	.content :global(.doc h3) {
-		font-size: 1.2rem;
-		margin: 1.75em 0 0.5em;
-		scroll-margin-top: 4.5rem;
+		font-size: 1.25rem;
+		margin: 1.9em 0 0.5em;
+		scroll-margin-top: calc(var(--header-h) + 4rem);
 	}
 	.content :global(.doc h2 .anchor),
 	.content :global(.doc h3 .anchor) {
@@ -309,27 +316,30 @@
 		margin: 0 0 1em;
 	}
 	.content :global(.doc li) {
-		margin-bottom: 0.35em;
+		margin-bottom: 0.4em;
 	}
 	.content :global(.doc a:not(.anchor)) {
 		color: var(--accent);
 	}
 	.content :global(.doc blockquote) {
-		margin: 1em 0;
-		padding: 0.1em 1em;
-		border-left: 3px solid var(--accent);
+		margin: 1.25em 0;
+		padding: 0.75em 1.25em;
+		border-radius: var(--radius);
+		background: var(--surface);
 		color: var(--muted);
+	}
+	.content :global(.doc blockquote > :last-child) {
+		margin-bottom: 0;
 	}
 	.content :global(.doc hr) {
 		border: 0;
-		border-top: 1px solid var(--line);
-		margin: 2em 0;
+		margin: 3em 0;
 	}
 	.content :global(.doc :not(pre) > code) {
-		padding: 0.1em 0.35em;
+		padding: 0.12em 0.4em;
 		background: var(--surface);
-		border-radius: 0.25rem;
-		font-size: 0.9em;
+		border-radius: 0.3rem;
+		font-size: 0.88em;
 		overflow-wrap: anywhere;
 	}
 	.content :global(.doc table) {
@@ -337,12 +347,12 @@
 		max-width: 100%;
 		overflow-x: auto;
 		border-collapse: collapse;
-		margin: 0 0 1em;
+		margin: 0 0 1.25em;
 		font-size: 0.9375rem;
 	}
 	.content :global(.doc th),
 	.content :global(.doc td) {
-		padding: 0.5rem 0.75rem;
+		padding: 0.6rem 0.85rem;
 		border: 1px solid var(--line);
 		text-align: left;
 		vertical-align: top;
@@ -354,14 +364,14 @@
 	/* Code blocks */
 	.content :global(.code-block) {
 		position: relative;
-		margin: 0 0 1.25em;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		background: var(--code-bg);
+		margin: 0 0 1.5em;
+		border-radius: 0.75rem;
+		background: var(--code-bg-docs);
+		overflow: hidden;
 	}
 	.content :global(.code-title) {
-		padding: 0.5rem 1rem;
-		border-bottom: 1px solid var(--line);
+		padding: 0.6rem 1.25rem;
+		background: var(--surface-2);
 		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		color: var(--muted);
@@ -369,12 +379,11 @@
 	}
 	.content :global(.code-block pre) {
 		margin: 0;
-		padding: 1rem;
+		padding: 1.1rem 1.25rem;
 		overflow-x: auto;
 		background: transparent !important;
 		font-size: 0.875rem;
-		line-height: 1.6;
-		border-radius: var(--radius);
+		line-height: 1.65;
 	}
 	.content :global(.code-block pre code) {
 		font-family: var(--font-mono);
@@ -386,12 +395,30 @@
 		top: 0;
 		right: 0;
 	}
+	.content :global(.code-block:has(.code-title) .code-actions) {
+		top: 0;
+	}
 	/* Leave room for the copy button on the first line (and under the title bar when there is one). */
 	.content :global(.code-block:not(:has(.code-title)) pre) {
-		padding-right: 5.5rem;
+		padding-right: 6rem;
 	}
 	.content :global(.code-block .code-title) {
-		padding-right: 5.5rem;
+		padding-right: 6rem;
+	}
+	.content :global(.copy-btn) {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+		padding: 0 1rem;
+		border: 0;
+		background: transparent;
+		color: var(--muted);
+		font: inherit;
+		font-size: 0.875rem;
+		font-weight: 650;
+		cursor: pointer;
+	}
+	.content :global(.copy-btn:hover) {
+		color: var(--fg);
 	}
 	/* Shiki dual themes: both colour sets are CSS variables; the theme picks one. */
 	.content :global(.shiki span) {

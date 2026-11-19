@@ -28,7 +28,16 @@
 </article>
 
 <style>
+	.overview {
+		margin-top: 2.5rem;
+	}
+	h2 {
+		font-size: clamp(1.4rem, 1.1rem + 1vw, 1.8rem);
+		margin-bottom: 0.75rem;
+	}
 	.overview-list {
+		display: grid;
+		gap: 0.5rem;
 		list-style: none;
 		margin: 0;
 		padding: 0;
@@ -36,17 +45,23 @@
 	.overview-list li {
 		display: flex;
 		flex-direction: column;
-		padding-block: 0.5rem;
-		border-top: 1px solid var(--line);
+		padding: 0.5rem 1.25rem 1rem;
+		border-radius: 0.75rem;
+		background: var(--surface);
 	}
 	.overview-list :global(a) {
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
-		font-weight: 600;
+		font-size: 1.125rem;
+		font-weight: 650;
+		text-decoration: none;
+	}
+	.overview-list :global(a:hover) {
+		color: var(--accent);
+		text-decoration: underline;
 	}
 	.overview-list .muted {
 		margin-top: -0.25rem;
-		padding-bottom: 0.5rem;
 	}
 </style>
