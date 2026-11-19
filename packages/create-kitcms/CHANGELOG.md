@@ -1,5 +1,12 @@
 # create-kitcms
 
+## 0.1.3
+
+### Patch Changes
+
+- b9039fa: The templates' `deploy` script now builds before `wrangler deploy`. Before, `pnpm run deploy` uploaded whatever was in `.svelte-kit/cloudflare` (or failed on a fresh checkout).
+- e85389c: READMEs link to their pages on kitcms.dev/docs. `create-kitcms` ends with a link to the deploy guide and a reminder to create the admin account right after the first deploy.
+
 ## 0.1.2
 
 No changes in this release.
