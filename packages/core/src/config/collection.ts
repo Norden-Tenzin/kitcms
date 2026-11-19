@@ -320,7 +320,9 @@ export interface ConfigOptions {
 		/**
 		 * Seeds the system may run by name, built from the request's JSON `input` (validate it):
 		 * `{ starter: (input) => starterSeed(parse(input)) }`. They run inside the Worker, so
-		 * `ensureUpload` needs bytes, not file paths.
+		 * `ensureUpload` needs bytes, not file paths. Type a seed used here as `SeedFn<Config>`
+		 * (not the default, registered config): the config refers to it, so the registered type
+		 * would refer to itself.
 		 */
 		seeds?: Record<string, (input: unknown) => SeedFn<Config> | Promise<SeedFn<Config>>>;
 	};
