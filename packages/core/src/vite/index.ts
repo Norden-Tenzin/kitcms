@@ -103,6 +103,15 @@ async function devRpcPlugins(options: KitcmsViteOptions): Promise<Plugin[]> {
 	return (Array.isArray(plugins) ? plugins : [plugins]).map((p) => ({ ...p, apply: 'serve' as const }));
 }
 
+const KITCMS_PACKAGES = [
+	'@kitcms/core',
+	'@kitcms/ui',
+	'@kitcms/client',
+	'@kitcms/plugin-seo',
+	'@kitcms/plugin-enquiries',
+	'@kitcms/plugin-entitlements',
+];
+
 function rpcEntryPlugin(options: KitcmsViteOptions): Plugin {
 	let entry: string | undefined;
 	return {
@@ -111,7 +120,16 @@ function rpcEntryPlugin(options: KitcmsViteOptions): Plugin {
 		// One copy of Kit and Svelte, even when @kitcms/* are linked from another checkout
 		// (`link:` / workspaces): a second @sveltejs/kit makes thrown `redirect()`/`error()`
 		// unrecognisable, so /admin answered 500 instead of redirecting.
-		config: () => ({ resolve: { dedupe: ['@sveltejs/kit', 'svelte'] } }),
+		// @kitcms/* ship TypeScript sources, so Vite must compile them as app source, as it already
+		// does for workspace links. Installed from npm they'd otherwise be pre-bundled (the Svelte
+		// optimizer parses `.svelte.ts` as plain JS, and the SSR optimizer splits core's entries into
+		// separate bundles with separate module state) or externalized (Node can't strip types
+		// under node_modules).
+		config: () => ({
+			resolve: { dedupe: ['@sveltejs/kit', 'svelte'] },
+			optimizeDeps: { exclude: KITCMS_PACKAGES },
+			ssr: { noExternal: [/^@kitcms\//], optimizeDeps: { exclude: KITCMS_PACKAGES } },
+		}),
 		configResolved(config) {
 			if (options.rpcEntry === false) return;
 			const file = path.resolve(config.root, options.rpcEntry ?? DEFAULT_RPC_ENTRY);

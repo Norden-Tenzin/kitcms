@@ -48,7 +48,9 @@
 		}
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit && tsc -p test/tsconfig.json && tsc -p src/cli/cli.tsconfig.json && tsc -p src/vite/tsconfig.json"
+		"typecheck": "tsc --noEmit && tsc -p test/tsconfig.json && tsc -p src/cli/cli.tsconfig.json && tsc -p src/vite/tsconfig.json",
+		"build:vite": "tsc -p src/vite/tsconfig.build.json",
+		"prepack": "pnpm build:vite"
 	},
 	"bin": {
 		"kitcms": "./bin/kitcms.js"
@@ -56,6 +58,7 @@
 	"files": [
 		"src",
 		"bin",
+		"dist",
 		"!src/**/*.test.ts"
 	],
 	"peerDependencies": {
@@ -87,6 +90,42 @@
 		},
 		"@cloudflare/vite-plugin": {
 			"optional": true
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			},
+			"./sveltekit": {
+				"types": "./src/sveltekit/index.ts",
+				"default": "./src/sveltekit/index.ts"
+			},
+			"./rpc": {
+				"types": "./src/rpc/index.ts",
+				"default": "./src/rpc/index.ts"
+			},
+			"./sveltekit/admin": {
+				"types": "./src/sveltekit/admin.ts",
+				"default": "./src/sveltekit/admin.ts"
+			},
+			"./client": {
+				"types": "./src/client.ts",
+				"default": "./src/client.ts"
+			},
+			"./sveltekit/api": {
+				"types": "./src/sveltekit/api.ts",
+				"default": "./src/sveltekit/api.ts"
+			},
+			"./richtext": {
+				"types": "./src/richtext/index.ts",
+				"default": "./src/richtext/index.ts"
+			},
+			"./vite": {
+				"types": "./dist/vite/index.d.ts",
+				"default": "./dist/vite/index.js"
+			}
 		}
 	}
 }
