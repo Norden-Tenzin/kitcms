@@ -100,6 +100,8 @@ Do this before you attach a custom domain or share the URL.
 | Cache anonymous reads at the edge | [Edge cache](./edge-cache.md) |
 | Faster reads far from your database | [Read replication and Smart Placement](./replication-and-placement.md) |
 | Move to a newer kitcms | [Upgrading](./upgrading.md) |
+| Provision a site from a script (hosting platforms) | [System setup](./system-setup.md) |
+| Pause a site's writes | [Read-only mode](./read-only-mode.md) |
 
 ## Deploying changes
 
