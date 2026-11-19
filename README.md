@@ -1,5 +1,7 @@
 # kitcms
 
+**Docs:** [kitcms.dev/docs](https://kitcms.dev/docs)
+
 A lightweight, Payload-style CMS for SvelteKit that runs only on Cloudflare Workers, D1 and R2. It works as a full app (admin and site in one Worker) or headless, where other Workers read content through Service Binding RPC. Published as `create-kitcms` and `@kitcms/*`.
 
 ```sh

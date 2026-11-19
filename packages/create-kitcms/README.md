@@ -1,5 +1,7 @@
 # create-kitcms
 
+**Docs:** [kitcms.dev/docs/reference/create-kitcms](https://kitcms.dev/docs/reference/create-kitcms)
+
 Scaffolds a kitcms app: a SvelteKit project wired to `@kitcms/core` and `@kitcms/ui`, with a config, the admin route and a Cloudflare Worker setup (D1 and R2 bindings).
 
 ```sh

@@ -1,5 +1,7 @@
 # @kitcms/ui
 
+**Docs:** [kitcms.dev/docs/configuration/live-preview](https://kitcms.dev/docs/configuration/live-preview)
+
 The kitcms admin: the shell, dashboard, list and edit views, the field components, the block editor, the upload field and the media library. It is Svelte 5 and is rendered by a route file that `kitcms` generates into your app, so there is nothing to build by hand. The admin logic (`load` and form `actions`) lives in `@kitcms/core/sveltekit/admin`.
 
 ```sh

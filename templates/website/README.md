@@ -1,5 +1,7 @@
 # __APP_NAME__
 
+**Docs:** [kitcms.dev/docs/getting-started](https://kitcms.dev/docs/getting-started)
+
 A [kitcms](https://kitcms.dev) website: SvelteKit + Cloudflare Workers + D1 + R2. A generic small business / studio site with pages built from blocks, a blog, a team page, legal pages and site settings.
 
 > **Requires the Workers Paid plan to deploy.** Password hashing exceeds the Free plan's CPU limit.

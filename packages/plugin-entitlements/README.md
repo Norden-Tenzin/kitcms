@@ -1,5 +1,7 @@
 # @kitcms/plugin-entitlements
 
+**Docs:** [kitcms.dev/docs/plugins/entitlements](https://kitcms.dev/docs/plugins/entitlements)
+
 Turns a plan (set by your platform's control plane) into add-on gates and usage limits for a kitcms app.
 The plan is read from a Worker variable, never from D1, and nothing in kitcms can edit it.
 

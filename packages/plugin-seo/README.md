@@ -1,5 +1,7 @@
 # @kitcms/plugin-seo
 
+**Docs:** [kitcms.dev/docs/plugins/seo](https://kitcms.dev/docs/plugins/seo)
+
 Adds an SEO `meta` group (title, description, image, noIndex) to chosen collections and globals,
 plus helpers to render it on the site and preview it in the admin.
 

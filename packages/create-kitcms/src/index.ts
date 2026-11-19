@@ -183,7 +183,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 		);
 	}
 	log(
-		`\nDeploy (requires Workers Paid: password hashing exceeds the Free plan CPU limit):\n  pnpm db:migrate --remote\n  pnpm exec wrangler secret put BETTER_AUTH_SECRET\n  pnpm run deploy`,
+		`\nDeploy (requires Workers Paid: password hashing exceeds the Free plan CPU limit):\n  pnpm db:migrate --remote\n  pnpm exec wrangler secret put BETTER_AUTH_SECRET\n  pnpm run deploy\nThen open /admin on the deployed URL and create your admin account right away.\nFull guide: https://kitcms.dev/docs/deploy`,
 	);
 	return 0;
 }

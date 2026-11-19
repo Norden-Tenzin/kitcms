@@ -1,5 +1,7 @@
 # @kitcms/client
 
+**Docs:** [kitcms.dev/docs/content/rpc](https://kitcms.dev/docs/content/rpc)
+
 A small typed client for Workers that read kitcms content over a Service Binding. It calls the `KitcmsRPC` entrypoint of a kitcms Worker and has no runtime dependencies, so it works in Workers. Use it for headless setups, where the CMS runs in one Worker and the site or other services run in another.
 
 ```sh

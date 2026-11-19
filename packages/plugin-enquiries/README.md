@@ -1,5 +1,7 @@
 # @kitcms/plugin-enquiries
 
+**Docs:** [kitcms.dev/docs/plugins/enquiries](https://kitcms.dev/docs/plugins/enquiries)
+
 Contact and booking forms for kitcms. Forms are defined **in code** (nothing to edit in the admin), submissions are stored in a locked-down collection, spam is blocked with a honeypot, a per-IP rate limit and optional Cloudflare Turnstile, and staff are notified by email.
 
 ## Install

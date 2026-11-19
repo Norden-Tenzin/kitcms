@@ -1,5 +1,7 @@
 # @kitcms/core
 
+**Docs:** [kitcms.dev/docs/configuration](https://kitcms.dev/docs/configuration)
+
 Config, field definitions, the Local API, access rules, hooks, D1 storage, R2 uploads, Better Auth, the SvelteKit integration, the Service Binding RPC entrypoint and the `kitcms` CLI. You define collections in code; kitcms creates the D1 schema from that code and serves them through `locals.cms` and the admin UI.
 
 ```sh
